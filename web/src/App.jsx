@@ -60,6 +60,32 @@ import { withJavTagDisplayName } from '@/utils/javTag'
 import { directoryQueryIds, useStore, videoSelectionKey } from '@/store'
 import { useAuth } from '@/auth'
 
+const WATERFALL_STORAGE_KEY = 'javboss.waterfallModes'
+const WATERFALL_KEYS = ['video', 'jav', 'idol', 'studio', 'series']
+
+const loadSavedWaterfallModes = () => {
+  try {
+    const raw = window.localStorage.getItem(WATERFALL_STORAGE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    const result = {}
+    for (const key of WATERFALL_KEYS) {
+      if (typeof parsed[key] === 'boolean') result[key] = parsed[key]
+    }
+    return Object.keys(result).length ? result : null
+  } catch {
+    return null
+  }
+}
+
+const saveWaterfallModes = (modes) => {
+  try {
+    window.localStorage.setItem(WATERFALL_STORAGE_KEY, JSON.stringify(modes))
+  } catch {
+    // 忽略存储失败（如隐私模式）
+  }
+}
+
 const JAV_SCRAPE_OVERRIDE_SKIP = ':skip'
 const JAV_SCRAPE_OVERRIDE_MANUAL_PREFIX = ':manual:'
 
@@ -263,13 +289,14 @@ export default function App() {
   const [scrapeSettingsSaving, setScrapeSettingsSaving] = useState(false)
   const [searchInput, setSearchInput] = useState('')
   const [javSearchInput, setJavSearchInput] = useState('')
-  const [waterfallModes, setWaterfallModes] = useState({
+  const [waterfallModes, setWaterfallModes] = useState(() => ({
     video: false,
     jav: false,
     idol: false,
     studio: false,
     series: false,
-  })
+    ...loadSavedWaterfallModes(),
+  }))
   const [hydrated, setHydrated] = useState(false)
   const [configLoaded, setConfigLoaded] = useState(false)
   const isJavMode = viewMode === 'jav'
@@ -939,13 +966,21 @@ export default function App() {
 
   useEffect(() => {
     if (!configLoaded) return
-    setWaterfallModes((current) => ({
-      ...current,
-      jav: configFlag(config?.jav_waterfall_default),
-      idol: configFlag(config?.idol_waterfall_default),
-      studio: configFlag(config?.studio_waterfall_default),
-      series: configFlag(config?.series_waterfall_default),
-    }))
+    setWaterfallModes((current) => {
+      const saved = loadSavedWaterfallModes()
+      const next = { ...current }
+      const configDefaults = {
+        jav: configFlag(config?.jav_waterfall_default),
+        idol: configFlag(config?.idol_waterfall_default),
+        studio: configFlag(config?.studio_waterfall_default),
+        series: configFlag(config?.series_waterfall_default),
+      }
+      // 已保存的本地偏好优先，未保存过的页面采用配置默认值
+      for (const [key, value] of Object.entries(configDefaults)) {
+        if (!saved || !(key in saved)) next[key] = value
+      }
+      return next
+    })
   }, [
     configLoaded,
     config?.jav_waterfall_default,
@@ -1565,7 +1600,11 @@ export default function App() {
 
   const setWaterfallMode = useCallback(
     (key, enabled) => {
-      setWaterfallModes((current) => ({ ...current, [key]: enabled }))
+      setWaterfallModes((current) => {
+        const next = { ...current, [key]: enabled }
+        saveWaterfallModes(next)
+        return next
+      })
       if (enabled || !hydrated || !configLoaded) return
       if (key === 'video') {
         loadVideos({ force: true })

@@ -13,3 +13,8 @@ release/
 temp
 internal/bin/
 bin
+start.bat
+
+# Local agent configs (machine-specific, may contain secrets)
+.mcp.json
+.pi/
