@@ -318,6 +318,7 @@ body.has-page-scroll .sticky-pagination {
 
 .player-shell {
   position: relative;
+  overflow: hidden;
   background: #000;
 }
 
@@ -326,22 +327,24 @@ body.has-page-scroll .sticky-pagination {
   height: 100%;
 }
 
-.player-shell .vjs-volume-panel,
-.player-shell .vjs-volume-panel.vjs-volume-panel-horizontal,
-.player-shell .vjs-volume-panel.vjs-volume-panel-horizontal.vjs-mute-toggle-only {
-  width: 10em;
-  transition: none;
+/* 全屏（或比例不匹配）时视频等比缩放居中，避免拉伸 */
+.player-shell .video-js .vjs-tech {
+  object-fit: contain;
 }
 
-.player-shell .vjs-volume-panel .vjs-volume-control,
-.player-shell .vjs-volume-panel .vjs-volume-control.vjs-volume-horizontal {
-  visibility: visible;
-  opacity: 1;
-  position: relative;
-  width: 5em;
-  height: 3em;
-  margin: 0;
-  transition: none;
+/* 自定义控制条随 .player-shell 进入浏览器全屏 */
+.player-shell:fullscreen,
+.player-shell:-webkit-full-screen {
+  width: 100vw;
+  height: 100vh;
+  aspect-ratio: auto;
+  background: #000;
+}
+
+.player-shell:fullscreen .video-js,
+.player-shell:-webkit-full-screen .video-js {
+  width: 100%;
+  height: 100%;
 }
 
 .skeuo-tag {

@@ -89,12 +89,12 @@ const saveWaterfallModes = (modes) => {
 const JAV_SCRAPE_OVERRIDE_SKIP = ':skip'
 const JAV_SCRAPE_OVERRIDE_MANUAL_PREFIX = ':manual:'
 
-const normalizeDefaultPlayer = (value) => {
+const normalizeDefaultPlayer = (value, mpvEnabled = true) => {
   const normalized = String(value || '')
     .trim()
     .toLowerCase()
   if (normalized === 'browser' || normalized === 'system') return normalized
-  return 'mpv'
+  return mpvEnabled ? 'mpv' : 'browser'
 }
 
 const configFlag = (value, fallback = false) => {
@@ -408,10 +408,16 @@ export default function App() {
   const mpvEnabled = configFlag(config?.mpv_enabled, true)
   const defaultPlayer = browserPlaybackOnly
     ? 'browser'
-    : normalizeDefaultPlayer(config?.default_player)
+    : normalizeDefaultPlayer(config?.default_player, mpvEnabled)
   const initialViewMode = normalizeInitialViewMode(config?.initial_view_mode)
   const showTopBarButtonTooltips = configFlag(config?.show_top_bar_button_tooltips, true)
-  const alternatePlayer = browserPlaybackOnly ? '' : defaultPlayer === 'system' ? 'mpv' : 'system'
+  const alternatePlayer = browserPlaybackOnly
+    ? ''
+    : defaultPlayer === 'system'
+      ? mpvEnabled
+        ? 'mpv'
+        : ''
+      : 'system'
   const alternatePlayerLabel =
     alternatePlayer === 'mpv'
       ? zh('使用MPV播放器播放', 'Play with MPV player')
