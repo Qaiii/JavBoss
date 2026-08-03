@@ -325,6 +325,15 @@ export default function TopBar({
     onEnabledDirectoryIdsChange?.(Array.from(next))
   }
 
+  // Directory checkbox is a three-state cycle: unchecked (empty) or partially
+  // enabled (special mark, some subdirectories hidden) toggles to fully
+  // enabled; fully enabled toggles the directory off.
+  const toggleDirectoryEnabled = (id) => {
+    const fullyEnabled =
+      enabledDirectorySet.has(id) && (closedSubdirectories?.[id] || []).length === 0
+    setDirectoryEnabled(id, !fullyEnabled)
+  }
+
   const toggleDirectoryExpanded = (id, nodePath = '') => {
     const key = `${id}:${nodePath}`
     setExpandedDirectoryIds((prev) => {
@@ -393,11 +402,13 @@ export default function TopBar({
     const idx = nodePath.lastIndexOf('/')
     const parentPath = idx === -1 ? '' : nodePath.slice(0, idx)
     const layout = subdirsByDirectory[directoryId] || { rootVideoCount: 0, subdirectories: [] }
+    // nodeDisplayState expects an array (uses .includes/.some), so convert the Set.
+    const closedList = Array.from(closed)
     if (parentPath === '') {
       const topChildren = layout.subdirectories || []
       if (
         topChildren.length > 0 &&
-        topChildren.every((child) => !nodeDisplayState(child, closed).checked) &&
+        topChildren.every((child) => !nodeDisplayState(child, closedList).checked) &&
         Number(layout.rootVideoCount) === 0
       ) {
         enabled.delete(directoryId)
@@ -411,7 +422,7 @@ export default function TopBar({
     const children = parent.subdirectories || []
     if (
       children.length > 0 &&
-      children.every((child) => !nodeDisplayState(child, closed).checked) &&
+      children.every((child) => !nodeDisplayState(child, closedList).checked) &&
       Number(parent.direct_video_count) === 0
     ) {
       closed.add(parentPath)
@@ -423,6 +434,56 @@ export default function TopBar({
   const setSubdirectoryEnabled = (directoryId, nodePath, checked) => {
     const closed = new Set(closedSubdirectories?.[directoryId] || [])
     if (checked) {
+      if (!enabledDirectorySet.has(directoryId)) {
+        // The parent directory is disabled: checking any subdirectory enables
+        // the directory and shows only that subdirectory's contents (every
+        // other top-level subdirectory and any sibling under the checked
+        // node's top-level ancestor is closed). Direct files of the ancestor
+        // cannot be hidden by a path prefix, so they remain visible.
+        const enabled = new Set(enabledDirectorySet)
+        enabled.add(directoryId)
+        const layout = subdirsByDirectory[directoryId]
+        const topNodes = layout?.subdirectories || []
+        if (topNodes.length > 0) {
+          let topAncestor = nodePath
+          while (topAncestor.includes('/')) {
+            topAncestor = topAncestor.slice(0, topAncestor.lastIndexOf('/'))
+          }
+          const nextClosed = new Set()
+          for (const top of topNodes) {
+            if (top.path !== topAncestor) {
+              nextClosed.add(top.path)
+            }
+          }
+          const collectNodePaths = (node, out) => {
+            out.push(node.path)
+            for (const child of node.subdirectories || []) {
+              collectNodePaths(child, out)
+            }
+            return out
+          }
+          const topNode = topNodes.find((top) => top.path === topAncestor)
+          for (const path of collectNodePaths(topNode, [])) {
+            if (
+              path !== nodePath &&
+              path !== topAncestor &&
+              !path.startsWith(nodePath + '/') &&
+              !nodePath.startsWith(path + '/')
+            ) {
+              nextClosed.add(path)
+            }
+          }
+          closed.clear()
+          for (const path of nextClosed) {
+            closed.add(path)
+          }
+        } else {
+          closed.clear()
+        }
+        onEnabledDirectoryIdsChange?.(Array.from(enabled))
+        onClosedSubdirectoriesChange?.(directoryId, Array.from(closed))
+        return
+      }
       // Opening a node reveals its whole subtree: remove the node and all
       // descendant entries from the closed list.
       closed.delete(nodePath)
@@ -458,13 +519,19 @@ export default function TopBar({
 
   // Recursively renders one subdirectory row: checkbox, name, file count and an
   // expand/collapse arrow when the node has children of its own.
-  const renderDirectoryBranch = (directoryId, node, ancestorsClosed, closedList) => {
+  const renderDirectoryBranch = (directoryId, node, parentEnabled, ancestorsClosed, closedList) => {
     const nodePath = node.path
     const nodeClosed = nodeIsClosed(closedList, nodePath)
     const children = node.subdirectories || []
     const expanded = expandedDirectoryIds.has(`${directoryId}:${nodePath}`)
-    const disabled = ancestorsClosed || nodeClosed
-    const { checked, indeterminate } = nodeDisplayState(node, closedList)
+    // A node hidden by a closed ancestor cannot be re-enabled on its own, but a
+    // node that is itself closed stays clickable so checking it restores its
+    // subtree. When the parent directory is disabled, subdirectories render as
+    // unchecked but stay clickable so checking one enables only its contents.
+    const disabled = ancestorsClosed
+    const { checked, indeterminate } = parentEnabled
+      ? nodeDisplayState(node, closedList)
+      : { checked: false, indeterminate: false }
 
     return (
       <div key={nodePath}>
@@ -520,7 +587,13 @@ export default function TopBar({
         {expanded && children.length > 0 ? (
           <div className="border-l border-gray-100 pb-1 pl-4">
             {children.map((child) =>
-              renderDirectoryBranch(directoryId, child, ancestorsClosed || nodeClosed, closedList)
+              renderDirectoryBranch(
+                directoryId,
+                child,
+                parentEnabled,
+                ancestorsClosed || nodeClosed,
+                closedList
+              )
             )}
           </div>
         ) : null}
@@ -1089,19 +1162,9 @@ export default function TopBar({
                       const closedArray = Array.from(closedNames)
                       const expanded = expandedDirectoryIds.has(`${id}:`)
                       const hasSubdirectories = subdirectories.length > 0
-                      const topStates = subdirectories.map((subdir) =>
-                        nodeDisplayState(subdir, closedArray)
-                      )
-                      const topHiddenCount = topStates.filter((state) => !state.checked).length
-                      // A directory is partially enabled when some of its
-                      // subdirectories are hidden, or when every subdirectory is
-                      // hidden but files directly at the root remain visible.
-                      const partiallyEnabled =
-                        checked &&
-                        ((topHiddenCount > 0 && topHiddenCount < subdirectories.length) ||
-                          (hasSubdirectories &&
-                            topHiddenCount === subdirectories.length &&
-                            hasRootFiles))
+                      // A directory is partially enabled (special mark) when it
+                      // is enabled but any subdirectory at any level is hidden.
+                      const partiallyEnabled = checked && closedArray.length > 0
                       return (
                         <div key={directory.id}>
                           <div className="flex items-start gap-2 px-3 py-2 text-sm hover:bg-gray-50">
@@ -1109,7 +1172,7 @@ export default function TopBar({
                               <TriStateCheckbox
                                 checked={checked}
                                 indeterminate={partiallyEnabled}
-                                onChange={(event) => setDirectoryEnabled(id, event.target.checked)}
+                                onChange={() => toggleDirectoryEnabled(id)}
                                 className="mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300 text-blue-600"
                                 aria-label={zh(
                                   `启用目录 ${directoryPath}`,
@@ -1186,7 +1249,7 @@ export default function TopBar({
                               ) : (
                                 <>
                                   {subdirectories.map((subdir) =>
-                                    renderDirectoryBranch(id, subdir, !checked, closedArray)
+                                    renderDirectoryBranch(id, subdir, checked, false, closedArray)
                                   )}
                                   {hasRootFiles ? (
                                     <div className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-500">
