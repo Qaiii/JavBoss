@@ -406,6 +406,7 @@ func applyRuntimeConfigFields(cfg map[string]string) {
 	cfg["desktop_integration_enabled"] = strconv.FormatBool(!runtimeconfig.DisableDesktopIntegration())
 	cfg["mpv_enabled"] = strconv.FormatBool(!runtimeconfig.DisableMPVPlayback())
 	cfg["browser_playback_only"] = strconv.FormatBool(runtimeconfig.DisableMPVPlayback() && runtimeconfig.DisableDesktopIntegration())
+	cfg["host_agent_configured"] = strconv.FormatBool(runtimeconfig.HostAgentConfigured())
 	cfg["host_path_prefix_enabled"] = strconv.FormatBool(runtimeconfig.HostPathPrefixEnabled())
 }
 

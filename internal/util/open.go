@@ -6,8 +6,16 @@ import (
 	"os/exec"
 )
 
-// OpenFile opens a file with the system default application.
+// OpenFile opens a file with the system default application. When running
+// inside a container with a host agent configured, the request is forwarded
+// to the agent so the file opens on the host machine.
 func OpenFile(path string) error {
+	if handled, err := openViaHostAgent(path); handled {
+		if err != nil {
+			return fmt.Errorf("open file via host agent: %w", err)
+		}
+		return nil
+	}
 	if handled, err := openFileDirect(path); handled {
 		if err != nil {
 			return fmt.Errorf("open file: %w", err)
@@ -25,7 +33,15 @@ func OpenFile(path string) error {
 }
 
 // RevealFile opens the containing folder and highlights the file when supported.
+// When running inside a container with a host agent configured, the request is
+// forwarded to the agent so the folder opens on the host machine.
 func RevealFile(path string) error {
+	if handled, err := revealViaHostAgent(path); handled {
+		if err != nil {
+			return fmt.Errorf("reveal file via host agent: %w", err)
+		}
+		return nil
+	}
 	cmd, err := buildOpenCommand(path, true)
 	if err != nil {
 		return err
