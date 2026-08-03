@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+
+	dbpkg "javboss/internal/db"
 )
 
 func queryInt(c *gin.Context, key string, def int) int {
@@ -86,6 +88,38 @@ func parseInt64CSV(s string) []int64 {
 		}
 		seen[value] = struct{}{}
 		out = append(out, value)
+	}
+	return out
+}
+
+// parseClosedSubdirectories parses a "closed_subdirs" query value with the format
+// "<directoryId>:<subdirName>,<directoryId>:<subdirName>,...". Names are split on the
+// first colon so colons inside a name are preserved.
+func parseClosedSubdirectories(s string) []dbpkg.ClosedSubdirectory {
+	if strings.TrimSpace(s) == "" {
+		return nil
+	}
+	parts := strings.Split(s, ",")
+	out := make([]dbpkg.ClosedSubdirectory, 0, len(parts))
+	for _, part := range parts {
+		clean := strings.TrimSpace(part)
+		if clean == "" {
+			continue
+		}
+		idx := strings.IndexByte(clean, ':')
+		if idx <= 0 {
+			continue
+		}
+		id, err := strconv.ParseInt(strings.TrimSpace(clean[:idx]), 10, 64)
+		if err != nil || id <= 0 {
+			continue
+		}
+		name := strings.TrimSpace(clean[idx+1:])
+		// Name is a relative path (slash-separated) for multi-level subdirectories.
+		if name == "" || strings.Contains(name, "\\") || strings.HasPrefix(name, "/") || strings.HasSuffix(name, "/") || strings.Contains(name, "//") {
+			continue
+		}
+		out = append(out, dbpkg.ClosedSubdirectory{DirectoryID: id, Name: name})
 	}
 	return out
 }

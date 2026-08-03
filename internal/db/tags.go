@@ -70,7 +70,7 @@ func RenameTag(ctx context.Context, id int64, newName string) error {
 
 // ListTags returns all tags ordered by name with attached active location counts.
 // By default it includes locations already associated with JAV metadata.
-func ListTags(ctx context.Context, directoryIDs []int64, hideJav ...bool) ([]TagCount, error) {
+func ListTags(ctx context.Context, directoryIDs []int64, closedSubdirs []ClosedSubdirectory, hideJav ...bool) ([]TagCount, error) {
 	var tags []TagCount
 	hideRecognizedJav := false
 	if len(hideJav) > 0 {
@@ -80,6 +80,7 @@ func ListTags(ctx context.Context, directoryIDs []int64, hideJav ...bool) ([]Tag
 	if hideRecognizedJav {
 		countWhere += " AND vl.jav_id IS NULL"
 	}
+	countWhere += closedSubdirectoryFilterSQL("vl", closedSubdirs)
 	query := common.DB.WithContext(ctx).
 		Table("tag t").
 		Select("t.id, t.name, COUNT(DISTINCT CASE WHEN " + countWhere + " THEN vl.id END) AS count").

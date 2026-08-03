@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"javboss/internal/common"
@@ -81,6 +82,123 @@ func GetDirectory(ctx context.Context, id int64) (*models.Directory, error) {
 		return nil, fmt.Errorf("get directory: %w", err)
 	}
 	return &dir, nil
+}
+
+// DirectorySubdirectory summarizes one first-level subdirectory under a root
+// directory together with its active video count.
+// DirectorySubdirectory is one node of the directory tree. Name is the directory
+// name at this level, Path is its full path relative to the root directory
+// (slash-separated), VideoCount is the total number of videos in the subtree
+// (direct files plus all descendants), DirectVideoCount is the number of videos
+// directly inside this directory, and Subdirectories are the child nodes.
+type DirectorySubdirectory struct {
+	Name             string                  `json:"name"`
+	Path             string                  `json:"path"`
+	VideoCount       int64                   `json:"video_count"`
+	DirectVideoCount int64                   `json:"direct_video_count"`
+	Subdirectories   []DirectorySubdirectory `json:"subdirectories"`
+}
+
+// DirectorySubdirectories summarizes the layout of a root directory: files
+// directly at the root plus the tree of subdirectories.
+type DirectorySubdirectories struct {
+	RootVideoCount int64                  `json:"root_video_count"`
+	Subdirectories []DirectorySubdirectory `json:"subdirectories"`
+}
+
+// dirTreeNode is the internal tree node used while building the response.
+type dirTreeNode struct {
+	name     string
+	path     string
+	direct   int64
+	children map[string]*dirTreeNode
+}
+
+func buildDirTree(paths []string) *dirTreeNode {
+	root := &dirTreeNode{children: make(map[string]*dirTreeNode)}
+	for _, p := range paths {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		parts := strings.Split(p, "/")
+		current := root
+		for _, part := range parts[:len(parts)-1] {
+			if part == "" {
+				continue
+			}
+			child, ok := current.children[part]
+			if !ok {
+				childPath := part
+				if current.path != "" {
+					childPath = current.path + "/" + part
+				}
+				child = &dirTreeNode{name: part, path: childPath, children: make(map[string]*dirTreeNode)}
+				current.children[part] = child
+			}
+			current = child
+		}
+		current.direct++
+	}
+	return root
+}
+
+func dirTreeToResponse(node *dirTreeNode) DirectorySubdirectory {
+	children := make([]DirectorySubdirectory, 0, len(node.children))
+	var total int64 = node.direct
+	for _, child := range node.children {
+		converted := dirTreeToResponse(child)
+		total += converted.VideoCount
+		children = append(children, converted)
+	}
+	sort.Slice(children, func(i, j int) bool {
+		if children[i].VideoCount != children[j].VideoCount {
+			return children[i].VideoCount > children[j].VideoCount
+		}
+		return children[i].Name < children[j].Name
+	})
+	return DirectorySubdirectory{
+		Name:             node.name,
+		Path:             node.path,
+		VideoCount:       total,
+		DirectVideoCount: node.direct,
+		Subdirectories:   children,
+	}
+}
+
+// ListDirectorySubdirectories returns the number of videos directly at the root
+// and the full subdirectory tree (first and deeper levels of relative_path),
+// ordered by video count descending then name ascending at each level. Only
+// active locations are counted.
+func ListDirectorySubdirectories(ctx context.Context, directoryID int64) (DirectorySubdirectories, error) {
+	if directoryID <= 0 {
+		return DirectorySubdirectories{}, errors.New("directory id cannot be zero")
+	}
+	var paths []string
+	err := common.DB.WithContext(ctx).Raw(
+		`SELECT relative_path
+		FROM video_location
+		WHERE directory_id = ? AND COALESCE(is_delete, 0) = 0`,
+		directoryID,
+	).Scan(&paths).Error
+	if err != nil {
+		return DirectorySubdirectories{}, fmt.Errorf("list directory subdirectories: %w", err)
+	}
+	root := buildDirTree(paths)
+	result := DirectorySubdirectories{
+		RootVideoCount: root.direct,
+		Subdirectories: make([]DirectorySubdirectory, 0, len(root.children)),
+	}
+	for _, child := range root.children {
+		result.Subdirectories = append(result.Subdirectories, dirTreeToResponse(child))
+	}
+	sort.Slice(result.Subdirectories, func(i, j int) bool {
+		if result.Subdirectories[i].VideoCount != result.Subdirectories[j].VideoCount {
+			return result.Subdirectories[i].VideoCount > result.Subdirectories[j].VideoCount
+		}
+		return result.Subdirectories[i].Name < result.Subdirectories[j].Name
+	})
+	return result, nil
 }
 
 // CreateDirectory registers a new directory.

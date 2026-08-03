@@ -280,6 +280,84 @@ func activeLocationWhereSQL(locationAlias, directoryAlias string) string {
 	)
 }
 
+// ClosedSubdirectory represents a first-level subdirectory whose content is hidden
+// inside an otherwise enabled root directory. Name is the first path segment of
+// video_location.relative_path (forward slashes).
+type ClosedSubdirectory struct {
+	DirectoryID int64
+	Name        string
+}
+
+func escapeLikeLiteral(s string) string {
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	s = strings.ReplaceAll(s, `%`, `\%`)
+	s = strings.ReplaceAll(s, `_`, `\_`)
+	return s
+}
+
+// closedSubdirectoryConditionSQL builds one condition matching a closed subdirectory:
+// the location belongs to the directory and its relative path is exactly the
+// subdirectory name or starts with "name/".
+func closedSubdirectoryConditionSQL(locationAlias, name string) string {
+	return fmt.Sprintf(
+		"(%s.directory_id = ? AND (%s.relative_path = ? OR %s.relative_path LIKE ? ESCAPE '\\'))",
+		locationAlias, locationAlias, locationAlias,
+	)
+}
+
+// applyClosedSubdirectoryFilter hides locations under the given closed subdirectories.
+// It is meant to be combined (AND) with applyDirectoryFilter.
+func applyClosedSubdirectoryFilter(q *gorm.DB, locationAlias string, closed []ClosedSubdirectory) *gorm.DB {
+	if len(closed) == 0 {
+		return q
+	}
+	locationAlias = strings.TrimSpace(locationAlias)
+	if locationAlias == "" {
+		locationAlias = "video_location"
+	}
+	conditions := make([]string, 0, len(closed))
+	args := make([]any, 0, len(closed)*3)
+	for _, item := range closed {
+		if item.DirectoryID <= 0 || strings.TrimSpace(item.Name) == "" {
+			continue
+		}
+		conditions = append(conditions, closedSubdirectoryConditionSQL(locationAlias, item.Name))
+		args = append(args, item.DirectoryID, item.Name, escapeLikeLiteral(item.Name)+"/%")
+	}
+	if len(conditions) == 0 {
+		return q
+	}
+	return q.Where("NOT ("+strings.Join(conditions, " OR ")+")", args...)
+}
+
+// closedSubdirectoryFilterSQL returns an inline " AND NOT (...)" fragment for use in
+// concatenated SQL expressions (e.g. ORDER BY subqueries or CASE WHEN counts).
+// Values are inlined so names must be single-quote escaped.
+func closedSubdirectoryFilterSQL(locationAlias string, closed []ClosedSubdirectory) string {
+	if len(closed) == 0 {
+		return ""
+	}
+	locationAlias = strings.TrimSpace(locationAlias)
+	if locationAlias == "" {
+		locationAlias = "video_location"
+	}
+	conditions := make([]string, 0, len(closed))
+	for _, item := range closed {
+		if item.DirectoryID <= 0 || strings.TrimSpace(item.Name) == "" {
+			continue
+		}
+		escaped := strings.ReplaceAll(item.Name, "'", "''")
+		conditions = append(conditions, fmt.Sprintf(
+			"(%s.directory_id = %d AND (%s.relative_path = '%s' OR %s.relative_path LIKE '%s/%%' ESCAPE '\\'))",
+			locationAlias, item.DirectoryID, locationAlias, escaped, locationAlias, escapeLikeLiteral(escaped),
+		))
+	}
+	if len(conditions) == 0 {
+		return ""
+	}
+	return " AND NOT (" + strings.Join(conditions, " OR ") + ")"
+}
+
 func applyDirectoryFilter(q *gorm.DB, locationAlias string, directoryIDs []int64) *gorm.DB {
 	if hasZeroID(directoryIDs) {
 		return q.Where("1 = 0")

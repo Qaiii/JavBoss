@@ -17,7 +17,7 @@ import (
 
 // ListVideos returns paginated active video locations as video-like rows.
 // By default it includes locations already associated with JAV metadata.
-func ListVideos(ctx context.Context, limit, offset int, tagNames []string, search, sort string, seed *int64, directoryIDs []int64, hideJav ...bool) ([]models.Video, error) {
+func ListVideos(ctx context.Context, limit, offset int, tagNames []string, search, sort string, seed *int64, directoryIDs []int64, closedSubdirs []ClosedSubdirectory, hideJav ...bool) ([]models.Video, error) {
 	if limit <= 0 {
 		limit = 100
 	}
@@ -78,6 +78,7 @@ func ListVideos(ctx context.Context, limit, offset int, tagNames []string, searc
 		query = query.Where("video_location.jav_id IS NULL")
 	}
 	query = applyDirectoryFilter(query, "video_location", directoryIDs)
+	query = applyClosedSubdirectoryFilter(query, "video_location", closedSubdirs)
 	if useExpr {
 		query = query.Order(clause.OrderBy{Expression: orderExpr})
 	} else {
@@ -119,7 +120,7 @@ func ListVideos(ctx context.Context, limit, offset int, tagNames []string, searc
 
 // CountVideos returns the total number of active locations that match optional filters.
 // By default it includes locations already associated with JAV metadata.
-func CountVideos(ctx context.Context, tagNames []string, search string, directoryIDs []int64, hideJav ...bool) (int64, error) {
+func CountVideos(ctx context.Context, tagNames []string, search string, directoryIDs []int64, closedSubdirs []ClosedSubdirectory, hideJav ...bool) (int64, error) {
 	cleanedTags := normalizeTagNames(tagNames)
 	cleanedSearch := strings.TrimSpace(search)
 	hideRecognizedJav := false
@@ -142,6 +143,7 @@ func CountVideos(ctx context.Context, tagNames []string, search string, director
 			base = base.Where("video_location.jav_id IS NULL")
 		}
 		base = applyDirectoryFilter(base, "video_location", directoryIDs)
+		base = applyClosedSubdirectoryFilter(base, "video_location", closedSubdirs)
 		if like != "" {
 			base = base.Where("video_location.filename LIKE ? COLLATE NOCASE", like)
 		}
@@ -165,6 +167,7 @@ func CountVideos(ctx context.Context, tagNames []string, search string, director
 		sub = sub.Where("video_location.jav_id IS NULL")
 	}
 	sub = applyDirectoryFilter(sub, "video_location", directoryIDs)
+	sub = applyClosedSubdirectoryFilter(sub, "video_location", closedSubdirs)
 
 	if like != "" {
 		sub = sub.Where("video_location.filename LIKE ? COLLATE NOCASE", like)

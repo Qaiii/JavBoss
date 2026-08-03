@@ -74,7 +74,7 @@ func TestListVideosSortByDurationDirections(t *testing.T) {
 	}
 	createVideoLocationsForVideos(t, db, shortVideo, longVideo)
 
-	items, err := ListVideos(ctx, 20, 0, nil, "", "duration", nil, nil)
+	items, err := ListVideos(ctx, 20, 0, nil, "", "duration", nil, nil, nil)
 	if err != nil {
 		t.Fatalf("ListVideos duration: %v", err)
 	}
@@ -85,7 +85,7 @@ func TestListVideosSortByDurationDirections(t *testing.T) {
 		t.Fatalf("unexpected first video: got %d want %d", items[0].ID, longVideo.ID)
 	}
 
-	items, err = ListVideos(ctx, 20, 0, nil, "", "duration_asc", nil, nil)
+	items, err = ListVideos(ctx, 20, 0, nil, "", "duration_asc", nil, nil, nil)
 	if err != nil {
 		t.Fatalf("ListVideos duration_asc: %v", err)
 	}
@@ -148,7 +148,7 @@ func TestListVideosCanHideRecognizedJav(t *testing.T) {
 		t.Fatalf("create video tags: %v", err)
 	}
 
-	defaultItems, err := ListVideos(ctx, 20, 0, nil, "", "recent", nil, nil)
+	defaultItems, err := ListVideos(ctx, 20, 0, nil, "", "recent", nil, nil, nil)
 	if err != nil {
 		t.Fatalf("ListVideos default: %v", err)
 	}
@@ -168,14 +168,14 @@ func TestListVideosCanHideRecognizedJav(t *testing.T) {
 	if recognized.Jav == nil || recognized.Jav.Code != "ABC-001" {
 		t.Fatalf("recognized video should include jav code: %#v", recognized.Jav)
 	}
-	defaultCount, err := CountVideos(ctx, nil, "", nil)
+	defaultCount, err := CountVideos(ctx, nil, "", nil, nil)
 	if err != nil {
 		t.Fatalf("CountVideos default: %v", err)
 	}
 	if defaultCount != 2 {
 		t.Fatalf("default count should include recognized jav: got %d want 2", defaultCount)
 	}
-	defaultTags, err := ListTags(ctx, nil)
+	defaultTags, err := ListTags(ctx, nil, nil)
 	if err != nil {
 		t.Fatalf("ListTags default: %v", err)
 	}
@@ -183,21 +183,21 @@ func TestListVideosCanHideRecognizedJav(t *testing.T) {
 		t.Fatalf("default tag count should include recognized jav: %#v", defaultTags)
 	}
 
-	hiddenItems, err := ListVideos(ctx, 20, 0, nil, "", "recent", nil, nil, true)
+	hiddenItems, err := ListVideos(ctx, 20, 0, nil, "", "recent", nil, nil, nil, true)
 	if err != nil {
 		t.Fatalf("ListVideos hide jav: %v", err)
 	}
 	if len(hiddenItems) != 1 || hiddenItems[0].ID != plainVideo.ID {
 		t.Fatalf("hide jav list should return only plain videos: %#v", hiddenItems)
 	}
-	hiddenCount, err := CountVideos(ctx, nil, "", nil, true)
+	hiddenCount, err := CountVideos(ctx, nil, "", nil, nil, true)
 	if err != nil {
 		t.Fatalf("CountVideos hide jav: %v", err)
 	}
 	if hiddenCount != 1 {
 		t.Fatalf("hide jav count should return only plain videos: got %d want 1", hiddenCount)
 	}
-	hiddenTags, err := ListTags(ctx, nil, true)
+	hiddenTags, err := ListTags(ctx, nil, nil, true)
 	if err != nil {
 		t.Fatalf("ListTags hide jav: %v", err)
 	}
@@ -400,7 +400,7 @@ func TestVideoLocationsAllowSameVideoInMultipleDirectories(t *testing.T) {
 		t.Fatalf("reconcile: %v", err)
 	}
 
-	items, err := ListVideos(ctx, 20, 0, nil, "", "recent", nil, nil)
+	items, err := ListVideos(ctx, 20, 0, nil, "", "recent", nil, nil, nil)
 	if err != nil {
 		t.Fatalf("ListVideos: %v", err)
 	}
@@ -410,49 +410,49 @@ func TestVideoLocationsAllowSameVideoInMultipleDirectories(t *testing.T) {
 	if len(items[0].Locations) != 1 || len(items[1].Locations) != 1 {
 		t.Fatalf("list rows should be location-level: %#v", items)
 	}
-	count, err := CountVideos(ctx, nil, "", nil)
+	count, err := CountVideos(ctx, nil, "", nil, nil)
 	if err != nil {
 		t.Fatalf("CountVideos: %v", err)
 	}
 	if count != 2 {
 		t.Fatalf("unexpected location count: got %d want 2", count)
 	}
-	dirBItems, err := ListVideos(ctx, 20, 0, nil, "", "recent", nil, []int64{dirB.ID})
+	dirBItems, err := ListVideos(ctx, 20, 0, nil, "", "recent", nil, []int64{dirB.ID}, nil)
 	if err != nil {
 		t.Fatalf("ListVideos dir filter: %v", err)
 	}
 	if len(dirBItems) != 1 || dirBItems[0].LocationID != locB.ID || dirBItems[0].Path != "copies/movie.mp4" {
 		t.Fatalf("unexpected filtered items: %#v", dirBItems)
 	}
-	dirBCount, err := CountVideos(ctx, nil, "", []int64{dirB.ID})
+	dirBCount, err := CountVideos(ctx, nil, "", []int64{dirB.ID}, nil)
 	if err != nil {
 		t.Fatalf("CountVideos dir filter: %v", err)
 	}
 	if dirBCount != 1 {
 		t.Fatalf("unexpected filtered count: got %d want 1", dirBCount)
 	}
-	pathSearchItems, err := ListVideos(ctx, 20, 0, nil, "copies", "recent", nil, nil)
+	pathSearchItems, err := ListVideos(ctx, 20, 0, nil, "copies", "recent", nil, nil, nil)
 	if err != nil {
 		t.Fatalf("ListVideos path search: %v", err)
 	}
 	if len(pathSearchItems) != 0 {
 		t.Fatalf("search should use filename, not relative path directories: %#v", pathSearchItems)
 	}
-	filenameSearchItems, err := ListVideos(ctx, 20, 0, nil, "movie.mp4", "recent", nil, nil)
+	filenameSearchItems, err := ListVideos(ctx, 20, 0, nil, "movie.mp4", "recent", nil, nil, nil)
 	if err != nil {
 		t.Fatalf("ListVideos filename search: %v", err)
 	}
 	if len(filenameSearchItems) != 2 {
 		t.Fatalf("filename search should match both copies: got %d want 2", len(filenameSearchItems))
 	}
-	disabledItems, err := ListVideos(ctx, 20, 0, nil, "", "recent", nil, []int64{0})
+	disabledItems, err := ListVideos(ctx, 20, 0, nil, "", "recent", nil, []int64{0}, nil)
 	if err != nil {
 		t.Fatalf("ListVideos disabled dir filter: %v", err)
 	}
 	if len(disabledItems) != 0 {
 		t.Fatalf("disabled directory filter should return no rows: %#v", disabledItems)
 	}
-	disabledCount, err := CountVideos(ctx, nil, "", []int64{0})
+	disabledCount, err := CountVideos(ctx, nil, "", []int64{0}, nil)
 	if err != nil {
 		t.Fatalf("CountVideos disabled dir filter: %v", err)
 	}
