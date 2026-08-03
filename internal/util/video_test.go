@@ -130,6 +130,83 @@ func TestDetectContainerRecognizesRMVBExtension(t *testing.T) {
 	}
 }
 
+func TestDetectContainerPrefersRealFormatOverMisleadingExtension(t *testing.T) {
+	tests := []struct {
+		name       string
+		formatName string
+		path       string
+		want       string
+	}{
+		{
+			name:       "mpegts renamed to mp4 (browser direct playback regression)",
+			formatName: "mpegts",
+			path:       "/videos/MEYD-255.mp4",
+			want:       "ts",
+		},
+		{
+			name:       "real mp4 keeps direct playback",
+			formatName: "mov,mp4,m4a,3gp,3g2,mj2",
+			path:       "/videos/JUR-633.mp4",
+			want:       "mp4",
+		},
+		{
+			name:       "quicktime mov maps to mp4 family",
+			formatName: "mov,mp4,m4a,3gp,3g2,mj2",
+			path:       "/videos/sample.mov",
+			want:       "mp4",
+		},
+		{
+			name:       "matroska with mkv extension",
+			formatName: "matroska,webm",
+			path:       "/videos/sample.mkv",
+			want:       "mkv",
+		},
+		{
+			name:       "matroska with webm extension",
+			formatName: "matroska,webm",
+			path:       "/videos/sample.webm",
+			want:       "webm",
+		},
+		{
+			name:       "mpegts with ts extension",
+			formatName: "mpegts",
+			path:       "/videos/sample.ts",
+			want:       "ts",
+		},
+		{
+			name:       "mpegts with m2ts extension",
+			formatName: "mpegts",
+			path:       "/videos/sample.m2ts",
+			want:       "m2ts",
+		},
+		{
+			name:       "avi keeps extension mapping",
+			formatName: "avi",
+			path:       "/videos/sample.avi",
+			want:       "avi",
+		},
+		{
+			name:       "asf maps to wmv",
+			formatName: "asf",
+			path:       "/videos/sample.wmv",
+			want:       "wmv",
+		},
+		{
+			name:       "fallback to extension when probe fails",
+			formatName: "",
+			path:       "/videos/sample.mp4",
+			want:       "mp4",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := detectContainer(tt.formatName, tt.path); got != tt.want {
+				t.Fatalf("detectContainer(%q, %q) = %q, want %q", tt.formatName, tt.path, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestFindFFmpegPathUsesPersistentDataTool(t *testing.T) {
 	originalWorkingDir, err := os.Getwd()
 	if err != nil {

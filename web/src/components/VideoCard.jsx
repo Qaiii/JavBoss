@@ -42,6 +42,16 @@ export default function VideoCard({
       ? `${meta.width}x${meta.height}`
       : ''
   const sizeText = formatBytes(meta.size || video?.size)
+  // 实际容器格式（ffprobe 探测，可能与扩展名不一致，如 TS 流改名 .mp4）
+  const actualFormat = String(video?.format || '')
+    .trim()
+    .toLowerCase()
+  const fileExt =
+    String(video?.filename || video?.path || '')
+      .split('.')
+      .pop()
+      ?.toLowerCase() || ''
+  const formatMismatch = Boolean(actualFormat && fileExt && fileExt !== actualFormat)
   const directoryPath = video?.directory?.path || video?.directory_path || ''
   const videoPath = video?.path || ''
   const canOpen = Boolean(directoryPath && videoPath)
@@ -189,6 +199,26 @@ export default function VideoCard({
           {sizeText ? (
             <span className="inline-flex h-4 items-center rounded bg-gray-100 px-1 text-[10px] font-medium text-gray-700">
               {sizeText}
+            </span>
+          ) : null}
+          {actualFormat ? (
+            <span
+              className={`inline-flex h-4 items-center rounded px-1 text-[10px] font-medium ${
+                formatMismatch ? 'bg-amber-200 text-amber-900' : 'bg-gray-100 text-gray-700'
+              }`}
+              title={
+                formatMismatch
+                  ? zh(
+                      `扩展名为 .${fileExt}，实际格式为 ${actualFormat.toUpperCase()}`,
+                      `Extension .${fileExt}, actual format ${actualFormat.toUpperCase()}`
+                    )
+                  : zh(
+                      `实际格式 ${actualFormat.toUpperCase()}`,
+                      `Actual format ${actualFormat.toUpperCase()}`
+                    )
+              }
+            >
+              {actualFormat.toUpperCase()}
             </span>
           ) : null}
         </div>

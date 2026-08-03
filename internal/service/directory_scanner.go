@@ -31,6 +31,7 @@ type FileEntry struct {
 	Fingerprint   string
 	PathKey       string
 	DurationSec   int64
+	Format        string
 }
 
 // Summary captures the results of a directory synchronisation run.
@@ -338,7 +339,11 @@ func walkDirectoryAndSync(ctx context.Context, directory models.Directory, state
 				} else {
 					state.javLinks.Enqueue(existingLoc.ID)
 				}
-				return nil
+				// 旧库视频尚未记录真实容器格式时，不跳过探测：继续走下方 probe
+				// 流程以回填 format（文件未变时正常跳过；已回填后恢复跳过）
+				if existingVideo.Format != "" {
+					return nil
+				}
 			}
 		}
 
@@ -365,6 +370,7 @@ func walkDirectoryAndSync(ctx context.Context, directory models.Directory, state
 			ModifiedAt:    modTime,
 			Fingerprint:   fingerprint,
 			DurationSec:   durationSec,
+			Format:        meta.Container,
 		}
 
 		return upsertVideo(ctx, fileEntry, state, summary)
@@ -395,6 +401,13 @@ func upsertVideo(ctx context.Context, entry *FileEntry, state *syncState, summar
 			logging.Error("save video location failed, skip: path=%s err=%v", entry.AbsolutePath, err)
 			return nil
 		}
+		// 回填旧库：首次扫描时探测到的真实容器格式（如 TS 流改名 .mp4）
+		if video.Format == "" && entry.Format != "" {
+			video.Format = entry.Format
+			if err := db.SaveVideo(ctx, video); err != nil {
+				logging.Error("backfill video format failed: id=%d err=%v", video.ID, err)
+			}
+		}
 		return nil
 	}
 
@@ -403,6 +416,7 @@ func upsertVideo(ctx context.Context, entry *FileEntry, state *syncState, summar
 		Size:        entry.Size,
 		Fingerprint: entry.Fingerprint,
 		DurationSec: entry.DurationSec,
+		Format:      entry.Format,
 	}
 
 	if err := db.CreateVideo(ctx, video); err != nil {

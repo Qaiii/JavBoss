@@ -69,6 +69,32 @@ export default function PlayerModal({
   const menuOpenRef = useRef(null)
   const screenshotInFlightRef = useRef(false)
   const screenshotNoticeTimerRef = useRef(null)
+  const pendingSeekTimerRef = useRef(null)
+
+  // 乐观 seek：设置播放器时间后立即更新 UI，并启动兑底定时器——若 5 秒内
+  // 仍未定位完成（HLS 转码流定位慢），回落到播放器真实时间，避免永久卡住。
+  // 注意：必须在所有 useEffect 之前定义（播放器 effect 的依赖数组会引用它，
+  // 否则 const 处于暂时性死区，组件初始化即崩溃）。
+  const applySeek = useCallback((time) => {
+    const player = playerRef.current
+    if (!player) return
+    let next = Number(time) || 0
+    const durationVal = player.duration()
+    if (Number.isFinite(durationVal)) {
+      next = Math.min(Math.max(0, next), durationVal)
+    } else {
+      next = Math.max(0, next)
+    }
+    player.currentTime(next)
+    setPendingSeekTime(next)
+    if (pendingSeekTimerRef.current) {
+      window.clearTimeout(pendingSeekTimerRef.current)
+    }
+    pendingSeekTimerRef.current = window.setTimeout(() => {
+      pendingSeekTimerRef.current = null
+      setPendingSeekTime(null)
+    }, 5000)
+  }, [])
   const actionsRef = useRef(null)
   // App 侧传入的 onClose / onPlaybackError 通常是内联箭头函数，每次渲染引用都会变。
   // 若直接作为 effect 依赖，会导致播放器反复 dispose/重建（video.js 会移除 DOM，
@@ -95,6 +121,9 @@ export default function PlayerModal({
   const [menuOpen, setMenuOpen] = useState(null) // null | 'speed'
   const [seekHoverTime, setSeekHoverTime] = useState(null)
   const [dragTime, setDragTime] = useState(null)
+  // 乐观 seek：点击进度条后立即把 UI 钉在目标位置，避免 HLS 等流定位期间
+  // 进度条先退回旧位置再跳过去的视觉抖动；定位完成（seeked/追平）后清除。
+  const [pendingSeekTime, setPendingSeekTime] = useState(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
   // 精细指针（鼠标）设备：有“移出播放区域”概念，用于移出即隐藏控制条
   const [isFinePointer] = useState(
@@ -129,6 +158,9 @@ export default function PlayerModal({
     return () => {
       if (screenshotNoticeTimerRef.current) {
         window.clearTimeout(screenshotNoticeTimerRef.current)
+      }
+      if (pendingSeekTimerRef.current) {
+        window.clearTimeout(pendingSeekTimerRef.current)
       }
       if (hideTimerRef.current) {
         window.clearTimeout(hideTimerRef.current)
@@ -393,14 +425,7 @@ export default function PlayerModal({
     // ---- 控制条动作 ----
     const seekBy = (offsetSeconds) => {
       const current = player.currentTime() || 0
-      const durationVal = player.duration()
-      let next = current + offsetSeconds
-      if (Number.isFinite(durationVal)) {
-        next = Math.min(Math.max(0, next), durationVal)
-      } else {
-        next = Math.max(0, next)
-      }
-      player.currentTime(next)
+      applySeek(current + offsetSeconds)
     }
 
     const adjustVolume = (delta) => {
@@ -496,6 +521,7 @@ export default function PlayerModal({
       setPlaying(false)
       setEnded(true)
       setWaiting(false)
+      setPendingSeekTime(null)
     }
     const handleWaiting = () => setWaiting(true)
     const handleCanPlay = () => setWaiting(false)
@@ -577,7 +603,7 @@ export default function PlayerModal({
     const applyStartTime = () => {
       const nextStartTime = Number(startTime)
       if (!Number.isFinite(nextStartTime) || nextStartTime <= 0) return
-      player.currentTime(nextStartTime)
+      applySeek(nextStartTime)
     }
 
     if (playerEl && !playerEl.hasAttribute('tabindex')) {
@@ -610,8 +636,25 @@ export default function PlayerModal({
     player.on('waiting', handleWaiting)
     player.on('playing', handleCanPlay)
     player.on('canplay', handleCanPlay)
-    player.on('timeupdate', syncTime)
-    player.on('seeked', syncTime)
+    const handleTimeUpdate = () => {
+      syncTime()
+      // 播放器时间追平目标位置后清除乐观状态，让 UI 跟随真实播放位置
+      setPendingSeekTime((pending) => {
+        if (pending == null) return null
+        const current = player.currentTime() || 0
+        return Math.abs(current - pending) < 1 ? null : pending
+      })
+    }
+    const handleSeeked = () => {
+      syncTime()
+      if (pendingSeekTimerRef.current) {
+        window.clearTimeout(pendingSeekTimerRef.current)
+        pendingSeekTimerRef.current = null
+      }
+      setPendingSeekTime(null)
+    }
+    player.on('timeupdate', handleTimeUpdate)
+    player.on('seeked', handleSeeked)
     player.on('durationchange', syncDuration)
     player.on('progress', syncBuffered)
     player.on('loadedmetadata', handleLoadedMetadata)
@@ -629,8 +672,8 @@ export default function PlayerModal({
       player.off('waiting', handleWaiting)
       player.off('playing', handleCanPlay)
       player.off('canplay', handleCanPlay)
-      player.off('timeupdate', syncTime)
-      player.off('seeked', syncTime)
+      player.off('timeupdate', handleTimeUpdate)
+      player.off('seeked', handleSeeked)
       player.off('durationchange', syncDuration)
       player.off('progress', syncBuffered)
       player.off('loadedmetadata', handleLoadedMetadata)
@@ -639,10 +682,11 @@ export default function PlayerModal({
       player.off('ratechange', handleRateChange)
       player.off('fullscreenchange', focusPlayer)
       player.off('resize', handleDimensions)
+      setPendingSeekTime(null)
       playerRef.current?.dispose()
       playerRef.current = null
     }
-  }, [video, startTime, selectedSource, pokeControls])
+  }, [video, startTime, selectedSource, pokeControls, applySeek])
 
   // ---- 进度条交互 ----
   const seekTimeFromEvent = (event) => {
@@ -683,7 +727,7 @@ export default function PlayerModal({
     const time = dragTime ?? seekTimeFromEvent(event)
     setDragTime(null)
     setSeekHoverTime(null)
-    playerRef.current?.currentTime(time)
+    applySeek(time)
     try {
       seekBarRef.current?.releasePointerCapture?.(event.pointerId)
     } catch {
@@ -705,7 +749,7 @@ export default function PlayerModal({
     }
     if (next == null) return
     event.preventDefault()
-    playerRef.current?.currentTime(Math.min(Math.max(0, next), duration))
+    applySeek(Math.min(Math.max(0, next), duration))
   }
 
   if (!video) return null
@@ -713,7 +757,7 @@ export default function PlayerModal({
   const displayName = getVideoDisplayName(video)
   const aspectRatio =
     videoSize && videoSize.height > 0 ? videoSize.width / videoSize.height : 16 / 9
-  const displayTime = dragTime ?? currentTime
+  const displayTime = dragTime ?? pendingSeekTime ?? currentTime
   const playedPercent = duration > 0 ? clampPercent((displayTime / duration) * 100) : 0
   const bufferedPercent = duration > 0 ? clampPercent((bufferedEnd / duration) * 100) : 0
   const tooltipTime = dragTime ?? seekHoverTime

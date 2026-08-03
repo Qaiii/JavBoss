@@ -490,7 +490,44 @@ func normalizeFormatName(raw string) string {
 }
 
 func detectContainer(formatName, path string) string {
-	switch strings.ToLower(strings.TrimSpace(filepath.Ext(path))) {
+	ext := strings.ToLower(strings.TrimSpace(filepath.Ext(path)))
+	real := normalizeFormatName(formatName)
+
+	// 优先采用 ffprobe 探测到的真实容器格式，防止扩展名与内容不符导致误判：
+	// 例如把 MPEG-TS 流改名为 .mp4 后，若仅按扩展名判定为 mp4，浏览器 <video>
+	// 会直接尝试播放 TS 数据而失败（本项目因此类文件只能走 HLS 转封装通道）。
+	switch real {
+	case "mov", "mp4", "m4a", "3gp", "3g2", "mj2":
+		// MP4 家族（含 .mov/.m4v/.3gp 等），浏览器可直接播放
+		return "mp4"
+	case "matroska", "webm":
+		// ffprobe 对 MKV 与 WebM 均报告 "matroska,webm"，用扩展名区分
+		if ext == ".webm" {
+			return "webm"
+		}
+		return "mkv"
+	case "mpegts":
+		// TS 传输流（含蓝光 M2TS），浏览器无法直接播放，需走 HLS 等转封装通道
+		if ext == ".m2ts" || ext == ".mts" {
+			return "m2ts"
+		}
+		return "ts"
+	case "rm":
+		if ext == ".rmvb" || ext == ".rm" {
+			return "rmvb"
+		}
+		return "rm"
+	case "asf":
+		return "wmv"
+	}
+	if real != "" {
+		// 其余情况以探测到的真实格式为准（如 avi/flv/mpeg 等），
+		// 防止扩展名与内容不符（如 MKV 改名 .mp4）导致误判
+		return real
+	}
+
+	// 探测失败时退回扩展名判断
+	switch ext {
 	case ".mp4", ".m4v":
 		return "mp4"
 	case ".mov":
@@ -514,5 +551,5 @@ func detectContainer(formatName, path string) string {
 	case ".mpg", ".mpeg":
 		return "mpeg"
 	}
-	return normalizeFormatName(formatName)
+	return ""
 }
