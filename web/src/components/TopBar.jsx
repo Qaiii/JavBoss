@@ -393,11 +393,13 @@ export default function TopBar({
     const idx = nodePath.lastIndexOf('/')
     const parentPath = idx === -1 ? '' : nodePath.slice(0, idx)
     const layout = subdirsByDirectory[directoryId] || { rootVideoCount: 0, subdirectories: [] }
+    // nodeDisplayState expects an array (uses .includes/.some), so convert the Set.
+    const closedList = Array.from(closed)
     if (parentPath === '') {
       const topChildren = layout.subdirectories || []
       if (
         topChildren.length > 0 &&
-        topChildren.every((child) => !nodeDisplayState(child, closed).checked) &&
+        topChildren.every((child) => !nodeDisplayState(child, closedList).checked) &&
         Number(layout.rootVideoCount) === 0
       ) {
         enabled.delete(directoryId)
@@ -411,7 +413,7 @@ export default function TopBar({
     const children = parent.subdirectories || []
     if (
       children.length > 0 &&
-      children.every((child) => !nodeDisplayState(child, closed).checked) &&
+      children.every((child) => !nodeDisplayState(child, closedList).checked) &&
       Number(parent.direct_video_count) === 0
     ) {
       closed.add(parentPath)
@@ -463,7 +465,9 @@ export default function TopBar({
     const nodeClosed = nodeIsClosed(closedList, nodePath)
     const children = node.subdirectories || []
     const expanded = expandedDirectoryIds.has(`${directoryId}:${nodePath}`)
-    const disabled = ancestorsClosed || nodeClosed
+    // A node hidden by an ancestor cannot be re-enabled on its own, but a node
+    // that is itself closed stays clickable so checking it restores its subtree.
+    const disabled = ancestorsClosed
     const { checked, indeterminate } = nodeDisplayState(node, closedList)
 
     return (
