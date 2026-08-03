@@ -42,6 +42,32 @@ func listDirectories(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
+func listDirectorySubdirectories(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || id <= 0 {
+		respondLocalizedError(c, http.StatusBadRequest, "目录 ID 无效", "Invalid directory ID")
+		return
+	}
+	dir, err := dbpkg.GetDirectory(c.Request.Context(), id)
+	if err != nil {
+		logging.Error("get directory for subdirectories failed id=%d err=%v", id, err)
+		respondLocalizedError(c, http.StatusInternalServerError, "读取目录失败", "Failed to load directory")
+		return
+	}
+	if dir == nil || dir.IsDelete {
+		respondLocalizedError(c, http.StatusNotFound, "目录不存在", "Directory does not exist")
+		return
+	}
+
+	result, err := dbpkg.ListDirectorySubdirectories(c.Request.Context(), id)
+	if err != nil {
+		logging.Error("list directory subdirectories failed id=%d err=%v", id, err)
+		respondLocalizedError(c, http.StatusInternalServerError, "加载子目录失败", "Failed to load subdirectories")
+		return
+	}
+	c.JSON(http.StatusOK, result)
+}
+
 func createDirectory(c *gin.Context) {
 	var req struct {
 		Path string `json:"path"`

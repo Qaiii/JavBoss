@@ -14,9 +14,10 @@ import FolderOpenOutlinedIcon from '@mui/icons-material/FolderOpenOutlined'
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded'
 import ArrowForwardRoundedIcon from '@mui/icons-material/ArrowForwardRounded'
 import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownRounded'
+import KeyboardArrowRightRoundedIcon from '@mui/icons-material/KeyboardArrowRightRounded'
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded'
 import TuneOutlinedIcon from '@mui/icons-material/TuneOutlined'
-import { fetchJavPrefixes } from '@/api'
+import { fetchDirectorySubdirectories, fetchJavPrefixes } from '@/api'
 import JavPrefixModal from '@/components/JavPrefixModal'
 import { displayHostPath } from '@/utils/hostPath'
 import { zh } from '@/utils/i18n'
@@ -24,6 +25,17 @@ import { getErrorMessage } from '@/utils/errors'
 
 function ButtonTooltip({ enabled = true, title, ...props }) {
   return <Tooltip {...props} title={enabled ? title : ''} />
+}
+
+// Checkbox that also renders the indeterminate (partial) state.
+function TriStateCheckbox({ indeterminate = false, ...props }) {
+  const inputRef = useRef(null)
+  useEffect(() => {
+    if (inputRef.current) {
+      inputRef.current.indeterminate = Boolean(indeterminate)
+    }
+  }, [indeterminate])
+  return <input ref={inputRef} type="checkbox" {...props} />
 }
 
 export default function TopBar({
@@ -78,6 +90,8 @@ export default function TopBar({
   directories = [],
   enabledDirectoryIds = [],
   onEnabledDirectoryIdsChange,
+  closedSubdirectories = {},
+  onClosedSubdirectoriesChange,
   hostPathPrefixEnabled = false,
   selectedCount = 0,
   onOpenSelectionOps,
@@ -88,6 +102,9 @@ export default function TopBar({
   const directoryMenuRef = useRef(null)
   const idolFavoriteMenuRef = useRef(null)
   const [directoryMenuOpen, setDirectoryMenuOpen] = useState(false)
+  const [expandedDirectoryIds, setExpandedDirectoryIds] = useState(() => new Set())
+  const [subdirsByDirectory, setSubdirsByDirectory] = useState({})
+  const [subdirsLoading, setSubdirsLoading] = useState(false)
   const [idolFavoriteMenuOpen, setIdolFavoriteMenuOpen] = useState(false)
   const [prefixModalOpen, setPrefixModalOpen] = useState(false)
   const [prefixItems, setPrefixItems] = useState([])
@@ -204,6 +221,44 @@ export default function TopBar({
   }, [javPrefixDirectoryIds, prefixModalOpen])
 
   useEffect(() => {
+    if (!directoryMenuOpen) return undefined
+    let cancelled = false
+    const ids = activeDirectories
+      .map((directory) => Number(directory.id))
+      .filter((id) => Number.isFinite(id) && id > 0)
+    if (ids.length === 0) return undefined
+    setSubdirsLoading(true)
+    Promise.all(
+      ids.map(async (id) => {
+        try {
+          const payload = await fetchDirectorySubdirectories(id)
+          return [
+            id,
+            {
+              rootVideoCount: Number(payload?.root_video_count) || 0,
+              subdirectories: Array.isArray(payload?.subdirectories) ? payload.subdirectories : [],
+            },
+          ]
+        } catch {
+          return [id, null]
+        }
+      })
+    ).then((results) => {
+      if (cancelled) return
+      const next = {}
+      for (const [id, payload] of results) {
+        if (payload) next[id] = payload
+      }
+      setSubdirsByDirectory(next)
+    }).finally(() => {
+      if (!cancelled) setSubdirsLoading(false)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [activeDirectories, directoryMenuOpen])
+
+  useEffect(() => {
     if (!directoryMenuOpen) return
 
     const handlePointerDown = (event) => {
@@ -263,7 +318,214 @@ export default function TopBar({
     } else {
       next.delete(id)
     }
+    // Toggling the master switch resets any per-subdirectory settings.
+    if (closedSubdirectories?.[id]?.length) {
+      onClosedSubdirectoriesChange?.(id, [])
+    }
     onEnabledDirectoryIdsChange?.(Array.from(next))
+  }
+
+  const toggleDirectoryExpanded = (id, nodePath = '') => {
+    const key = `${id}:${nodePath}`
+    setExpandedDirectoryIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) {
+        next.delete(key)
+      } else {
+        next.add(key)
+      }
+      return next
+    })
+  }
+
+  // Returns true when the node itself or any of its ancestors is in the closed list.
+  const nodeIsClosed = (closedList, nodePath) => {
+    if (!nodePath) return false
+    if (closedList.includes(nodePath)) return true
+    return closedList.some((entry) => nodePath.startsWith(entry + '/'))
+  }
+
+  // Computes the checkbox display state of a tree node. A node whose every child
+  // is hidden counts as hidden too (unless it has direct files of its own), so
+  // parents can rely on these states instead of the raw closed list.
+  const nodeDisplayState = (node, closedList) => {
+    const selfClosed = nodeIsClosed(closedList, node.path)
+    const children = node.subdirectories || []
+    let checked
+    let indeterminate
+    if (selfClosed) {
+      checked = false
+      indeterminate = false
+    } else if (children.length === 0) {
+      checked = true
+      indeterminate = false
+    } else {
+      const childStates = children.map((child) => nodeDisplayState(child, closedList))
+      const hiddenCount = childStates.filter((state) => !state.checked).length
+      if (hiddenCount === 0) {
+        checked = true
+        indeterminate = false
+      } else if (hiddenCount === children.length) {
+        const hasDirect = Number(node.direct_video_count) > 0
+        checked = hasDirect
+        indeterminate = hasDirect
+      } else {
+        checked = true
+        indeterminate = true
+      }
+    }
+    return { checked, indeterminate }
+  }
+
+  const findTreeNode = (nodes, targetPath) => {
+    for (const node of nodes || []) {
+      if (node.path === targetPath) return node
+      const found = findTreeNode(node.subdirectories, targetPath)
+      if (found) return found
+    }
+    return null
+  }
+
+  // Closes nodePath (already added to closed) and propagates upward: when every
+  // direct child of the parent is closed and the parent has no direct files, the
+  // parent closes too. Returns true when the whole directory was turned off.
+  const propagateClose = (directoryId, nodePath, closed, enabled) => {
+    const idx = nodePath.lastIndexOf('/')
+    const parentPath = idx === -1 ? '' : nodePath.slice(0, idx)
+    const layout = subdirsByDirectory[directoryId] || { rootVideoCount: 0, subdirectories: [] }
+    if (parentPath === '') {
+      const topChildren = layout.subdirectories || []
+      if (
+        topChildren.length > 0 &&
+        topChildren.every((child) => !nodeDisplayState(child, closed).checked) &&
+        Number(layout.rootVideoCount) === 0
+      ) {
+        enabled.delete(directoryId)
+        closed.clear()
+        return true
+      }
+      return false
+    }
+    const parent = findTreeNode(layout.subdirectories, parentPath)
+    if (!parent) return false
+    const children = parent.subdirectories || []
+    if (
+      children.length > 0 &&
+      children.every((child) => !nodeDisplayState(child, closed).checked) &&
+      Number(parent.direct_video_count) === 0
+    ) {
+      closed.add(parentPath)
+      return propagateClose(directoryId, parentPath, closed, enabled)
+    }
+    return false
+  }
+
+  const setSubdirectoryEnabled = (directoryId, nodePath, checked) => {
+    const closed = new Set(closedSubdirectories?.[directoryId] || [])
+    if (checked) {
+      // Opening a node reveals its whole subtree: remove the node and all
+      // descendant entries from the closed list.
+      closed.delete(nodePath)
+      for (const entry of Array.from(closed)) {
+        if (entry.startsWith(nodePath + '/')) {
+          closed.delete(entry)
+        }
+      }
+    } else {
+      closed.add(nodePath)
+      for (const entry of Array.from(closed)) {
+        if (entry !== nodePath && entry.startsWith(nodePath + '/')) {
+          closed.delete(entry)
+        }
+      }
+      const enabled = new Set(enabledDirectorySet)
+      if (propagateClose(directoryId, nodePath, closed, enabled)) {
+        onClosedSubdirectoriesChange?.(directoryId, [])
+        onEnabledDirectoryIdsChange?.(Array.from(enabled))
+        return
+      }
+    }
+    onClosedSubdirectoriesChange?.(directoryId, Array.from(closed))
+  }
+
+  const clearAllClosedSubdirectories = () => {
+    for (const id of activeDirectoryIds) {
+      if (closedSubdirectories?.[id]?.length) {
+        onClosedSubdirectoriesChange?.(id, [])
+      }
+    }
+  }
+
+  // Recursively renders one subdirectory row: checkbox, name, file count and an
+  // expand/collapse arrow when the node has children of its own.
+  const renderDirectoryBranch = (directoryId, node, ancestorsClosed, closedList) => {
+    const nodePath = node.path
+    const nodeClosed = nodeIsClosed(closedList, nodePath)
+    const children = node.subdirectories || []
+    const expanded = expandedDirectoryIds.has(`${directoryId}:${nodePath}`)
+    const disabled = ancestorsClosed || nodeClosed
+    const { checked, indeterminate } = nodeDisplayState(node, closedList)
+
+    return (
+      <div key={nodePath}>
+        <div className="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-gray-50">
+          <TriStateCheckbox
+            checked={checked}
+            indeterminate={indeterminate}
+            disabled={disabled}
+            onChange={(event) =>
+              setSubdirectoryEnabled(directoryId, nodePath, event.target.checked)
+            }
+            className="h-4 w-4 shrink-0 rounded border-gray-300 text-blue-600 disabled:opacity-40"
+            aria-label={zh(
+              `显示子目录 ${node.name} 的内容`,
+              `Show contents of subdirectory ${node.name}`
+            )}
+          />
+          <span className="min-w-0 flex-1 truncate text-gray-700">{node.name}</span>
+          <span
+            className="shrink-0 text-xs tabular-nums text-gray-400"
+            title={zh(
+              `目录内文件数 ${node.video_count}`,
+              `Files in directory: ${node.video_count}`
+            )}
+          >
+            {Number(node.video_count) || 0}
+          </span>
+          {children.length > 0 ? (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.preventDefault()
+                event.stopPropagation()
+                toggleDirectoryExpanded(directoryId, nodePath)
+              }}
+              aria-label={
+                expanded
+                  ? zh(`收起子目录 ${node.name}`, `Collapse subdirectories of ${node.name}`)
+                  : zh(`展开子目录 ${node.name}`, `Expand subdirectories of ${node.name}`)
+              }
+              aria-expanded={expanded}
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+            >
+              <KeyboardArrowRightRoundedIcon
+                fontSize="small"
+                className={
+                  expanded ? 'rotate-90 transition-transform' : 'transition-transform'
+                }
+              />
+            </button>
+          ) : null}
+        </div>
+        {expanded && children.length > 0 ? (
+          <div className="border-l border-gray-100 pb-1 pl-4">
+            {children.map((child) =>
+              renderDirectoryBranch(directoryId, child, ancestorsClosed || nodeClosed, closedList)
+            )}
+          </div>
+        ) : null}
+      </div>
+    )
   }
 
   const handleIdolFavoriteMenuToggle = () => {
@@ -786,14 +1048,20 @@ export default function TopBar({
                     <div className="flex shrink-0 items-center gap-1">
                       <button
                         type="button"
-                        onClick={() => onEnabledDirectoryIdsChange?.(activeDirectoryIds)}
+                        onClick={() => {
+                          onEnabledDirectoryIdsChange?.(activeDirectoryIds)
+                          clearAllClosedSubdirectories()
+                        }}
                         className="rounded border border-gray-200 bg-white px-2 py-1 text-xs text-gray-600 hover:bg-gray-100"
                       >
                         {zh('全选', 'All')}
                       </button>
                       <button
                         type="button"
-                        onClick={() => onEnabledDirectoryIdsChange?.([])}
+                        onClick={() => {
+                          onEnabledDirectoryIdsChange?.([])
+                          clearAllClosedSubdirectories()
+                        }}
                         className="rounded border border-gray-200 bg-white px-2 py-1 text-xs text-gray-600 hover:bg-gray-100"
                       >
                         {zh('清空', 'None')}
@@ -811,30 +1079,133 @@ export default function TopBar({
                       const id = Number(directory.id)
                       const checked = enabledDirectorySet.has(id)
                       const directoryPath = displayHostPath(directory.path, hostPathPrefixEnabled)
+                      const closedNames = new Set(closedSubdirectories?.[id] || [])
+                      const directoryLayout = subdirsByDirectory[id] || {
+                        rootVideoCount: 0,
+                        subdirectories: [],
+                      }
+                      const subdirectories = directoryLayout.subdirectories || []
+                      const hasRootFiles = Number(directoryLayout.rootVideoCount) > 0
+                      const closedArray = Array.from(closedNames)
+                      const expanded = expandedDirectoryIds.has(`${id}:`)
+                      const hasSubdirectories = subdirectories.length > 0
+                      const topStates = subdirectories.map((subdir) =>
+                        nodeDisplayState(subdir, closedArray)
+                      )
+                      const topHiddenCount = topStates.filter((state) => !state.checked).length
+                      // A directory is partially enabled when some of its
+                      // subdirectories are hidden, or when every subdirectory is
+                      // hidden but files directly at the root remain visible.
+                      const partiallyEnabled =
+                        checked &&
+                        ((topHiddenCount > 0 && topHiddenCount < subdirectories.length) ||
+                          (hasSubdirectories &&
+                            topHiddenCount === subdirectories.length &&
+                            hasRootFiles))
                       return (
-                        <label
-                          key={directory.id}
-                          className="flex cursor-pointer items-start gap-2 px-3 py-2 text-sm hover:bg-gray-50"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={(event) => setDirectoryEnabled(id, event.target.checked)}
-                            className="mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300 text-blue-600"
-                            aria-label={zh(
-                              `启用目录 ${directoryPath}`,
-                              `Enable directory ${directoryPath}`
-                            )}
-                          />
-                          <span className="min-w-0 flex-1 text-gray-700">
-                            <span className="break-all">{directoryPath}</span>
-                            {directory.missing ? (
-                              <span className="ml-2 inline-flex rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">
-                                {zh('目录缺失', 'Missing')}
+                        <div key={directory.id}>
+                          <div className="flex items-start gap-2 px-3 py-2 text-sm hover:bg-gray-50">
+                            <label className="flex min-w-0 flex-1 cursor-pointer items-start gap-2">
+                              <TriStateCheckbox
+                                checked={checked}
+                                indeterminate={partiallyEnabled}
+                                onChange={(event) => setDirectoryEnabled(id, event.target.checked)}
+                                className="mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300 text-blue-600"
+                                aria-label={zh(
+                                  `启用目录 ${directoryPath}`,
+                                  `Enable directory ${directoryPath}`
+                                )}
+                              />
+                              <span className="min-w-0 flex-1 text-gray-700">
+                                <span className="break-all">{directoryPath}</span>
+                                {closedArray.length > 0 ? (
+                                  <span className="ml-2 inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
+                                    {zh(
+                                      `部分子目录已隐藏`,
+                                      'Some subdirectories hidden'
+                                    )}
+                                  </span>
+                                ) : null}
+                                {directory.missing ? (
+                                  <span className="ml-2 inline-flex rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">
+                                    {zh('目录缺失', 'Missing')}
+                                  </span>
+                                ) : null}
                               </span>
+                            </label>
+                            {hasSubdirectories ? (
+                              <div className="flex shrink-0 items-center gap-0.5">
+                                <span
+                                  className="text-xs tabular-nums text-gray-400"
+                                  title={zh(
+                                    `目录内文件数 ${directory.scanned_video_count}`,
+                                    `Files in directory: ${directory.scanned_video_count}`
+                                  )}
+                                >
+                                  {Number(directory.scanned_video_count) || 0}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={(event) => {
+                                    event.preventDefault()
+                                    event.stopPropagation()
+                                    toggleDirectoryExpanded(id, '')
+                                  }}
+                                  aria-label={
+                                    expanded
+                                      ? zh(
+                                          `收起子目录 ${directoryPath}`,
+                                          `Collapse subdirectories of ${directoryPath}`
+                                        )
+                                      : zh(
+                                          `展开子目录 ${directoryPath}`,
+                                          `Expand subdirectories of ${directoryPath}`
+                                        )
+                                  }
+                                  aria-expanded={expanded}
+                                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                                >
+                                  <KeyboardArrowRightRoundedIcon
+                                    fontSize="small"
+                                    className={
+                                      expanded
+                                        ? 'rotate-90 transition-transform'
+                                        : 'transition-transform'
+                                    }
+                                  />
+                                </button>
+                              </div>
                             ) : null}
-                          </span>
-                        </label>
+                          </div>
+                          {expanded ? (
+                            <div className="border-l border-gray-100 pb-1 pl-4">
+                              {subdirsLoading && subdirectories.length === 0 ? (
+                                <div className="px-3 py-1.5 text-xs text-gray-400">
+                                  {zh('加载子目录…', 'Loading subdirectories...')}
+                                </div>
+                              ) : (
+                                <>
+                                  {subdirectories.map((subdir) =>
+                                    renderDirectoryBranch(id, subdir, !checked, closedArray)
+                                  )}
+                                  {hasRootFiles ? (
+                                    <div className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-500">
+                                      <span className="flex h-4 w-4 shrink-0 items-center justify-center">
+                                        <FolderRoundedIcon fontSize="small" className="text-gray-400" />
+                                      </span>
+                                      <span className="min-w-0 flex-1 truncate">
+                                        {zh('(根目录)', '(Root)')}
+                                      </span>
+                                      <span className="shrink-0 text-xs tabular-nums text-gray-400">
+                                        {Number(directoryLayout.rootVideoCount) || 0}
+                                      </span>
+                                    </div>
+                                  ) : null}
+                                </>
+                              )}
+                            </div>
+                          ) : null}
+                        </div>
                       )
                     })
                   )}

@@ -39,6 +39,22 @@ const parseDirectoryIds = (sp) => {
   return parseIds(raw)
 }
 
+const parseClosedSubdirs = (sp) => {
+  const raw = (sp.get('closed_subdirs') || '').trim()
+  if (!raw) return []
+  return raw
+    .split(',')
+    .map((part) => {
+      const idx = part.indexOf(':')
+      if (idx <= 0) return null
+      const id = Number.parseInt(part.slice(0, idx).trim(), 10)
+      const name = part.slice(idx + 1).trim()
+      if (!Number.isFinite(id) || id <= 0 || !name) return null
+      return { directoryId: id, name }
+    })
+    .filter(Boolean)
+}
+
 const parseIntSafe = (val, def = 1) => {
   const n = Number.parseInt(val || '', 10)
   return Number.isFinite(n) && n > 0 ? n : def
@@ -50,6 +66,7 @@ export const parseUrlState = (searchString = window.location.search, options = {
   const rawView = sp.get('view')
   const view = rawView === 'jav' ? 'jav' : rawView === 'video' ? 'video' : defaultView
   const directoryIds = parseDirectoryIds(sp)
+  const closedSubdirs = parseClosedSubdirs(sp)
 
   const videoTempSort = normalizeVideoSort((sp.get('temp_sort') || '').trim(), '')
 
@@ -94,7 +111,7 @@ export const parseUrlState = (searchString = window.location.search, options = {
     seed: clampSeed(sp.get('seed')),
   }
 
-  return { view, directoryIds, video, jav }
+  return { view, directoryIds, closedSubdirs, video, jav }
 }
 
 export const buildUrlFromState = (state, basePath = window.location.pathname) => {
@@ -105,6 +122,14 @@ export const buildUrlFromState = (state, basePath = window.location.pathname) =>
       sp.set('directory_ids', state.directoryIds.join(','))
     } else if (Array.isArray(state.directoryIds) && state.directoryIds.length === 0) {
       sp.set('directory_ids', '0')
+    }
+    if (state.closedSubdirs?.length) {
+      sp.set(
+        'closed_subdirs',
+        state.closedSubdirs
+          .map((pair) => `${Number(pair.directoryId)}:${pair.name}`)
+          .join(',')
+      )
     }
     if (state.jav.tab === 'idol' || state.jav.tab === 'studio' || state.jav.tab === 'series') {
       sp.set('tab', state.jav.tab)
@@ -166,6 +191,14 @@ export const buildUrlFromState = (state, basePath = window.location.pathname) =>
   } else if (Array.isArray(state.directoryIds) && state.directoryIds.length === 0) {
     sp.set('directory_ids', '0')
   }
+  if (state.closedSubdirs?.length) {
+    sp.set(
+      'closed_subdirs',
+      state.closedSubdirs
+        .map((pair) => `${Number(pair.directoryId)}:${pair.name}`)
+        .join(',')
+    )
+  }
   if (state.video.search) sp.set('search', state.video.search)
   if (!state.video.random && state.video.tempSort) sp.set('temp_sort', state.video.tempSort)
   if (state.video.tagIds?.length) {
@@ -211,10 +244,26 @@ export const normalizeUrlStateFromStore = (store, tagsByName) => {
       directoryIds = enabledDirectoryIds
     }
   }
+  const closedSubdirs = []
+  for (const [rawId, names] of Object.entries(store.closedSubdirectories || {})) {
+    const id = Number(rawId)
+    if (!Number.isFinite(id) || id <= 0 || !activeSet.has(id)) continue
+    if (!Array.isArray(names)) continue
+    for (const name of names) {
+      const clean = String(name || '').trim()
+      if (clean) closedSubdirs.push({ directoryId: id, name: clean })
+    }
+  }
+  closedSubdirs.sort((a, b) =>
+    a.directoryId === b.directoryId
+      ? a.name.localeCompare(b.name)
+      : a.directoryId - b.directoryId
+  )
 
   return {
     view: store.viewMode === 'jav' ? 'jav' : 'video',
     directoryIds,
+    closedSubdirs,
     video: {
       page: store.randomMode ? 1 : store.page,
       search: store.randomMode ? '' : (store.searchTerm || '').trim(),

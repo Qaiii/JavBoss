@@ -255,6 +255,8 @@ export default function App() {
     deleteDirectory,
     enabledDirectoryIds,
     setEnabledDirectoryIds,
+    closedSubdirectories,
+    setClosedSubdirectories,
     directoryFilterMode,
   } = useStore()
 
@@ -998,6 +1000,7 @@ export default function App() {
   const applyUrlState = useCallback(
     (parsed) => {
       useStore.getState().setDirectoryFilterFromUrl(parsed.directoryIds)
+      useStore.getState().setClosedSubdirectoriesFromUrl(parsed.closedSubdirs)
       const mapTagIdsToNamesFromStore = (ids) => {
         if (!Array.isArray(ids) || ids.length === 0) return []
         const { tags: storeTags } = useStore.getState()
@@ -1114,6 +1117,7 @@ export default function App() {
           directories,
           enabledDirectoryIds,
           directoryFilterMode,
+          closedSubdirectories,
         },
         tagsByName
       ),
@@ -1121,6 +1125,7 @@ export default function App() {
       directories,
       directoryFilterMode,
       enabledDirectoryIds,
+      closedSubdirectories,
       idolFavoriteGroupId,
       idolTempSort,
       javFavoriteGroupId,
@@ -3302,6 +3307,8 @@ export default function App() {
         directories={directories}
         enabledDirectoryIds={enabledDirectoryIds}
         onEnabledDirectoryIdsChange={setEnabledDirectoryIds}
+        closedSubdirectories={closedSubdirectories}
+        onClosedSubdirectoriesChange={setClosedSubdirectories}
         hostPathPrefixEnabled={hostPathPrefixEnabled}
         selectedCount={selectedCount}
         onOpenSelectionOps={() => setSelectionOpsOpen(true)}

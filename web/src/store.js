@@ -88,6 +88,48 @@ const cleanDirectoryIds = (ids) =>
     new Set((ids || []).map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0))
   ).sort((a, b) => a - b)
 
+// closedSubdirectories state shape: { [directoryId]: [subdirName, ...] }
+// It records first-level subdirectories hidden inside an otherwise enabled directory.
+const closedSubdirectoryPairs = (state) => {
+  const map = state?.closedSubdirectories || {}
+  const active = new Set(cleanDirectoryIds((state?.directories || []).map((d) => d?.id)))
+  const pairs = []
+  for (const [rawId, names] of Object.entries(map)) {
+    const id = Number(rawId)
+    if (!Number.isFinite(id) || id <= 0 || !active.has(id)) continue
+    if (!Array.isArray(names)) continue
+    for (const name of names) {
+      const clean = String(name || '').trim()
+      if (clean) pairs.push({ directoryId: id, name: clean })
+    }
+  }
+  return pairs.sort((a, b) =>
+    a.directoryId === b.directoryId
+      ? a.name.localeCompare(b.name)
+      : a.directoryId - b.directoryId
+  )
+}
+
+const closedSubdirsKey = (state) =>
+  closedSubdirectoryPairs(state)
+    .map((pair) => `${pair.directoryId}:${pair.name}`)
+    .join(',')
+
+// Keeps only closed-subdirectory entries whose directory is still active.
+const pruneClosedSubdirectories = (closed, directoryIds) => {
+  const keep = new Set(cleanDirectoryIds(directoryIds))
+  const next = {}
+  for (const [rawId, names] of Object.entries(closed || {})) {
+    const id = Number(rawId)
+    if (!Number.isFinite(id) || !keep.has(id)) continue
+    const cleanNames = Array.isArray(names)
+      ? Array.from(new Set(names.map((n) => String(n || '').trim()).filter(Boolean)))
+      : []
+    if (cleanNames.length > 0) next[id] = cleanNames
+  }
+  return next
+}
+
 const sameIds = (a, b) => {
   if (a === b) return true
   if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false
@@ -129,6 +171,7 @@ const videoListRequestKey = (state, directoryIds = directoryQueryIds(state)) => 
     state.randomMode ? state.randomSeed || '' : '',
     (state.selectedTags || []).join(','),
     directoryIds.join(','),
+    closedSubdirsKey(state),
     state.videoHideJav ? 'hide-jav' : 'show-jav',
   ].join('|')
 }
@@ -151,6 +194,7 @@ const javListRequestKey = (state, directoryIds = directoryQueryIds(state)) => {
     effectiveSort,
     state.javRandomMode ? state.javRandomSeed || '' : '',
     directoryIds.join(','),
+    closedSubdirsKey(state),
   ].join('|')
 }
 
@@ -164,6 +208,7 @@ const idolListRequestKey = (state, directoryIds = directoryQueryIds(state)) => {
     effectiveSort,
     state.idolFavoriteGroupId || '',
     directoryIds.join(','),
+    closedSubdirsKey(state),
   ].join('|')
 }
 
@@ -181,6 +226,7 @@ const studioListRequestKey = (state, directoryIds = directoryQueryIds(state)) =>
     state.javSearchTerm || '',
     state.studioFavoriteGroupId || '',
     directoryIds.join(','),
+    closedSubdirsKey(state),
   ].join('|')
 
 const seriesListRequestKey = (state, directoryIds = directoryQueryIds(state)) =>
@@ -191,6 +237,7 @@ const seriesListRequestKey = (state, directoryIds = directoryQueryIds(state)) =>
     state.javSearchTerm || '',
     state.seriesFavoriteGroupId || '',
     directoryIds.join(','),
+    closedSubdirsKey(state),
   ].join('|')
 
 export const useStore = create((set, get) => ({
@@ -334,6 +381,7 @@ export const useStore = create((set, get) => ({
   javTagOptions: [],
   directories: [],
   enabledDirectoryIds: [],
+  closedSubdirectories: {},
   directoryFilterMode: DIRECTORY_FILTER_ALL,
   loading: false,
   videoLoadingMore: false,
@@ -550,7 +598,8 @@ export const useStore = create((set, get) => ({
   loadTags: async (options = {}) => {
     const { videoHideJav } = get()
     const directoryIds = directoryQueryIds(get())
-    const key = `tags|${directoryIds.join(',')}|${videoHideJav ? 'hide-jav' : 'show-jav'}`
+    const closedSubdirs = closedSubdirectoryPairs(get())
+    const key = `tags|${directoryIds.join(',')}|${closedSubdirsKey(get())}|${videoHideJav ? 'hide-jav' : 'show-jav'}`
     if (tagFetchInFlight && tagFetchInFlightKey === key) {
       return tagFetchInFlight
     }
@@ -560,7 +609,7 @@ export const useStore = create((set, get) => ({
     tagFetchInFlightKey = key
     tagFetchInFlight = (async () => {
       try {
-        const tags = await fetchTags({ directoryIds, hideJav: videoHideJav })
+        const tags = await fetchTags({ directoryIds, closedSubdirs, hideJav: videoHideJav })
         set({ tags })
         lastTagFetchKey = key
         return tags
@@ -578,7 +627,8 @@ export const useStore = create((set, get) => ({
   },
   loadJavTags: async (options = {}) => {
     const directoryIds = directoryQueryIds(get())
-    const key = `jav-tags|${directoryIds.join(',')}`
+    const closedSubdirs = closedSubdirectoryPairs(get())
+    const key = `jav-tags|${directoryIds.join(',')}|${closedSubdirsKey(get())}`
     if (javTagFetchInFlight && javTagFetchInFlightKey === key) {
       return javTagFetchInFlight
     }
@@ -588,7 +638,7 @@ export const useStore = create((set, get) => ({
     javTagFetchInFlightKey = key
     javTagFetchInFlight = (async () => {
       try {
-        const tags = await fetchJavTags({ directoryIds })
+        const tags = await fetchJavTags({ directoryIds, closedSubdirs })
         set({ javTagOptions: tags })
         lastJavTagFetchKey = key
         return tags
@@ -708,6 +758,7 @@ export const useStore = create((set, get) => ({
         directories: active,
         enabledDirectoryIds: nextMode === DIRECTORY_FILTER_ALL ? activeIDs : enabled,
         directoryFilterMode: nextMode,
+        closedSubdirectories: pruneClosedSubdirectories(state.closedSubdirectories, activeIDs),
       })
     } catch (e) {
       console.error(zh('加载目录失败', 'Failed to load directories'), e)
@@ -726,6 +777,7 @@ export const useStore = create((set, get) => ({
       randomSeed,
     } = get()
     const directoryIds = directoryQueryIds(get())
+    const closedSubdirs = closedSubdirectoryPairs(get())
     const search = searchTerm ? searchTerm : ''
     const effectiveSort = videoTempSort || sortOrder
     const key = videoListRequestKey({ ...get(), page: p0 }, directoryIds)
@@ -744,6 +796,7 @@ export const useStore = create((set, get) => ({
         sort: randomMode ? 'random' : effectiveSort,
         seed: randomMode ? randomSeed : null,
         directoryIds,
+        closedSubdirs,
         hideJav: videoHideJav,
       })
       if (reqId !== videoLoadSeq || key !== videoListRequestKey(get())) return
@@ -770,6 +823,7 @@ export const useStore = create((set, get) => ({
     if (total > 0 && baseOffset + loaded >= total) return
 
     const directoryIds = directoryQueryIds(state)
+    const closedSubdirs = closedSubdirectoryPairs(state)
     const search = state.searchTerm ? state.searchTerm : ''
     const effectiveSort = state.videoTempSort || state.sortOrder
     const requestKey = videoListRequestKey(state, directoryIds)
@@ -784,6 +838,7 @@ export const useStore = create((set, get) => ({
         search,
         sort: effectiveSort,
         directoryIds,
+        closedSubdirs,
         hideJav: state.videoHideJav,
       })
       if (
@@ -835,6 +890,7 @@ export const useStore = create((set, get) => ({
       javRandomSeed,
     } = get()
     const directoryIds = directoryQueryIds(get())
+    const closedSubdirs = closedSubdirectoryPairs(get())
     const search = javSearchTerm || ''
     const effectiveSort = javTempSort || javSort
     const key = javListRequestKey(get(), directoryIds)
@@ -859,6 +915,7 @@ export const useStore = create((set, get) => ({
         sort: javRandomMode ? 'random' : effectiveSort,
         seed: javRandomMode ? javRandomSeed : null,
         directoryIds,
+        closedSubdirs,
       })
       if (reqId !== javLoadSeq || key !== javListRequestKey(get())) return
       const items = resp.items || []
@@ -884,6 +941,7 @@ export const useStore = create((set, get) => ({
     if (total > 0 && baseOffset + loaded >= total) return
 
     const directoryIds = directoryQueryIds(state)
+    const closedSubdirs = closedSubdirectoryPairs(state)
     const search = state.javSearchTerm || ''
     const effectiveSort = state.javTempSort || state.javSort
     const requestKey = javListRequestKey(state, directoryIds)
@@ -904,6 +962,7 @@ export const useStore = create((set, get) => ({
         favoriteGroupId: state.javFavoriteGroupId,
         sort: effectiveSort,
         directoryIds,
+        closedSubdirs,
       })
       if (
         loadReqId !== javLoadSeq ||
@@ -935,6 +994,7 @@ export const useStore = create((set, get) => ({
   loadJavIdols: async (options = {}) => {
     const { idolPage, idolPageSize, javSearchTerm, idolFavoriteGroupId } = get()
     const directoryIds = directoryQueryIds(get())
+    const closedSubdirs = closedSubdirectoryPairs(get())
     const search = javSearchTerm || ''
     const key = idolListRequestKey(get(), directoryIds)
     if (!options.force && key === lastIdolFetchKey) {
@@ -950,6 +1010,7 @@ export const useStore = create((set, get) => ({
         search,
         sort: effectiveIdolSort(get()),
         directoryIds,
+        closedSubdirs,
         favoriteGroupId: idolFavoriteGroupId,
       })
       if (reqId !== idolLoadSeq || key !== idolListRequestKey(get())) return
@@ -975,6 +1036,7 @@ export const useStore = create((set, get) => ({
     if (total > 0 && baseOffset + loaded >= total) return
 
     const directoryIds = directoryQueryIds(state)
+    const closedSubdirs = closedSubdirectoryPairs(state)
     const search = state.javSearchTerm || ''
     const requestKey = idolListRequestKey(state, directoryIds)
     const loadReqId = idolLoadSeq
@@ -987,6 +1049,7 @@ export const useStore = create((set, get) => ({
         search,
         sort: effectiveIdolSort(state),
         directoryIds,
+        closedSubdirs,
         favoriteGroupId: state.idolFavoriteGroupId,
       })
       if (
@@ -1055,6 +1118,7 @@ export const useStore = create((set, get) => ({
   loadJavStudios: async (options = {}) => {
     const { studioPage, studioPageSize, javSearchTerm, studioFavoriteGroupId } = get()
     const directoryIds = directoryQueryIds(get())
+    const closedSubdirs = closedSubdirectoryPairs(get())
     const search = javSearchTerm || ''
     const key = studioListRequestKey(get(), directoryIds)
     if (!options.force && key === lastStudioFetchKey) {
@@ -1069,6 +1133,7 @@ export const useStore = create((set, get) => ({
         offset: (studioPage - 1) * studioPageSize,
         search,
         directoryIds,
+        closedSubdirs,
         favoriteGroupId: studioFavoriteGroupId,
       })
       if (reqId !== studioLoadSeq || key !== studioListRequestKey(get())) return
@@ -1094,6 +1159,7 @@ export const useStore = create((set, get) => ({
     if (total > 0 && baseOffset + loaded >= total) return
 
     const directoryIds = directoryQueryIds(state)
+    const closedSubdirs = closedSubdirectoryPairs(state)
     const search = state.javSearchTerm || ''
     const requestKey = studioListRequestKey(state, directoryIds)
     const loadReqId = studioLoadSeq
@@ -1105,6 +1171,7 @@ export const useStore = create((set, get) => ({
         offset: baseOffset + loaded,
         search,
         directoryIds,
+        closedSubdirs,
         favoriteGroupId: state.studioFavoriteGroupId,
       })
       if (
@@ -1137,6 +1204,7 @@ export const useStore = create((set, get) => ({
   loadJavSeries: async (options = {}) => {
     const { seriesPage, seriesPageSize, javSearchTerm, seriesFavoriteGroupId } = get()
     const directoryIds = directoryQueryIds(get())
+    const closedSubdirs = closedSubdirectoryPairs(get())
     const search = javSearchTerm || ''
     const key = seriesListRequestKey(get(), directoryIds)
     if (!options.force && key === lastSeriesFetchKey) {
@@ -1151,6 +1219,7 @@ export const useStore = create((set, get) => ({
         offset: (seriesPage - 1) * seriesPageSize,
         search,
         directoryIds,
+        closedSubdirs,
         favoriteGroupId: seriesFavoriteGroupId,
       })
       if (reqId !== seriesLoadSeq || key !== seriesListRequestKey(get())) return
@@ -1176,6 +1245,7 @@ export const useStore = create((set, get) => ({
     if (total > 0 && baseOffset + loaded >= total) return
 
     const directoryIds = directoryQueryIds(state)
+    const closedSubdirs = closedSubdirectoryPairs(state)
     const search = state.javSearchTerm || ''
     const requestKey = seriesListRequestKey(state, directoryIds)
     const loadReqId = seriesLoadSeq
@@ -1187,6 +1257,7 @@ export const useStore = create((set, get) => ({
         offset: baseOffset + loaded,
         search,
         directoryIds,
+        closedSubdirs,
         favoriteGroupId: state.seriesFavoriteGroupId,
       })
       if (
@@ -1309,6 +1380,7 @@ export const useStore = create((set, get) => ({
     set({
       enabledDirectoryIds: mode === DIRECTORY_FILTER_ALL ? active : clean,
       directoryFilterMode: mode,
+      closedSubdirectories: pruneClosedSubdirectories(get().closedSubdirectories, clean),
       page: 1,
       javPage: 1,
       idolPage: 1,
@@ -1322,6 +1394,66 @@ export const useStore = create((set, get) => ({
       javRandomMode: false,
       javRandomSeed: null,
     })
+    lastVideoFetchKey = null
+    lastJavFetchKey = null
+    lastIdolFetchKey = null
+    lastStudioFetchKey = null
+    lastSeriesFetchKey = null
+    lastTagFetchKey = null
+    lastJavTagFetchKey = null
+  },
+  setClosedSubdirectories: (directoryId, names) => {
+    const id = Number(directoryId)
+    const cleanNames = Array.from(
+      new Set((names || []).map((name) => String(name || '').trim()).filter(Boolean))
+    ).sort((a, b) => a.localeCompare(b))
+    const state = get()
+    const next = { ...(state.closedSubdirectories || {}) }
+    if (cleanNames.length === 0) {
+      delete next[id]
+    } else {
+      next[id] = cleanNames
+    }
+    set({
+      closedSubdirectories: next,
+      page: 1,
+      javPage: 1,
+      idolPage: 1,
+      studioPage: 1,
+      seriesPage: 1,
+      videoTempSort: '',
+      javTempSort: '',
+      idolTempSort: '',
+      randomMode: false,
+      randomSeed: null,
+      javRandomMode: false,
+      javRandomSeed: null,
+    })
+    lastVideoFetchKey = null
+    lastJavFetchKey = null
+    lastIdolFetchKey = null
+    lastStudioFetchKey = null
+    lastSeriesFetchKey = null
+    lastTagFetchKey = null
+    lastJavTagFetchKey = null
+  },
+  setClosedSubdirectoriesFromUrl: (pairs) => {
+    const map = {}
+    for (const pair of Array.isArray(pairs) ? pairs : []) {
+      const id = Number(pair?.directoryId)
+      const name = String(pair?.name || '').trim()
+      if (!Number.isFinite(id) || id <= 0 || !name) continue
+      if (!map[id]) map[id] = []
+      if (!map[id].includes(name)) map[id].push(name)
+    }
+    const active = cleanDirectoryIds(get().directories.map((directory) => directory?.id))
+    const pruned = pruneClosedSubdirectories(map, active)
+    const state = get()
+    const current = state.closedSubdirectories || {}
+    if (JSON.stringify(current) === JSON.stringify(pruned)) {
+      return
+    }
+    set({ closedSubdirectories: pruned })
     lastVideoFetchKey = null
     lastJavFetchKey = null
     lastIdolFetchKey = null

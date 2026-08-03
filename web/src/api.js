@@ -79,6 +79,7 @@ export async function fetchVideos({
   sort = '',
   seed = null,
   directoryIds = [],
+  closedSubdirs = [],
   hideJav = false,
 } = {}) {
   const params = new URLSearchParams()
@@ -89,6 +90,8 @@ export async function fetchVideos({
   if (sort) params.set('sort', sort)
   if (seed != null) params.set('seed', String(seed))
   if (directoryIds.length) params.set('directory_ids', directoryIds.join(','))
+  const closed = closedSubdirsParam(closedSubdirs)
+  if (closed) params.set('closed_subdirs', closed)
   params.set('hide_jav', hideJav ? '1' : '0')
   const res = await apiFetch(`/videos?${params.toString()}`)
   if (!res.ok) throw await apiError(res)
@@ -100,9 +103,11 @@ export async function fetchVideos({
   return data
 }
 
-export async function fetchTags({ directoryIds = [], hideJav = false } = {}) {
+export async function fetchTags({ directoryIds = [], closedSubdirs = [], hideJav = false } = {}) {
   const params = new URLSearchParams()
   if (directoryIds.length) params.set('directory_ids', directoryIds.join(','))
+  const closed = closedSubdirsParam(closedSubdirs)
+  if (closed) params.set('closed_subdirs', closed)
   params.set('hide_jav', hideJav ? '1' : '0')
   const query = params.toString()
   const res = await apiFetch(`/tags${query ? `?${query}` : ''}`)
@@ -407,6 +412,29 @@ export async function fetchDirectories() {
   return res.json()
 }
 
+// Fetches first-level subdirectories (with active video counts) of a root directory.
+// Returns { root_video_count, subdirectories: [{ name, video_count }] }.
+export async function fetchDirectorySubdirectories(directoryId) {
+  const res = await apiFetch(`/directories/${encodeURIComponent(directoryId)}/subdirectories`)
+  if (!res.ok) throw await apiError(res)
+  return res.json()
+}
+
+// Serializes closed subdirectory entries ("directoryId:name" pairs) for the
+// closed_subdirs query parameter.
+const closedSubdirsParam = (closedSubdirs = []) => {
+  if (!Array.isArray(closedSubdirs) || closedSubdirs.length === 0) return ''
+  return closedSubdirs
+    .map((item) => {
+      const id = Number(item?.directoryId)
+      const name = String(item?.name || '').trim()
+      if (!Number.isFinite(id) || id <= 0 || !name) return ''
+      return `${id}:${name}`
+    })
+    .filter(Boolean)
+    .join(',')
+}
+
 export async function createDirectory({ path }) {
   const res = await apiFetch('/directories', {
     method: 'POST',
@@ -470,6 +498,7 @@ export async function fetchJavs({
   sort = '',
   seed = null,
   directoryIds = [],
+  closedSubdirs = [],
   favoriteGroupId = null,
 } = {}) {
   const params = new URLSearchParams()
@@ -485,6 +514,8 @@ export async function fetchJavs({
   if (sort) params.set('sort', sort)
   if (seed != null) params.set('seed', String(seed))
   if (directoryIds.length) params.set('directory_ids', directoryIds.join(','))
+  const closed = closedSubdirsParam(closedSubdirs)
+  if (closed) params.set('closed_subdirs', closed)
   if (favoriteGroupId) params.set('favorite_group_id', String(favoriteGroupId))
   const res = await apiFetch(`/jav?${params.toString()}`)
   if (!res.ok) {
@@ -554,9 +585,11 @@ export async function fetchJavPrefixes({ directoryIds = [] } = {}) {
   return res.json()
 }
 
-export async function fetchJavTags({ directoryIds = [] } = {}) {
+export async function fetchJavTags({ directoryIds = [], closedSubdirs = [] } = {}) {
   const params = new URLSearchParams()
   if (directoryIds.length) params.set('directory_ids', directoryIds.join(','))
+  const closed = closedSubdirsParam(closedSubdirs)
+  if (closed) params.set('closed_subdirs', closed)
   const query = params.toString()
   const res = await apiFetch(`/jav/tags${query ? `?${query}` : ''}`)
   if (!res.ok) {
@@ -672,6 +705,7 @@ export async function fetchJavIdols({
   search = '',
   sort = '',
   directoryIds = [],
+  closedSubdirs = [],
   favoriteGroupId = null,
 } = {}) {
   const params = new URLSearchParams()
@@ -680,6 +714,8 @@ export async function fetchJavIdols({
   if (search) params.set('search', search)
   if (sort) params.set('sort', sort)
   if (directoryIds.length) params.set('directory_ids', directoryIds.join(','))
+  const closed = closedSubdirsParam(closedSubdirs)
+  if (closed) params.set('closed_subdirs', closed)
   if (favoriteGroupId) params.set('favorite_group_id', String(favoriteGroupId))
   const res = await apiFetch(`/jav/idols?${params.toString()}`)
   if (!res.ok) {
@@ -914,6 +950,7 @@ export async function fetchJavStudios({
   offset = 0,
   search = '',
   directoryIds = [],
+  closedSubdirs = [],
   favoriteGroupId = null,
 } = {}) {
   const params = new URLSearchParams()
@@ -921,6 +958,8 @@ export async function fetchJavStudios({
   params.set('offset', String(offset))
   if (search) params.set('search', search)
   if (directoryIds.length) params.set('directory_ids', directoryIds.join(','))
+  const closed = closedSubdirsParam(closedSubdirs)
+  if (closed) params.set('closed_subdirs', closed)
   if (favoriteGroupId) params.set('favorite_group_id', String(favoriteGroupId))
   const res = await apiFetch(`/jav/studios?${params.toString()}`)
   if (!res.ok) {
@@ -1001,6 +1040,7 @@ export async function fetchJavSeries({
   offset = 0,
   search = '',
   directoryIds = [],
+  closedSubdirs = [],
   favoriteGroupId = null,
 } = {}) {
   const params = new URLSearchParams()
@@ -1008,6 +1048,8 @@ export async function fetchJavSeries({
   params.set('offset', String(offset))
   if (search) params.set('search', search)
   if (directoryIds.length) params.set('directory_ids', directoryIds.join(','))
+  const closed = closedSubdirsParam(closedSubdirs)
+  if (closed) params.set('closed_subdirs', closed)
   if (favoriteGroupId) params.set('favorite_group_id', String(favoriteGroupId))
   const res = await apiFetch(`/jav/series?${params.toString()}`)
   if (!res.ok) {

@@ -142,14 +142,14 @@ func TestMissingDirectoryContentsRemainVisible(t *testing.T) {
 		t.Fatalf("link jav: %v", err)
 	}
 
-	items, err := ListVideos(ctx, 20, 0, nil, "", "recent", nil, []int64{dir.ID})
+	items, err := ListVideos(ctx, 20, 0, nil, "", "recent", nil, []int64{dir.ID}, nil)
 	if err != nil {
 		t.Fatalf("list videos: %v", err)
 	}
 	if len(items) != 1 || items[0].LocationID != loc.ID || !items[0].DirectoryRef.Missing {
 		t.Fatalf("missing directory video should remain visible: %#v", items)
 	}
-	count, err := CountVideos(ctx, nil, "", []int64{dir.ID})
+	count, err := CountVideos(ctx, nil, "", []int64{dir.ID}, nil)
 	if err != nil {
 		t.Fatalf("count videos: %v", err)
 	}
@@ -220,7 +220,7 @@ func TestUpdateDirectoryPathHidesExistingVideoLocations(t *testing.T) {
 		t.Fatal("existing location should be hidden immediately after directory path changes")
 	}
 
-	items, err := ListVideos(ctx, 20, 0, nil, "", "recent", nil, []int64{dir.ID})
+	items, err := ListVideos(ctx, 20, 0, nil, "", "recent", nil, []int64{dir.ID}, nil)
 	if err != nil {
 		t.Fatalf("list videos after hiding locations: %v", err)
 	}
