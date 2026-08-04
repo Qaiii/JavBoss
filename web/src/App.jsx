@@ -3497,7 +3497,7 @@ export default function App() {
             openPlayer={handleOpenPlayer}
             openAlternatePlayer={alternatePlayer ? handleOpenAlternatePlayer : null}
             revealFile={desktopIntegrationEnabled ? handleRevealVideoFile : null}
-            viewLocation={desktopIntegrationEnabled ? null : handleViewLocation}
+            viewLocation={handleViewLocation}
             alternatePlayerLabel={alternatePlayerLabel}
             setTagPickerFor={openTagEditor}
             onOpenScreenshots={openVideoScreenshots}

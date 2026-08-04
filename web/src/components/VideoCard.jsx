@@ -62,7 +62,7 @@ export default function VideoCard({
   const hasScrapeOverride = Boolean(String(video?.jav_scrape_override || '').trim())
   const canOpenFile = Boolean(onOpenFile)
   const canRevealFile = Boolean(onRevealFile)
-  const canViewLocation = Boolean(onViewLocation)
+  const canViewLocation = Boolean(onViewLocation) && Boolean(directoryPath)
   const thumbnailVersion = encodeURIComponent(
     [video?.cover_screenshot_name || '', video?.updated_at || ''].join('|')
   )
@@ -281,7 +281,8 @@ export default function VideoCard({
                 <FolderOpenIcon fontSize="inherit" />
               </IconButton>
             </Tooltip>
-          ) : canViewLocation ? (
+          ) : null}
+          {canViewLocation ? (
             <Tooltip title={zh('查看所在位置', 'View in folder')}>
               <IconButton
                 size="small"
