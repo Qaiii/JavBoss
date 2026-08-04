@@ -9,6 +9,7 @@ export default function VideoGrid({
   onPlay,
   onOpenFile,
   onRevealFile,
+  onViewLocation,
   openFileLabel,
   onOpenTagPicker,
   showTagEditor = true,
@@ -33,6 +34,7 @@ export default function VideoGrid({
           onPlay={onPlay}
           onOpenFile={onOpenFile}
           onRevealFile={onRevealFile}
+          onViewLocation={onViewLocation}
           openFileLabel={openFileLabel}
           onOpenTagPicker={() => onOpenTagPicker(v.id)}
           showTagEditor={showTagEditor}

@@ -20,6 +20,7 @@ export default function VideoRoute({
   page,
   randomMode,
   revealFile,
+  viewLocation,
   selectedVideoIds,
   setPage,
   setTagPickerFor,
@@ -56,6 +57,7 @@ export default function VideoRoute({
       openPlayer={openPlayer}
       openAlternatePlayer={openAlternatePlayer}
       revealFile={revealFile}
+      viewLocation={viewLocation}
       alternatePlayerLabel={alternatePlayerLabel}
       setTagPickerFor={setTagPickerFor}
       onOpenScreenshots={onOpenScreenshots}

@@ -5,6 +5,7 @@ import DriveFileRenameOutlineIcon from '@mui/icons-material/DriveFileRenameOutli
 import LocalOfferOutlinedIcon from '@mui/icons-material/LocalOfferOutlined'
 import PlayArrowIcon from '@mui/icons-material/PlayArrow'
 import FolderOpenIcon from '@mui/icons-material/FolderOpen'
+import FolderOutlinedIcon from '@mui/icons-material/FolderOutlined'
 import ManageSearchIcon from '@mui/icons-material/ManageSearch'
 import { revealVideoLocation } from '@/api'
 import { formatBytes, getVideoDisplayName, parseVideoFingerprint } from '@/utils/display'
@@ -20,6 +21,7 @@ export default function VideoCard({
   onPlay,
   onOpenFile,
   onRevealFile,
+  onViewLocation,
   openFileLabel,
   onOpenTagPicker,
   showTagEditor = true,
@@ -60,6 +62,7 @@ export default function VideoCard({
   const hasScrapeOverride = Boolean(String(video?.jav_scrape_override || '').trim())
   const canOpenFile = Boolean(onOpenFile)
   const canRevealFile = Boolean(onRevealFile)
+  const canViewLocation = Boolean(onViewLocation)
   const thumbnailVersion = encodeURIComponent(
     [video?.cover_screenshot_name || '', video?.updated_at || ''].join('|')
   )
@@ -276,6 +279,20 @@ export default function VideoCard({
                 className="h-6 w-6"
               >
                 <FolderOpenIcon fontSize="inherit" />
+              </IconButton>
+            </Tooltip>
+          ) : canViewLocation ? (
+            <Tooltip title={zh('查看所在位置', 'View in folder')}>
+              <IconButton
+                size="small"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onViewLocation(video)
+                }}
+                aria-label={zh('查看所在位置', 'View in folder')}
+                className="h-6 w-6"
+              >
+                <FolderOutlinedIcon fontSize="inherit" />
               </IconButton>
             </Tooltip>
           ) : null}

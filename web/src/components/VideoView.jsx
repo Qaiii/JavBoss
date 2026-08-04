@@ -46,6 +46,7 @@ export default function VideoView({
   openPlayer,
   openAlternatePlayer,
   revealFile,
+  viewLocation,
   alternatePlayerLabel,
   setTagPickerFor,
   onOpenScreenshots,
@@ -211,6 +212,7 @@ export default function VideoView({
           onPlay={(video) => openPlayer(video)}
           onOpenFile={(video) => openAlternatePlayer?.(video)}
           onRevealFile={(video) => revealFile?.(video)}
+          onViewLocation={(video) => viewLocation?.(video)}
           openFileLabel={alternatePlayerLabel}
           onOpenTagPicker={(vid) => setTagPickerFor(vid)}
           onOpenScreenshots={onOpenScreenshots}

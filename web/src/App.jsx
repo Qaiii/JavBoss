@@ -558,6 +558,18 @@ export default function App() {
     [getVideoDirPath, getVideoRelPath, isVideoOpenable]
   )
 
+  const handleViewLocation = useCallback(
+    (video) => {
+      const dirId = Number(video?.directory?.id || video?.directory_id || 0)
+      if (!Number.isFinite(dirId) || dirId <= 0) return
+      // 清除搜索与标签过滤，仅保留目录过滤，展示该目录下所有内容
+      setSearchTerm('', { resetPage: false })
+      setSelectedTags([], { resetPage: false })
+      setEnabledDirectoryIds([dirId])
+    },
+    [setEnabledDirectoryIds, setSearchTerm, setSelectedTags]
+  )
+
   const playVideoFromTime = useCallback(
     (video, startTime) => {
       if (!video) return
@@ -3440,7 +3452,7 @@ export default function App() {
               onManageVideoPlayAtTime: playVideoFromTime,
               onManageVideoCoverChanged: handleVideoCoverChanged,
               onManageVideoOpenFile: handleOpenAlternatePlayer,
-              onManageVideoRevealFile: handleRevealVideoFile,
+              onManageVideoRevealFile: desktopIntegrationEnabled ? handleRevealVideoFile : null,
               onManageVideoOpenTagPicker: openTagEditor,
               onManageVideoOpenScreenshots: openJavScreenshots,
               onManageVideoOpenScrapeSettings: handleOpenScrapeSettings,
@@ -3485,6 +3497,7 @@ export default function App() {
             openPlayer={handleOpenPlayer}
             openAlternatePlayer={alternatePlayer ? handleOpenAlternatePlayer : null}
             revealFile={desktopIntegrationEnabled ? handleRevealVideoFile : null}
+            viewLocation={desktopIntegrationEnabled ? null : handleViewLocation}
             alternatePlayerLabel={alternatePlayerLabel}
             setTagPickerFor={openTagEditor}
             onOpenScreenshots={openVideoScreenshots}
