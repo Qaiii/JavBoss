@@ -18,6 +18,7 @@ func RegisterRoutes(router gin.IRoutes) {
 	router.GET("/videos/:id", getVideo)
 	router.GET("/videos/:id/streams", getVideoStreams)
 	router.GET("/videos/:id/stream", streamVideo)
+	router.HEAD("/videos/:id/stream", streamVideo)
 	router.GET("/videos/:id/stream.m3u8", streamHLSManifest)
 	router.GET("/videos/:id/stream.m3u8/:segment", streamHLSSegment)
 	router.GET("/videos/:id/thumbnail", getThumbnail)
@@ -26,6 +27,7 @@ func RegisterRoutes(router gin.IRoutes) {
 	router.GET("/videos/:id/screenshots", listVideoScreenshots)
 	router.POST("/videos/:id/screenshots", createVideoScreenshot)
 	router.GET("/videos/:id/screenshots/:name", getVideoScreenshot)
+	router.PUT("/videos/:id/screenshots/:name", uploadVideoScreenshot)
 	router.PATCH("/videos/:id/jav-scrape", updateVideoJavScrapeSettings)
 	router.GET("/videos/:id/jav-scrape/possible-codes", getVideoJavScrapePossibleCodes)
 	router.GET("/videos/:id/jav-scrape/javdb", lookupVideoJavScrapeJavDB)
@@ -43,6 +45,7 @@ func RegisterRoutes(router gin.IRoutes) {
 	router.POST("/directories/pick", pickDirectory)
 	router.POST("/directories/:id/process", processDirectory)
 	router.GET("/directories/:id/subdirectories", listDirectorySubdirectories)
+	router.POST("/directories/:id/scan", scanDirectory)
 	router.PATCH("/directories/:id", updateDirectory)
 
 	router.GET("/tags", listTags)

@@ -8,7 +8,7 @@ import (
 )
 
 func init() {
-	goose.AddNamedMigrationContext("202608030001_add_video_format.go", addVideoFormat, irreversibleMigration)
+	goose.AddNamedMigrationContext("202608030002_add_video_format.go", addVideoFormat, irreversibleMigration)
 }
 
 func addVideoFormat(ctx context.Context, tx *sql.Tx) error {

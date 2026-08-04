@@ -28,6 +28,7 @@ import {
   reorderJavFavoriteGroups,
   replaceJavFavoriteGroups,
   processDirectory,
+  scanDirectory,
 } from '@/api'
 import GlobalSettingsModal from '@/components/GlobalSettingsModal'
 import JavIdolFavoriteManageModal from '@/components/JavIdolFavoriteManageModal'
@@ -403,6 +404,7 @@ export default function App() {
       }
     : null
   const browserPlaybackOnly = configFlag(config?.browser_playback_only)
+  const clientMode = configFlag(config?.runtime_client)
   const containerMode = configFlag(config?.runtime_container)
   const hostPathPrefixEnabled = configFlag(config?.host_path_prefix_enabled, containerMode)
   const desktopIntegrationEnabled = configFlag(config?.desktop_integration_enabled, true)
@@ -419,7 +421,19 @@ export default function App() {
       ? mpvEnabled
         ? 'mpv'
         : ''
-      : 'system'
+      : defaultPlayer === 'browser'
+        ? clientMode
+          ? mpvEnabled
+            ? 'mpv'
+            : desktopIntegrationEnabled
+              ? 'system'
+              : ''
+          : desktopIntegrationEnabled
+            ? 'system'
+            : ''
+        : desktopIntegrationEnabled
+          ? 'system'
+          : ''
   const alternatePlayerLabel =
     alternatePlayer === 'mpv'
       ? zh('使用MPV播放器播放', 'Play with MPV player')
@@ -529,6 +543,7 @@ export default function App() {
       }
       const payload = {
         id: video.id,
+        locationId: video.location_id,
         path: getVideoRelPath(video),
         dirPath: getVideoDirPath(video),
       }
@@ -580,6 +595,7 @@ export default function App() {
       }
       playVideoFile({
         id: video.id,
+        locationId: video.location_id,
         path: getVideoRelPath(video),
         dirPath: getVideoDirPath(video),
         startTime,
@@ -3853,6 +3869,7 @@ export default function App() {
         onClose={() => setGlobalSettingsOpen(false)}
         directories={directories}
         browserPlaybackOnly={browserPlaybackOnly}
+        desktopIntegrationEnabled={desktopIntegrationEnabled}
         containerMode={containerMode}
         directoryPickerEnabled={directoryPickerEnabled}
         hostPathPrefixEnabled={hostPathPrefixEnabled}
@@ -3883,6 +3900,12 @@ export default function App() {
           const result = await processDirectory(id, mode, layout)
           await loadDirectories()
           showToast(zh('目录任务已启动', 'Directory task started'))
+          return result
+        }}
+        onScanDirectory={async (id) => {
+          const result = await scanDirectory(id)
+          await loadDirectories()
+          showToast(zh('目录扫描已启动', 'Directory scan started'))
           return result
         }}
         onRefreshDirectories={loadDirectories}
