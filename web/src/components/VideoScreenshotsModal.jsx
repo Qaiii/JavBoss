@@ -3,12 +3,12 @@ import { createPortal } from 'react-dom'
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline'
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
-import CloseIcon from '@mui/icons-material/Close'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
 import ImageOutlinedIcon from '@mui/icons-material/ImageOutlined'
 import PlayArrowIcon from '@mui/icons-material/PlayArrow'
 import RestoreIcon from '@mui/icons-material/Restore'
 import { IconButton, Tooltip } from '@mui/material'
+import ModalShell from '@/components/ModalShell'
 import {
   deleteVideoScreenshot,
   fetchVideoScreenshots,
@@ -160,63 +160,56 @@ export default function VideoScreenshotsModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-6">
-      <div className="flex max-h-full w-full max-w-5xl flex-col rounded-lg bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b px-4 py-3">
-          <div className="min-w-0">
-            <h2 className="truncate text-base font-semibold text-gray-900">
-              {zh('视频截图', 'Video Screenshots')}
-            </h2>
-            <div className="truncate text-xs text-gray-500" title={title}>
-              {title}
-            </div>
-          </div>
-          <div className="flex items-center gap-1">
-            {allowSetCover && currentCoverName ? (
-              <Tooltip
-                arrow
-                placement="left"
-                title={zh('恢复默认封面', 'Restore default cover')}
-                slotProps={{
-                  popper: {
-                    sx: {
-                      pointerEvents: 'none',
-                      zIndex: (theme) => theme.zIndex.modal + 1000,
-                    },
-                    modifiers: [
-                      {
-                        name: 'offset',
-                        options: {
-                          offset: [0, 4],
-                        },
-                      },
-                    ],
+    <>
+      <ModalShell
+        open={open}
+        onClose={onClose}
+        title={zh('视频截图', 'Video Screenshots')}
+        subtitle={title}
+        closeLabel={zh('关闭截图弹窗', 'Close screenshots modal')}
+        backdropClassName="bg-black/40 px-4 py-6"
+        panelClassName="flex max-h-full w-full max-w-5xl flex-col rounded-lg bg-white shadow-xl"
+        headerClassName="flex items-center justify-between border-b px-4 py-3"
+        titleClassName="truncate text-base font-semibold text-gray-900"
+        subtitleClassName="truncate text-xs text-gray-500"
+        headerActions={
+          allowSetCover && currentCoverName ? (
+            <Tooltip
+              arrow
+              placement="left"
+              title={zh('恢复默认封面', 'Restore default cover')}
+              slotProps={{
+                popper: {
+                  sx: {
+                    pointerEvents: 'none',
+                    zIndex: (theme) => theme.zIndex.modal + 1000,
                   },
-                }}
-              >
-                <span className="group relative inline-flex">
-                  <IconButton
-                    size="small"
-                    onClick={handleResetCover}
-                    disabled={Boolean(settingCoverName)}
-                    aria-label={zh('恢复默认封面', 'Restore default cover')}
-                  >
-                    <RestoreIcon fontSize="inherit" />
-                  </IconButton>
-                  <DefaultCoverPreview src={defaultCoverPreviewSrc} />
-                </span>
-              </Tooltip>
-            ) : null}
-            <IconButton
-              size="small"
-              onClick={onClose}
-              aria-label={zh('关闭截图弹窗', 'Close screenshots modal')}
+                  modifiers: [
+                    {
+                      name: 'offset',
+                      options: {
+                        offset: [0, 4],
+                      },
+                    },
+                  ],
+                },
+              }}
             >
-              <CloseIcon fontSize="inherit" />
-            </IconButton>
-          </div>
-        </div>
-
+              <span className="group relative inline-flex">
+                <IconButton
+                  size="small"
+                  onClick={handleResetCover}
+                  disabled={Boolean(settingCoverName)}
+                  aria-label={zh('恢复默认封面', 'Restore default cover')}
+                >
+                  <RestoreIcon fontSize="inherit" />
+                </IconButton>
+                <DefaultCoverPreview src={defaultCoverPreviewSrc} />
+              </span>
+            </Tooltip>
+          ) : null
+        }
+      >
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
           {loading ? (
             <div className="flex min-h-48 items-center justify-center rounded border border-dashed border-gray-200 text-sm text-gray-500">
@@ -337,16 +330,16 @@ export default function VideoScreenshotsModal({
             </div>
           )}
         </div>
-      </div>
-      {previewItem ? (
-        <ScreenshotPreviewModal
-          item={previewItem}
-          items={items}
-          onClose={() => setPreviewItem(null)}
-          onSelect={setPreviewItem}
-        />
-      ) : null}
-    </div>
+        {previewItem ? (
+          <ScreenshotPreviewModal
+            item={previewItem}
+            items={items}
+            onClose={() => setPreviewItem(null)}
+            onSelect={setPreviewItem}
+          />
+        ) : null}
+      </ModalShell>
+    </>
   )
 }
 
@@ -402,6 +395,20 @@ function PreviewImage({ item }) {
 
 export function ScreenshotPreviewModal({ item, items, onClose, onSelect }) {
   const lastWheelAtRef = useRef(0)
+
+  // Esc 关闭预览。用捕获阶段监听，先于下层弹窗（ModalShell 的冒泡监听）处理，
+  // 并阻止事件继续传播，保证只关闭预览层。
+  useEffect(() => {
+    if (!item?.url) return undefined
+    const handleKeyDown = (event) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      event.stopPropagation()
+      onClose()
+    }
+    window.addEventListener('keydown', handleKeyDown, true)
+    return () => window.removeEventListener('keydown', handleKeyDown, true)
+  }, [item?.url, onClose])
   const itemIdentity = screenshotPreviewIdentity(item)
   const currentIndex = useMemo(
     () => items.findIndex((candidate) => screenshotPreviewIdentity(candidate) === itemIdentity),

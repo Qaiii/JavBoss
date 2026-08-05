@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import CloseRoundedIcon from '@mui/icons-material/CloseRounded'
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded'
 import EditRoundedIcon from '@mui/icons-material/EditRounded'
 import MenuRoundedIcon from '@mui/icons-material/MenuRounded'
 import { Button, IconButton } from '@mui/material'
+import ModalShell from '@/components/ModalShell'
 import { zh } from '@/utils/i18n'
 import { getErrorMessage } from '@/utils/errors'
 import { getIdolDisplayName } from '@/utils/javIdol'
@@ -112,49 +112,44 @@ export default function JavIdolFavoriteManageModal({
   return (
     <>
       {!directEditMode ? (
-        <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center px-4">
-          <div className="pointer-events-auto flex max-h-[82vh] w-full max-w-lg flex-col rounded-lg bg-white shadow-xl">
-            <div className="flex items-center justify-between border-b px-4 py-3">
-              <h2 className="text-base font-semibold text-gray-950">{labels.manageTitle}</h2>
-              <IconButton
-                type="button"
-                size="small"
-                onClick={onClose}
-                disabled={saving}
-                aria-label={zh('关闭收藏夹管理', 'Close favorite manager')}
-              >
-                <CloseRoundedIcon fontSize="small" />
-              </IconButton>
-            </div>
+        <ModalShell
+          open={open}
+          onClose={onClose}
+          title={labels.manageTitle}
+          closeLabel={zh('关闭收藏夹管理', 'Close favorite manager')}
+          closeDisabled={saving}
+          backdropClassName="pointer-events-none px-4"
+          panelClassName="pointer-events-auto flex max-h-[82vh] w-full max-w-lg flex-col rounded-lg bg-white shadow-xl"
+          headerClassName="flex items-center justify-between border-b px-4 py-3"
+          titleClassName="text-base font-semibold text-gray-950"
+        >
+          <div className="min-h-0 flex-1 overflow-y-auto p-4">
+            {error ? (
+              <div className="mb-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {error}
+              </div>
+            ) : null}
 
-            <div className="min-h-0 flex-1 overflow-y-auto p-4">
-              {error ? (
-                <div className="mb-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                  {error}
-                </div>
-              ) : null}
-
-              <GroupOrderList
-                groups={localGroups}
-                selectedGroupId={selectedGroupId}
-                emptyText={loading ? zh('加载中…', 'Loading...') : zh('暂无收藏夹', 'No favorites')}
-                labels={labels}
-                onReorder={setLocalGroups}
-                onReorderCommit={commitGroupOrder}
-                onEdit={(group) => setEditingGroup(group)}
-              />
-            </div>
-
-            <div className="flex justify-end gap-2 border-t px-4 py-3">
-              <Button variant="outlined" onClick={() => setCreatingOpen(true)} disabled={saving}>
-                {zh('新增收藏夹', 'Add favorite')}
-              </Button>
-              <Button variant="outlined" onClick={onClose} disabled={saving}>
-                {zh('关闭', 'Close')}
-              </Button>
-            </div>
+            <GroupOrderList
+              groups={localGroups}
+              selectedGroupId={selectedGroupId}
+              emptyText={loading ? zh('加载中…', 'Loading...') : zh('暂无收藏夹', 'No favorites')}
+              labels={labels}
+              onReorder={setLocalGroups}
+              onReorderCommit={commitGroupOrder}
+              onEdit={(group) => setEditingGroup(group)}
+            />
           </div>
-        </div>
+
+          <div className="flex justify-end gap-2 border-t px-4 py-3">
+            <Button variant="outlined" onClick={() => setCreatingOpen(true)} disabled={saving}>
+              {zh('新增收藏夹', 'Add favorite')}
+            </Button>
+            <Button variant="outlined" onClick={onClose} disabled={saving}>
+              {zh('关闭', 'Close')}
+            </Button>
+          </div>
+        </ModalShell>
       ) : null}
 
       <FavoriteGroupEditModal
@@ -190,21 +185,33 @@ function CreateGroupModal({ open, name, creating, onNameChange, onClose, onSubmi
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 px-4">
+    // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={zh('新增收藏夹', 'Add favorite')}
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 px-4"
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') {
+          event.stopPropagation()
+          onClose()
+        }
+      }}
+    >
       <form onSubmit={onSubmit} className="w-full max-w-sm rounded-lg bg-white shadow-xl">
         <div className="flex items-center justify-between border-b px-4 py-3">
           <h2 className="text-base font-semibold text-gray-950">
             {zh('新增收藏夹', 'Add favorite')}
           </h2>
-          <IconButton
+          <button
             type="button"
-            size="small"
             onClick={onClose}
             disabled={creating}
             aria-label={zh('关闭新增收藏夹', 'Close add favorite')}
+            className="rounded-full bg-black/60 px-2 py-1 text-sm text-white transition-colors hover:bg-black/80 disabled:opacity-50"
           >
-            <CloseRoundedIcon fontSize="small" />
-          </IconButton>
+            ×
+          </button>
         </div>
         <div className="p-4">
           <input
@@ -412,20 +419,32 @@ function FavoriteGroupEditModal({
         directMode ? 'pointer-events-none' : 'bg-black/40'
       }`}
     >
-      <div className="pointer-events-auto flex max-h-[86vh] w-full max-w-xl flex-col rounded-lg bg-white shadow-xl">
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={zh('编辑收藏夹', 'Edit favorite')}
+        className="pointer-events-auto flex max-h-[86vh] w-full max-w-xl flex-col rounded-lg bg-white shadow-xl"
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') {
+            event.stopPropagation()
+            onClose()
+          }
+        }}
+      >
         <div className="flex items-center justify-between border-b px-4 py-3">
           <h2 className="min-w-0 truncate text-base font-semibold text-gray-950">
             {zh('编辑收藏夹', 'Edit favorite')}
           </h2>
-          <IconButton
+          <button
             type="button"
-            size="small"
             onClick={onClose}
             disabled={saving}
             aria-label={zh('关闭编辑收藏夹', 'Close favorite editor')}
+            className="rounded-full bg-black/60 px-2 py-1 text-sm text-white transition-colors hover:bg-black/80 disabled:opacity-50"
           >
-            <CloseRoundedIcon fontSize="small" />
-          </IconButton>
+            ×
+          </button>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto p-4">

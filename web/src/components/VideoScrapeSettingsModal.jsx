@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import SearchIcon from '@mui/icons-material/Search'
+import ModalShell from '@/components/ModalShell'
 import { zh } from '@/utils/i18n'
 import { getErrorMessage } from '@/utils/errors'
 
@@ -210,30 +211,20 @@ export default function VideoScrapeSettingsModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4">
-      <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-lg bg-white shadow-xl">
-        <div className="shrink-0 p-3 pb-0">
-          <div className="mb-2 flex items-center justify-between gap-3">
-            <h2 className="min-w-0 truncate text-base font-semibold">
-              {zh('刮削设置', 'Scrape Settings')}
-            </h2>
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={saving}
-              className="rounded px-2 py-1 text-gray-500 hover:bg-gray-100 disabled:opacity-50"
-              aria-label={zh('关闭设置', 'Close settings')}
-            >
-              ✕
-            </button>
-          </div>
-          {displayName ? (
-            <div className="mb-3 truncate text-xs text-gray-500" title={displayName}>
-              {displayName}
-            </div>
-          ) : null}
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto px-3">
+    <>
+    <ModalShell
+      open={open}
+      onClose={onClose}
+      title={zh('刮削设置', 'Scrape Settings')}
+      subtitle={displayName}
+      closeLabel={zh('关闭设置', 'Close settings')}
+      closeDisabled={saving}
+      panelClassName="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-lg bg-white shadow-xl"
+      headerClassName="flex items-center justify-between gap-3 px-3 pt-3"
+      titleClassName="min-w-0 truncate text-base font-semibold"
+      subtitleClassName="mb-3 mt-2 truncate text-xs text-gray-500"
+    >
+      <div className="min-h-0 flex-1 overflow-y-auto px-3">
           <div className="space-y-2">
             <div className="flex items-center gap-2 rounded border px-3 py-2 text-sm text-gray-700 hover:border-blue-500">
               <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 font-medium">
@@ -514,9 +505,20 @@ export default function VideoScrapeSettingsModal({
             </button>
           </div>
         </div>
-      </div>
       {possibleCodesOpen ? (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/30 px-4">
+        // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={zh('提取番号测试', 'Code Extraction Test')}
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/30 px-4"
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') {
+              event.stopPropagation()
+              setPossibleCodesOpen(false)
+            }
+          }}
+        >
           <div className="w-full max-w-md rounded-lg bg-white p-4 shadow-xl">
             <div className="mb-3 flex items-center justify-between gap-3">
               <h3 className="min-w-0 truncate text-base font-semibold">
@@ -525,10 +527,10 @@ export default function VideoScrapeSettingsModal({
               <button
                 type="button"
                 onClick={() => setPossibleCodesOpen(false)}
-                className="rounded px-2 py-1 text-gray-500 hover:bg-gray-100"
                 aria-label={zh('关闭', 'Close')}
+                className="rounded-full bg-black/60 px-2 py-1 text-sm text-white transition-colors hover:bg-black/80"
               >
-                ✕
+                ×
               </button>
             </div>
             <p className="mb-3 text-sm leading-6 text-gray-600">
@@ -579,6 +581,7 @@ export default function VideoScrapeSettingsModal({
           </div>
         </div>
       ) : null}
-    </div>
+    </ModalShell>
+    </>
   )
 }
