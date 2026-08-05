@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import CloseOutlinedIcon from '@mui/icons-material/CloseOutlined'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
 import { MovieEdit } from '@mui/icons-material'
 import PlayArrowIcon from '@mui/icons-material/PlayArrow'
@@ -17,6 +16,7 @@ import { IdolCard, getIdolCardLayoutProps } from '@/components/JavIdolGrid'
 import { SeriesCard } from '@/components/JavSeriesView'
 import { StudioCard } from '@/components/JavStudioView'
 import VideoGrid from '@/components/VideoGrid'
+import ModalShell from '@/components/ModalShell'
 import { ScreenshotPreviewModal } from '@/components/VideoScreenshotsModal'
 import { isUserJavTag } from '@/constants/jav'
 import { getVideoDisplayName } from '@/utils/display'
@@ -410,7 +410,6 @@ export default function JavDetailModal({
   onVideoDelete,
   onVideoTagClick,
 }) {
-  const dialogRef = useRef(null)
   const titleId = `jav-detail-title-${item?.id || 'item'}`
   const itemId = item?.id
   const itemSampleImages = item?.sample_images
@@ -437,7 +436,6 @@ export default function JavDetailModal({
 
     document.body.style.overflow = 'hidden'
     document.documentElement.style.overflow = 'hidden'
-    dialogRef.current?.focus()
 
     return () => {
       document.body.style.overflow = previousOverflow
@@ -600,39 +598,20 @@ export default function JavDetailModal({
   ]
 
   return (
-    <div
-      className="fixed inset-0 z-[40] flex items-center justify-center bg-slate-950/70 p-3 backdrop-blur-[2px] sm:p-6"
-      role="presentation"
+    <ModalShell
+      open
+      onClose={onClose}
+      onBackdropClick={onClose}
+      title={title}
+      closeLabel={zh('关闭 JAV 详情', 'Close JAV details')}
+      backdropClassName="bg-slate-950/70 backdrop-blur-[2px] p-3 sm:p-6"
+      zIndexClassName="z-[40]"
+      panelClassName="flex max-h-[92vh] w-full max-w-[90rem] flex-col overflow-hidden rounded-xl bg-white shadow-2xl"
+      headerClassName="flex items-center justify-between gap-3 border-b border-gray-200 px-4 py-1.5 sm:px-5"
+      titleClassName="truncate text-sm font-semibold text-gray-900 sm:text-base"
+      titleId={titleId}
+      panelRole
     >
-      <button
-        type="button"
-        className="absolute inset-0 cursor-default"
-        aria-label={zh('关闭 JAV 详情', 'Close JAV details')}
-        onClick={onClose}
-      />
-      <div
-        ref={dialogRef}
-        className="relative z-10 flex max-h-[92vh] w-full max-w-[90rem] flex-col overflow-hidden rounded-xl bg-white shadow-2xl outline-none"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        tabIndex={-1}
-      >
-        <div className="flex items-center justify-between gap-3 border-b border-gray-200 px-4 py-1.5 sm:px-5">
-          <div className="min-w-0">
-            <h2 id={titleId} className="truncate text-sm font-semibold text-gray-900 sm:text-base">
-              {title}
-            </h2>
-          </div>
-          <button
-            type="button"
-            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-gray-500 transition hover:bg-gray-100 hover:text-gray-900"
-            onClick={onClose}
-            aria-label={zh('关闭', 'Close')}
-          >
-            <CloseOutlinedIcon sx={{ fontSize: 16 }} />
-          </button>
-        </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
           <div className="grid items-stretch gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(19rem,2fr)]">
@@ -916,7 +895,6 @@ export default function JavDetailModal({
             ) : null}
           </div>
         </Popper>
-      </div>
-    </div>
+    </ModalShell>
   )
 }

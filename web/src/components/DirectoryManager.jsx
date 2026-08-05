@@ -218,29 +218,6 @@ export default function DirectoryManager({
   }, [open])
 
   useEffect(() => {
-    if (!toolDirectory) return undefined
-    const handleKeyDown = (event) => {
-      if (event.key === 'Escape') {
-        setToolDirectory(null)
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [toolDirectory])
-
-  useEffect(() => {
-    if (!scanSettingsDirectory) return undefined
-    const handleKeyDown = (event) => {
-      if (event.key === 'Escape' && savingScanSettingsId == null) {
-        setScanSettingsDirectory(null)
-        setScanSettingsError('')
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [savingScanSettingsId, scanSettingsDirectory])
-
-  useEffect(() => {
     if (!open || !onRefresh) return undefined
 
     let refreshing = false
@@ -721,13 +698,20 @@ export default function DirectoryManager({
         </div>
       )}
       {toolDirectory && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4">
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="directory-tools-title"
-            className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-xl"
-          >
+        // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="directory-tools-title"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4"
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') {
+              event.stopPropagation()
+              setToolDirectory(null)
+            }
+          }}
+        >
+          <div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-xl">
             <div id="directory-tools-title" className="text-base font-semibold text-zinc-900">
               {zh('目录工具', 'Directory Tools')}
             </div>
@@ -836,12 +820,22 @@ export default function DirectoryManager({
         </div>
       )}
       {scanSettingsDirectory && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/40 p-4">
+        // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="directory-scan-settings-title"
+          className="fixed inset-0 z-[110] flex items-center justify-center bg-black/40 p-4"
+          onKeyDown={(event) => {
+            if (event.key === 'Escape' && savingScanSettingsId == null) {
+              event.stopPropagation()
+              setScanSettingsDirectory(null)
+              setScanSettingsError('')
+            }
+          }}
+        >
           <form
             onSubmit={handleScanSettingsSubmit}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="directory-scan-settings-title"
             className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl"
           >
             <div

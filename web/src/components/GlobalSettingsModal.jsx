@@ -4,6 +4,7 @@ import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
 
 import DirectoryManager from '@/components/DirectoryManager'
+import ModalShell from '@/components/ModalShell'
 import PlayerSettingsModal from '@/components/PlayerSettingsModal'
 import { downloadFFmpeg, fetchTools } from '@/api'
 import { parsePlayerHotkeys } from '@/utils/playerHotkeys'
@@ -1219,11 +1220,18 @@ export default function GlobalSettingsModal({
         </div>
 
         {passwordDialogOpen ? (
+          // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
           <div
             className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 px-4"
             role="dialog"
             aria-modal="true"
             aria-labelledby="change-password-title"
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                event.stopPropagation()
+                closePasswordDialog()
+              }
+            }}
           >
             <form
               onSubmit={handleChangePassword}
@@ -1237,10 +1245,10 @@ export default function GlobalSettingsModal({
                   type="button"
                   onClick={closePasswordDialog}
                   disabled={savingPassword}
-                  className="rounded-lg px-2 py-1 text-zinc-500 hover:bg-zinc-100 disabled:opacity-50"
+                  className="rounded-full bg-black/60 px-2 py-1 text-sm text-white transition-colors hover:bg-black/80 disabled:opacity-50"
                   aria-label={zh('关闭', 'Close')}
                 >
-                  ✕
+                  ×
                 </button>
               </div>
 
@@ -1345,73 +1353,67 @@ export default function GlobalSettingsModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-      <div className="flex h-[min(86vh,820px)] w-full max-w-6xl flex-col overflow-hidden rounded-[28px] border border-zinc-200 bg-[#f5f5f7] shadow-2xl">
-        <div className="flex items-center justify-between border-b border-zinc-200 bg-white/70 px-6 py-4 backdrop-blur">
-          <div>
-            <h2 className="text-lg font-semibold text-zinc-900">
-              {zh('全局设置', 'Global Settings')}
-            </h2>
-            <p className="mt-1 text-sm text-zinc-500">{zh(activeTitle.zh, activeTitle.en)}</p>
-          </div>
-          <button
-            onClick={onClose}
-            className="rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-50"
-          >
-            {zh('关闭', 'Close')}
-          </button>
-        </div>
+    <ModalShell
+      open={open}
+      onClose={onClose}
+      title={zh('全局设置', 'Global Settings')}
+      subtitle={zh(activeTitle.zh, activeTitle.en)}
+      closeLabel={zh('关闭', 'Close')}
+      backdropClassName="bg-black/50"
+      panelClassName="flex h-[min(86vh,820px)] w-full max-w-6xl flex-col overflow-hidden rounded-[28px] border border-zinc-200 bg-[#f5f5f7] shadow-2xl"
+      headerClassName="flex items-center justify-between border-b border-zinc-200 bg-white/70 px-6 py-4 backdrop-blur"
+      titleClassName="text-lg font-semibold text-zinc-900"
+      subtitleClassName="mt-1 text-sm text-zinc-500"
+    >
+      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+        <aside className="border-b border-zinc-200 bg-white/60 p-3 backdrop-blur md:w-[280px] md:border-b-0 md:border-r">
+          <div className="flex gap-2 overflow-x-auto md:flex-col">
+            {visibleSections.map((section) => {
+              const selected = currentSection === section.id
+              const badgeText = section.id === 'directories' ? String(directories.length) : ''
 
-        <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-          <aside className="border-b border-zinc-200 bg-white/60 p-3 backdrop-blur md:w-[280px] md:border-b-0 md:border-r">
-            <div className="flex gap-2 overflow-x-auto md:flex-col">
-              {visibleSections.map((section) => {
-                const selected = currentSection === section.id
-                const badgeText = section.id === 'directories' ? String(directories.length) : ''
-
-                return (
-                  <button
-                    key={section.id}
-                    type="button"
-                    onClick={() => setActiveSection(section.id)}
-                    className={`min-w-[220px] rounded-2xl border px-4 py-3 text-left transition md:min-w-0 ${
-                      selected
-                        ? 'border-zinc-200 bg-white shadow-sm'
-                        : 'border-transparent bg-transparent hover:border-zinc-200 hover:bg-white/80'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="text-sm font-semibold text-zinc-900">
-                          {zh(section.title.zh, section.title.en)}
-                        </div>
+              return (
+                <button
+                  key={section.id}
+                  type="button"
+                  onClick={() => setActiveSection(section.id)}
+                  className={`min-w-[220px] rounded-2xl border px-4 py-3 text-left transition md:min-w-0 ${
+                    selected
+                      ? 'border-zinc-200 bg-white shadow-sm'
+                      : 'border-transparent bg-transparent hover:border-zinc-200 hover:bg-white/80'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-semibold text-zinc-900">
+                        {zh(section.title.zh, section.title.en)}
                       </div>
-                      {badgeText ? (
-                        <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-600">
-                          {badgeText}
-                        </span>
-                      ) : null}
                     </div>
-                  </button>
-                )
-              })}
-            </div>
-          </aside>
+                    {badgeText ? (
+                      <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-600">
+                        {badgeText}
+                      </span>
+                    ) : null}
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        </aside>
 
-          <section
-            className={`min-h-0 flex-1 overflow-y-auto px-4 pb-4 pt-4 md:px-6 md:pb-6 ${
-              currentSection === 'directories' ? 'md:pt-3' : 'md:pt-6'
-            }`}
-          >
-            {currentSection === 'display' && renderDisplayPanel()}
-            {currentSection === 'network' && renderNetworkPanel()}
-            {currentSection === 'tools' && renderToolsPanel()}
-            {currentSection === 'player' && renderPlayerPanel()}
-            {currentSection === 'directories' && renderDirectoriesPanel()}
-            {currentSection === 'security' && renderSecurityPanel()}
-          </section>
-        </div>
+        <section
+          className={`min-h-0 flex-1 overflow-y-auto px-4 pb-4 pt-4 md:px-6 md:pb-6 ${
+            currentSection === 'directories' ? 'md:pt-3' : 'md:pt-6'
+          }`}
+        >
+          {currentSection === 'display' && renderDisplayPanel()}
+          {currentSection === 'network' && renderNetworkPanel()}
+          {currentSection === 'tools' && renderToolsPanel()}
+          {currentSection === 'player' && renderPlayerPanel()}
+          {currentSection === 'directories' && renderDirectoriesPanel()}
+          {currentSection === 'security' && renderSecurityPanel()}
+        </section>
       </div>
-    </div>
+    </ModalShell>
   )
 }

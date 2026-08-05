@@ -7,6 +7,7 @@ import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
 import SearchOutlinedIcon from '@mui/icons-material/SearchOutlined'
 
 import TagBar from '@/components/TagBar'
+import ModalShell from '@/components/ModalShell'
 import { zh } from '@/utils/i18n'
 import { getErrorMessage } from '@/utils/errors'
 
@@ -112,22 +113,17 @@ export default function VideoTagModal({
 
   if (!open) return null
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm">
-      <div className="mx-4 w-full max-w-4xl overflow-hidden rounded-3xl bg-white shadow-2xl ring-1 ring-slate-200/70">
-        <div className="flex items-center justify-between border-b border-slate-200/70 bg-slate-50/80 px-6 py-4">
-          <h2 className="text-lg font-semibold text-slate-900">
-            {zh('标签管理', 'Tag Management')}
-          </h2>
-          <Button
-            size="small"
-            variant="text"
-            onClick={onClose}
-            aria-label={zh('关闭', 'Close')}
-            sx={compactButtonSx}
-          >
-            {zh('关闭', 'Close')}
-          </Button>
-        </div>
+    <>
+      <ModalShell
+        open={open}
+        onClose={onClose}
+        title={zh('标签管理', 'Tag Management')}
+        closeLabel={zh('关闭', 'Close')}
+        backdropClassName="bg-slate-900/70 backdrop-blur-sm"
+        panelClassName="mx-4 w-full max-w-4xl overflow-hidden rounded-3xl bg-white shadow-2xl ring-1 ring-slate-200/70"
+        headerClassName="flex items-center justify-between border-b border-slate-200/70 bg-slate-50/80 px-6 py-4"
+        titleClassName="text-lg font-semibold text-slate-900"
+      >
         <div className="space-y-6 p-6">
           <section className="space-y-4">
             <div className="max-h-[65vh] overflow-y-auto pr-1">
@@ -300,21 +296,34 @@ export default function VideoTagModal({
             {batchError && <div className="text-sm text-rose-600">{batchError}</div>}
           </section>
         </div>
-      </div>
+      </ModalShell>
       {renameOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+        // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={zh('重命名标签', 'Rename tag')}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') {
+              event.stopPropagation()
+              handleCloseRename()
+            }
+          }}
+        >
           <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl">
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-base font-semibold text-slate-900">
                 {zh('重命名标签', 'Rename tag')}
               </h3>
-              <IconButton
-                size="small"
+              <button
+                type="button"
                 onClick={handleCloseRename}
                 aria-label={zh('关闭重命名', 'Close rename')}
+                className="rounded-full bg-black/60 px-2 py-1 text-sm text-white transition-colors hover:bg-black/80"
               >
-                <CloseOutlinedIcon fontSize="small" />
-              </IconButton>
+                ×
+              </button>
             </div>
             <div className="space-y-3">
               <TextField
@@ -378,19 +387,32 @@ export default function VideoTagModal({
         </div>
       )}
       {createOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+        // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={zh('新增标签', 'New tag')}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') {
+              event.stopPropagation()
+              setCreateOpen(false)
+            }
+          }}
+        >
           <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl">
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-base font-semibold text-slate-900">
                 {zh('新增标签', 'New tag')}
               </h3>
-              <IconButton
-                size="small"
+              <button
+                type="button"
                 onClick={() => setCreateOpen(false)}
                 aria-label={zh('关闭新增标签', 'Close new tag')}
+                className="rounded-full bg-black/60 px-2 py-1 text-sm text-white transition-colors hover:bg-black/80"
               >
-                <CloseOutlinedIcon fontSize="small" />
-              </IconButton>
+                ×
+              </button>
             </div>
             <div className="space-y-3">
               <TextField
@@ -441,6 +463,6 @@ export default function VideoTagModal({
           </div>
         </div>
       )}
-    </div>
+    </>
   )
 }
