@@ -283,14 +283,14 @@ export default function VideoCard({
             </Tooltip>
           ) : null}
           {canViewLocation ? (
-            <Tooltip title={zh('查看所在位置', 'View in folder')}>
+            <Tooltip title={zh('查看所在目录', 'View in folder')}>
               <IconButton
                 size="small"
                 onClick={(e) => {
                   e.stopPropagation()
                   onViewLocation(video)
                 }}
-                aria-label={zh('查看所在位置', 'View in folder')}
+                aria-label={zh('查看所在目录', 'View in folder')}
                 className="h-6 w-6"
               >
                 <FolderOutlinedIcon fontSize="inherit" />

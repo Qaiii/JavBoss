@@ -332,6 +332,13 @@ export default function App() {
       }),
     [directories, enabledDirectoryIds, directoryFilterMode]
   )
+  // 当前正在浏览的目录（如通过“查看所在目录”进入时的单个目录过滤）
+  const currentDirectoryPath = useMemo(() => {
+    const ids = directoryQueryIds({ directories, enabledDirectoryIds, directoryFilterMode })
+    if (ids.length !== 1 || ids[0] <= 0) return ''
+    const directory = directories.find((item) => Number(item?.id) === Number(ids[0]))
+    return String(directory?.path || '').trim()
+  }, [directories, enabledDirectoryIds, directoryFilterMode])
   const [tagPickerFor, setTagPickerFor] = useState(null)
   const [tagPickerSelected, setTagPickerSelected] = useState([])
   const [selectionOpsOpen, setSelectionOpsOpen] = useState(false)
@@ -3552,6 +3559,7 @@ export default function App() {
       <VideoSettingsModal
         open={videoSettingsOpen}
         onClose={() => setVideoSettingsOpen(false)}
+        directoryPath={currentDirectoryPath}
         pageSizeInput={videoPageSizeInput}
         onPageSizeChange={setVideoPageSizeInput}
         sortInput={videoSortInput}

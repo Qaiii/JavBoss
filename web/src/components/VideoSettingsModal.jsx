@@ -1,4 +1,5 @@
 import SwapVertIcon from '@mui/icons-material/SwapVert'
+import FolderOutlinedIcon from '@mui/icons-material/FolderOutlined'
 import {
   VIDEO_SORT_OPTIONS,
   findVideoSortOption,
@@ -53,6 +54,7 @@ function SortOptionRow({ option, inputValue, onChange }) {
 export default function VideoSettingsModal({
   open,
   onClose,
+  directoryPath = '',
   pageSizeInput,
   onPageSizeChange,
   sortInput,
@@ -66,8 +68,19 @@ export default function VideoSettingsModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4">
       <div className="w-full max-w-sm rounded-lg bg-white p-3 shadow-xl">
-        <div className="mb-2 flex items-center justify-between">
-          <h2 className="text-base font-semibold">{zh('视频设置', 'Video Settings')}</h2>
+        <div className="mb-2 flex items-center gap-2">
+          <h2 className="shrink-0 text-base font-semibold">{zh('视频设置', 'Video Settings')}</h2>
+          {directoryPath ? (
+            <span
+              className="flex min-w-0 flex-1 items-center justify-end gap-1 truncate text-xs text-gray-500"
+              title={zh(`当前目录：${directoryPath}`, `Current directory: ${directoryPath}`)}
+            >
+              <FolderOutlinedIcon className="h-3.5 w-3.5 shrink-0" fontSize="inherit" />
+              <span className="truncate">{directoryPath}</span>
+            </span>
+          ) : (
+            <span className="flex-1" />
+          )}
           <button
             onClick={onClose}
             className="rounded px-2 py-1 text-gray-500 hover:bg-gray-100"
