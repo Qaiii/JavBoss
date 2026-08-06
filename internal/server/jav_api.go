@@ -69,7 +69,7 @@ func searchJav(c *gin.Context) {
 		seed = &parsed
 	}
 
-	items, total, err := dbpkg.SearchJavWithPrefix(c.Request.Context(), idolIDs, tagIDs, search, prefix, sort, limit, offset, seed, directoryIDs, parseClosedSubdirectories(c.Query("closed_subdirs")), studioID, seriesID, boolInt64(soloOnly), favoriteGroupID)
+	items, total, err := dbpkg.SearchJavWithPrefix(c.Request.Context(), idolIDs, tagIDs, search, prefix, sort, limit, offset, seed, directoryIDs, parseClosedSubdirectories(c.Query("closed_subdirs")), parseDirectorySubpaths(c.Query("directory_subpaths")), studioID, seriesID, boolInt64(soloOnly), favoriteGroupID)
 	if err != nil {
 		logging.Error("SearchJav: %v", err)
 		respondLocalizedError(c, http.StatusInternalServerError, "搜索 JAV 作品失败", "Failed to search JAV items")
@@ -82,7 +82,7 @@ func searchJav(c *gin.Context) {
 }
 
 func listJavPrefixes(c *gin.Context) {
-	items, err := dbpkg.ListJavPrefixes(c.Request.Context(), parseDirectoryIDs(c.Query("directory_ids")))
+	items, err := dbpkg.ListJavPrefixes(c.Request.Context(), parseDirectoryIDs(c.Query("directory_ids")), parseDirectorySubpaths(c.Query("directory_subpaths")))
 	if err != nil {
 		logging.Error("list jav prefixes error: %v", err)
 		respondLocalizedError(c, http.StatusInternalServerError, "加载 JAV 番号前缀失败", "Failed to load JAV code prefixes")
@@ -224,7 +224,7 @@ func javSampleImagesToModel(info *jav.JavInfo) models.JavSampleImages {
 }
 
 func listJavTags(c *gin.Context) {
-	tags, err := dbpkg.ListJavTags(c.Request.Context(), parseDirectoryIDs(c.Query("directory_ids")), parseClosedSubdirectories(c.Query("closed_subdirs")))
+	tags, err := dbpkg.ListJavTags(c.Request.Context(), parseDirectoryIDs(c.Query("directory_ids")), parseClosedSubdirectories(c.Query("closed_subdirs")), parseDirectorySubpaths(c.Query("directory_subpaths")))
 	if err != nil {
 		logging.Error("list jav tags error: %v", err)
 		respondLocalizedError(c, http.StatusInternalServerError, "加载 JAV 标签失败", "Failed to load JAV tags")

@@ -89,6 +89,7 @@ export default function TopBar({
   showDirectorySetupHint,
   directories = [],
   enabledDirectoryIds = [],
+  directorySubpaths = [],
   onEnabledDirectoryIdsChange,
   closedSubdirectories = {},
   onClosedSubdirectoriesChange,
@@ -118,6 +119,15 @@ export default function TopBar({
       Array.isArray(directories) ? directories.filter((directory) => !directory?.is_delete) : [],
     [directories]
   )
+  const focusedSubpath = useMemo(() => {
+    const first = Array.isArray(directorySubpaths) ? directorySubpaths[0] : null
+    if (!first) return ''
+    const dir = activeDirectories.find((d) => Number(d?.id) === Number(first.directoryId))
+    if (!dir) return ''
+    const root = displayHostPath(dir.path, hostPathPrefixEnabled).replace(/[\\/]+$/, '')
+    const rel = String(first?.path || '').replace(/^[\\/]+|[\\/]+$/g, '')
+    return rel ? `${root}/${rel}` : root
+  }, [directorySubpaths, activeDirectories, hostPathPrefixEnabled])
   const enabledDirectorySet = useMemo(
     () => new Set((enabledDirectoryIds || []).map((id) => Number(id))),
     [enabledDirectoryIds]
@@ -1115,7 +1125,10 @@ export default function TopBar({
                     <div className="text-xs font-semibold text-gray-700">
                       {zh('启用目录', 'Enabled directories')}
                     </div>
-                    <div className="truncate text-xs text-gray-500">{directorySummary}</div>
+                    <div className="truncate text-xs text-gray-500">
+                      {directorySummary}
+                      {focusedSubpath ? ` · ${focusedSubpath}` : ''}
+                    </div>
                   </div>
                   {activeDirectories.length > 0 ? (
                     <div className="flex shrink-0 items-center gap-1">

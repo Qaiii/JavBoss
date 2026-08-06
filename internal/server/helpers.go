@@ -124,6 +124,37 @@ func parseClosedSubdirectories(s string) []dbpkg.ClosedSubdirectory {
 	return out
 }
 
+// parseDirectorySubpaths parses a "directory_subpaths" query value with the format
+// "<directoryId>:<relativePath>,<directoryId>:<relativePath>,...". The relative path
+// is slash-separated and must not start/end with a slash or contain backslashes.
+func parseDirectorySubpaths(s string) []dbpkg.DirectorySubpath {
+	if strings.TrimSpace(s) == "" {
+		return nil
+	}
+	parts := strings.Split(s, ",")
+	out := make([]dbpkg.DirectorySubpath, 0, len(parts))
+	for _, part := range parts {
+		clean := strings.TrimSpace(part)
+		if clean == "" {
+			continue
+		}
+		idx := strings.IndexByte(clean, ':')
+		if idx <= 0 {
+			continue
+		}
+		id, err := strconv.ParseInt(strings.TrimSpace(clean[:idx]), 10, 64)
+		if err != nil || id <= 0 {
+			continue
+		}
+		path := strings.TrimSpace(clean[idx+1:])
+		if path == "" || strings.Contains(path, "\\") || strings.HasPrefix(path, "/") || strings.HasSuffix(path, "/") || strings.Contains(path, "//") {
+			continue
+		}
+		out = append(out, dbpkg.DirectorySubpath{DirectoryID: id, Path: path})
+	}
+	return out
+}
+
 func parseDirectoryIDs(s string) []int64 {
 	if strings.TrimSpace(s) == "" {
 		return nil

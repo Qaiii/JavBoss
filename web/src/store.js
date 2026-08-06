@@ -115,6 +115,56 @@ const closedSubdirsKey = (state) =>
     .map((pair) => `${pair.directoryId}:${pair.name}`)
     .join(',')
 
+const cleanDirectorySubpaths = (subpaths) =>
+  Array.from(
+    new Map(
+      (subpaths || [])
+        .map((item) => {
+          const id = Number(item?.directoryId)
+          const path = String(item?.path || '').trim()
+          if (!Number.isFinite(id) || id <= 0 || !path) return null
+          return [`${id}:${path}`, { directoryId: id, path }]
+        })
+        .filter(Boolean)
+    ).values()
+  ).sort((a, b) =>
+    a.directoryId === b.directoryId ? a.path.localeCompare(b.path) : a.directoryId - b.directoryId
+  )
+
+const directorySubpathsKey = (state) =>
+  cleanDirectorySubpaths(state?.directorySubpaths)
+    .map((item) => `${item.directoryId}:${item.path}`)
+    .join(',')
+
+const directorySubpathKeyOf = (subpaths) =>
+  cleanDirectorySubpaths(subpaths)
+    .map((item) => `${item.directoryId}:${item.path}`)
+    .join(',')
+
+// Keeps only subpath entries whose directory is still active.
+const pruneDirectorySubpaths = (subpaths, directoryIds) => {
+  const keep = new Set(cleanDirectoryIds(directoryIds))
+  return cleanDirectorySubpaths(subpaths).filter((item) => keep.has(item.directoryId))
+}
+
+// directorySubpaths scoped to the currently enabled directories.
+export const directoryQuerySubpaths = (state) => {
+  if (state?.directoryFilterMode !== DIRECTORY_FILTER_CUSTOM) {
+    return []
+  }
+  const enabled = new Set(cleanDirectoryIds(state.enabledDirectoryIds))
+  const active = cleanDirectoryIds((state.directories || []).map((directory) => directory?.id))
+  if (active.length === 0) {
+    return cleanDirectorySubpaths(state.directorySubpaths).filter((item) =>
+      enabled.has(item.directoryId)
+    )
+  }
+  const activeSet = new Set(active)
+  return cleanDirectorySubpaths(state.directorySubpaths).filter(
+    (item) => enabled.has(item.directoryId) && activeSet.has(item.directoryId)
+  )
+}
+
 // Keeps only closed-subdirectory entries whose directory is still active.
 const pruneClosedSubdirectories = (closed, directoryIds) => {
   const keep = new Set(cleanDirectoryIds(directoryIds))
@@ -172,6 +222,7 @@ const videoListRequestKey = (state, directoryIds = directoryQueryIds(state)) => 
     (state.selectedTags || []).join(','),
     directoryIds.join(','),
     closedSubdirsKey(state),
+    directorySubpathsKey(state),
     state.videoHideJav ? 'hide-jav' : 'show-jav',
   ].join('|')
 }
@@ -195,6 +246,7 @@ const javListRequestKey = (state, directoryIds = directoryQueryIds(state)) => {
     state.javRandomMode ? state.javRandomSeed || '' : '',
     directoryIds.join(','),
     closedSubdirsKey(state),
+    directorySubpathsKey(state),
   ].join('|')
 }
 
@@ -209,6 +261,7 @@ const idolListRequestKey = (state, directoryIds = directoryQueryIds(state)) => {
     state.idolFavoriteGroupId || '',
     directoryIds.join(','),
     closedSubdirsKey(state),
+    directorySubpathsKey(state),
   ].join('|')
 }
 
@@ -227,6 +280,7 @@ const studioListRequestKey = (state, directoryIds = directoryQueryIds(state)) =>
     state.studioFavoriteGroupId || '',
     directoryIds.join(','),
     closedSubdirsKey(state),
+    directorySubpathsKey(state),
   ].join('|')
 
 const seriesListRequestKey = (state, directoryIds = directoryQueryIds(state)) =>
@@ -238,6 +292,7 @@ const seriesListRequestKey = (state, directoryIds = directoryQueryIds(state)) =>
     state.seriesFavoriteGroupId || '',
     directoryIds.join(','),
     closedSubdirsKey(state),
+    directorySubpathsKey(state),
   ].join('|')
 
 export const useStore = create((set, get) => ({
@@ -381,6 +436,7 @@ export const useStore = create((set, get) => ({
   javTagOptions: [],
   directories: [],
   enabledDirectoryIds: [],
+  directorySubpaths: [],
   closedSubdirectories: {},
   directoryFilterMode: DIRECTORY_FILTER_ALL,
   loading: false,
@@ -598,8 +654,9 @@ export const useStore = create((set, get) => ({
   loadTags: async (options = {}) => {
     const { videoHideJav } = get()
     const directoryIds = directoryQueryIds(get())
+    const directorySubpaths = directoryQuerySubpaths(get())
     const closedSubdirs = closedSubdirectoryPairs(get())
-    const key = `tags|${directoryIds.join(',')}|${closedSubdirsKey(get())}|${videoHideJav ? 'hide-jav' : 'show-jav'}`
+    const key = `tags|${directoryIds.join(',')}|${directorySubpathsKey(get())}|${closedSubdirsKey(get())}|${videoHideJav ? 'hide-jav' : 'show-jav'}`
     if (tagFetchInFlight && tagFetchInFlightKey === key) {
       return tagFetchInFlight
     }
@@ -609,7 +666,7 @@ export const useStore = create((set, get) => ({
     tagFetchInFlightKey = key
     tagFetchInFlight = (async () => {
       try {
-        const tags = await fetchTags({ directoryIds, closedSubdirs, hideJav: videoHideJav })
+        const tags = await fetchTags({ directoryIds, directorySubpaths, closedSubdirs, hideJav: videoHideJav })
         set({ tags })
         lastTagFetchKey = key
         return tags
@@ -627,8 +684,9 @@ export const useStore = create((set, get) => ({
   },
   loadJavTags: async (options = {}) => {
     const directoryIds = directoryQueryIds(get())
+    const directorySubpaths = directoryQuerySubpaths(get())
     const closedSubdirs = closedSubdirectoryPairs(get())
-    const key = `jav-tags|${directoryIds.join(',')}|${closedSubdirsKey(get())}`
+    const key = `jav-tags|${directoryIds.join(',')}|${directorySubpathsKey(get())}|${closedSubdirsKey(get())}`
     if (javTagFetchInFlight && javTagFetchInFlightKey === key) {
       return javTagFetchInFlight
     }
@@ -638,7 +696,7 @@ export const useStore = create((set, get) => ({
     javTagFetchInFlightKey = key
     javTagFetchInFlight = (async () => {
       try {
-        const tags = await fetchJavTags({ directoryIds, closedSubdirs })
+        const tags = await fetchJavTags({ directoryIds, directorySubpaths, closedSubdirs })
         set({ javTagOptions: tags })
         lastJavTagFetchKey = key
         return tags
@@ -751,13 +809,16 @@ export const useStore = create((set, get) => ({
           ? activeIDs
           : cleanDirectoryIds(state.enabledDirectoryIds).filter((id) => activeSet.has(id))
       const nextMode =
-        state.directoryFilterMode === DIRECTORY_FILTER_CUSTOM && enabled.length === activeIDs.length
+        state.directoryFilterMode === DIRECTORY_FILTER_CUSTOM &&
+        cleanDirectorySubpaths(state.directorySubpaths).length === 0 &&
+        enabled.length === activeIDs.length
           ? DIRECTORY_FILTER_ALL
           : state.directoryFilterMode
       set({
         directories: active,
         enabledDirectoryIds: nextMode === DIRECTORY_FILTER_ALL ? activeIDs : enabled,
         directoryFilterMode: nextMode,
+        directorySubpaths: pruneDirectorySubpaths(state.directorySubpaths, activeIDs),
         closedSubdirectories: pruneClosedSubdirectories(state.closedSubdirectories, activeIDs),
       })
     } catch (e) {
@@ -777,6 +838,7 @@ export const useStore = create((set, get) => ({
       randomSeed,
     } = get()
     const directoryIds = directoryQueryIds(get())
+    const directorySubpaths = directoryQuerySubpaths(get())
     const closedSubdirs = closedSubdirectoryPairs(get())
     const search = searchTerm ? searchTerm : ''
     const effectiveSort = videoTempSort || sortOrder
@@ -796,6 +858,7 @@ export const useStore = create((set, get) => ({
         sort: randomMode ? 'random' : effectiveSort,
         seed: randomMode ? randomSeed : null,
         directoryIds,
+        directorySubpaths,
         closedSubdirs,
         hideJav: videoHideJav,
       })
@@ -823,6 +886,7 @@ export const useStore = create((set, get) => ({
     if (total > 0 && baseOffset + loaded >= total) return
 
     const directoryIds = directoryQueryIds(state)
+    const directorySubpaths = directoryQuerySubpaths(state)
     const closedSubdirs = closedSubdirectoryPairs(state)
     const search = state.searchTerm ? state.searchTerm : ''
     const effectiveSort = state.videoTempSort || state.sortOrder
@@ -838,6 +902,7 @@ export const useStore = create((set, get) => ({
         search,
         sort: effectiveSort,
         directoryIds,
+        directorySubpaths,
         closedSubdirs,
         hideJav: state.videoHideJav,
       })
@@ -890,6 +955,7 @@ export const useStore = create((set, get) => ({
       javRandomSeed,
     } = get()
     const directoryIds = directoryQueryIds(get())
+    const directorySubpaths = directoryQuerySubpaths(get())
     const closedSubdirs = closedSubdirectoryPairs(get())
     const search = javSearchTerm || ''
     const effectiveSort = javTempSort || javSort
@@ -915,6 +981,7 @@ export const useStore = create((set, get) => ({
         sort: javRandomMode ? 'random' : effectiveSort,
         seed: javRandomMode ? javRandomSeed : null,
         directoryIds,
+        directorySubpaths,
         closedSubdirs,
       })
       if (reqId !== javLoadSeq || key !== javListRequestKey(get())) return
@@ -941,6 +1008,7 @@ export const useStore = create((set, get) => ({
     if (total > 0 && baseOffset + loaded >= total) return
 
     const directoryIds = directoryQueryIds(state)
+    const directorySubpaths = directoryQuerySubpaths(state)
     const closedSubdirs = closedSubdirectoryPairs(state)
     const search = state.javSearchTerm || ''
     const effectiveSort = state.javTempSort || state.javSort
@@ -962,6 +1030,7 @@ export const useStore = create((set, get) => ({
         favoriteGroupId: state.javFavoriteGroupId,
         sort: effectiveSort,
         directoryIds,
+        directorySubpaths,
         closedSubdirs,
       })
       if (
@@ -994,6 +1063,7 @@ export const useStore = create((set, get) => ({
   loadJavIdols: async (options = {}) => {
     const { idolPage, idolPageSize, javSearchTerm, idolFavoriteGroupId } = get()
     const directoryIds = directoryQueryIds(get())
+    const directorySubpaths = directoryQuerySubpaths(get())
     const closedSubdirs = closedSubdirectoryPairs(get())
     const search = javSearchTerm || ''
     const key = idolListRequestKey(get(), directoryIds)
@@ -1010,6 +1080,7 @@ export const useStore = create((set, get) => ({
         search,
         sort: effectiveIdolSort(get()),
         directoryIds,
+        directorySubpaths,
         closedSubdirs,
         favoriteGroupId: idolFavoriteGroupId,
       })
@@ -1036,6 +1107,7 @@ export const useStore = create((set, get) => ({
     if (total > 0 && baseOffset + loaded >= total) return
 
     const directoryIds = directoryQueryIds(state)
+    const directorySubpaths = directoryQuerySubpaths(state)
     const closedSubdirs = closedSubdirectoryPairs(state)
     const search = state.javSearchTerm || ''
     const requestKey = idolListRequestKey(state, directoryIds)
@@ -1049,6 +1121,7 @@ export const useStore = create((set, get) => ({
         search,
         sort: effectiveIdolSort(state),
         directoryIds,
+        directorySubpaths,
         closedSubdirs,
         favoriteGroupId: state.idolFavoriteGroupId,
       })
@@ -1118,6 +1191,7 @@ export const useStore = create((set, get) => ({
   loadJavStudios: async (options = {}) => {
     const { studioPage, studioPageSize, javSearchTerm, studioFavoriteGroupId } = get()
     const directoryIds = directoryQueryIds(get())
+    const directorySubpaths = directoryQuerySubpaths(get())
     const closedSubdirs = closedSubdirectoryPairs(get())
     const search = javSearchTerm || ''
     const key = studioListRequestKey(get(), directoryIds)
@@ -1133,6 +1207,7 @@ export const useStore = create((set, get) => ({
         offset: (studioPage - 1) * studioPageSize,
         search,
         directoryIds,
+        directorySubpaths,
         closedSubdirs,
         favoriteGroupId: studioFavoriteGroupId,
       })
@@ -1159,6 +1234,7 @@ export const useStore = create((set, get) => ({
     if (total > 0 && baseOffset + loaded >= total) return
 
     const directoryIds = directoryQueryIds(state)
+    const directorySubpaths = directoryQuerySubpaths(state)
     const closedSubdirs = closedSubdirectoryPairs(state)
     const search = state.javSearchTerm || ''
     const requestKey = studioListRequestKey(state, directoryIds)
@@ -1171,6 +1247,7 @@ export const useStore = create((set, get) => ({
         offset: baseOffset + loaded,
         search,
         directoryIds,
+        directorySubpaths,
         closedSubdirs,
         favoriteGroupId: state.studioFavoriteGroupId,
       })
@@ -1204,6 +1281,7 @@ export const useStore = create((set, get) => ({
   loadJavSeries: async (options = {}) => {
     const { seriesPage, seriesPageSize, javSearchTerm, seriesFavoriteGroupId } = get()
     const directoryIds = directoryQueryIds(get())
+    const directorySubpaths = directoryQuerySubpaths(get())
     const closedSubdirs = closedSubdirectoryPairs(get())
     const search = javSearchTerm || ''
     const key = seriesListRequestKey(get(), directoryIds)
@@ -1219,6 +1297,7 @@ export const useStore = create((set, get) => ({
         offset: (seriesPage - 1) * seriesPageSize,
         search,
         directoryIds,
+        directorySubpaths,
         closedSubdirs,
         favoriteGroupId: seriesFavoriteGroupId,
       })
@@ -1245,6 +1324,7 @@ export const useStore = create((set, get) => ({
     if (total > 0 && baseOffset + loaded >= total) return
 
     const directoryIds = directoryQueryIds(state)
+    const directorySubpaths = directoryQuerySubpaths(state)
     const closedSubdirs = closedSubdirectoryPairs(state)
     const search = state.javSearchTerm || ''
     const requestKey = seriesListRequestKey(state, directoryIds)
@@ -1257,6 +1337,7 @@ export const useStore = create((set, get) => ({
         offset: baseOffset + loaded,
         search,
         directoryIds,
+        directorySubpaths,
         closedSubdirs,
         favoriteGroupId: state.seriesFavoriteGroupId,
       })
@@ -1325,6 +1406,7 @@ export const useStore = create((set, get) => ({
         randomSeed,
       } = get()
       const directoryIds = directoryQueryIds(get())
+      const directorySubpaths = directoryQuerySubpaths(get())
       const effectiveSort = videoTempSort || sortOrder
       // Get total via a cheap fetch (limit=1) or use existing total
       let { total } = get()
@@ -1338,6 +1420,7 @@ export const useStore = create((set, get) => ({
           sort: randomMode ? 'random' : effectiveSort,
           seed: randomMode ? randomSeed : null,
           directoryIds,
+          directorySubpaths,
         })
         total = res.total ?? 0
         set({ total })
@@ -1351,6 +1434,7 @@ export const useStore = create((set, get) => ({
         sort: randomMode ? 'random' : effectiveSort,
         seed: randomMode ? randomSeed : null,
         directoryIds,
+        directorySubpaths,
       })
       const items = res2.items ?? []
       set({ page: lastPage, videos: items, hasNext: false })
@@ -1380,6 +1464,45 @@ export const useStore = create((set, get) => ({
     set({
       enabledDirectoryIds: mode === DIRECTORY_FILTER_ALL ? active : clean,
       directoryFilterMode: mode,
+      directorySubpaths: [],
+      closedSubdirectories: pruneClosedSubdirectories(get().closedSubdirectories, clean),
+      page: 1,
+      javPage: 1,
+      idolPage: 1,
+      studioPage: 1,
+      seriesPage: 1,
+      videoTempSort: '',
+      javTempSort: '',
+      idolTempSort: '',
+      randomMode: false,
+      randomSeed: null,
+      javRandomMode: false,
+      javRandomSeed: null,
+    })
+    lastVideoFetchKey = null
+    lastJavFetchKey = null
+    lastIdolFetchKey = null
+    lastStudioFetchKey = null
+    lastSeriesFetchKey = null
+    lastTagFetchKey = null
+    lastJavTagFetchKey = null
+  },
+  // 将视图聚焦到某个根目录下的子目录（含其全部子目录），例如“查看所在目录”。
+  // ids 为启用的根目录 ID 列表，subpaths 为 [{ directoryId, path }] 形式的子目录聚焦。
+  setDirectorySubpathFilter: (ids, subpaths) => {
+    const clean = cleanDirectoryIds(ids)
+    const cleanSubpaths = cleanDirectorySubpaths(subpaths)
+    const active = cleanDirectoryIds(get().directories.map((directory) => directory?.id))
+    const activeSet = new Set(active)
+    const scopedSubpaths = cleanSubpaths.filter((item) => activeSet.has(item.directoryId))
+    const mode =
+      active.length > 0 && clean.length === active.length && scopedSubpaths.length === 0
+        ? DIRECTORY_FILTER_ALL
+        : DIRECTORY_FILTER_CUSTOM
+    set({
+      enabledDirectoryIds: mode === DIRECTORY_FILTER_ALL ? active : clean,
+      directoryFilterMode: mode,
+      directorySubpaths: scopedSubpaths,
       closedSubdirectories: pruneClosedSubdirectories(get().closedSubdirectories, clean),
       page: 1,
       javPage: 1,
@@ -1462,43 +1585,75 @@ export const useStore = create((set, get) => ({
     lastTagFetchKey = null
     lastJavTagFetchKey = null
   },
-  setDirectoryFilterFromUrl: (ids) => {
+  setDirectoryFilterFromUrl: (ids, subpaths) => {
+    const cleanSubpaths = cleanDirectorySubpaths(subpaths)
+    const resetKeys = () => {
+      lastVideoFetchKey = null
+      lastJavFetchKey = null
+      lastIdolFetchKey = null
+      lastStudioFetchKey = null
+      lastSeriesFetchKey = null
+      lastTagFetchKey = null
+      lastJavTagFetchKey = null
+    }
+    const subpathKeyOfState = directorySubpathKeyOf(get().directorySubpaths)
     if (ids == null) {
       const active = cleanDirectoryIds(get().directories.map((directory) => directory?.id))
       const state = get()
+      if (cleanSubpaths.length > 0) {
+        // 仅带 directory_subpaths（如单根目录场景）：按子目录所属目录启用过滤
+        const anchorIds = cleanDirectoryIds(cleanSubpaths.map((item) => item.directoryId))
+        const enabled = anchorIds.length > 0 ? anchorIds : active
+        if (
+          state.directoryFilterMode === DIRECTORY_FILTER_CUSTOM &&
+          sameIds(state.enabledDirectoryIds, enabled) &&
+          subpathKeyOfState === directorySubpathKeyOf(cleanSubpaths)
+        ) {
+          return
+        }
+        set({
+          directoryFilterMode: DIRECTORY_FILTER_CUSTOM,
+          enabledDirectoryIds: enabled,
+          directorySubpaths: cleanSubpaths,
+          page: 1,
+          javPage: 1,
+          idolPage: 1,
+          studioPage: 1,
+          seriesPage: 1,
+        })
+        resetKeys()
+        return
+      }
       if (
         state.directoryFilterMode === DIRECTORY_FILTER_ALL &&
         sameIds(state.enabledDirectoryIds, active)
       ) {
         return
       }
-      set({ directoryFilterMode: DIRECTORY_FILTER_ALL, enabledDirectoryIds: active })
+      set({ directoryFilterMode: DIRECTORY_FILTER_ALL, enabledDirectoryIds: active, directorySubpaths: [] })
+      resetKeys()
       return
     }
     const clean = cleanDirectoryIds(ids)
     const state = get()
     if (
       state.directoryFilterMode === DIRECTORY_FILTER_CUSTOM &&
-      sameIds(state.enabledDirectoryIds, clean)
+      sameIds(state.enabledDirectoryIds, clean) &&
+      subpathKeyOfState === directorySubpathKeyOf(cleanSubpaths)
     ) {
       return
     }
     set({
       directoryFilterMode: DIRECTORY_FILTER_CUSTOM,
       enabledDirectoryIds: clean,
+      directorySubpaths: cleanSubpaths,
       page: 1,
       javPage: 1,
       idolPage: 1,
       studioPage: 1,
       seriesPage: 1,
     })
-    lastVideoFetchKey = null
-    lastJavFetchKey = null
-    lastIdolFetchKey = null
-    lastStudioFetchKey = null
-    lastSeriesFetchKey = null
-    lastTagFetchKey = null
-    lastJavTagFetchKey = null
+    resetKeys()
   },
 
   createDirectory: async ({ path }) => {

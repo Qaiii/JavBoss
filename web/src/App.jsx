@@ -58,7 +58,8 @@ import { isChineseLocale, zh } from '@/utils/i18n'
 import { getErrorMessage } from '@/utils/errors'
 import { getIdolDisplayName } from '@/utils/javIdol'
 import { withJavTagDisplayName } from '@/utils/javTag'
-import { directoryQueryIds, useStore, videoSelectionKey } from '@/store'
+import { displayHostPath } from '@/utils/hostPath'
+import { directoryQueryIds, directoryQuerySubpaths, useStore, videoSelectionKey } from '@/store'
 import { useAuth } from '@/auth'
 
 const WATERFALL_STORAGE_KEY = 'javboss.waterfallModes'
@@ -256,6 +257,8 @@ export default function App() {
     deleteDirectory,
     enabledDirectoryIds,
     setEnabledDirectoryIds,
+    setDirectorySubpathFilter,
+    directorySubpaths,
     closedSubdirectories,
     setClosedSubdirectories,
     directoryFilterMode,
@@ -316,12 +319,22 @@ export default function App() {
   const tagsByName = useMemo(() => new Map(tags.map((t) => [t.name, t.id])), [tags])
   const directoryTagKey = useMemo(
     () =>
-      directoryQueryIds({
-        directories,
-        enabledDirectoryIds,
-        directoryFilterMode,
-      }).join(','),
-    [directories, enabledDirectoryIds, directoryFilterMode]
+      [
+        directoryQueryIds({
+          directories,
+          enabledDirectoryIds,
+          directoryFilterMode,
+        }).join(','),
+        directoryQuerySubpaths({
+          directories,
+          enabledDirectoryIds,
+          directoryFilterMode,
+          directorySubpaths,
+        })
+          .map((item) => `${item.directoryId}:${item.path}`)
+          .join(','),
+      ].join('|'),
+    [directories, enabledDirectoryIds, directoryFilterMode, directorySubpaths]
   )
   const javQueryDirectoryIds = useMemo(
     () =>
@@ -337,8 +350,13 @@ export default function App() {
     const ids = directoryQueryIds({ directories, enabledDirectoryIds, directoryFilterMode })
     if (ids.length !== 1 || ids[0] <= 0) return ''
     const directory = directories.find((item) => Number(item?.id) === Number(ids[0]))
-    return String(directory?.path || '').trim()
-  }, [directories, enabledDirectoryIds, directoryFilterMode])
+    const rootPath = String(directory?.path || '').trim()
+    if (!rootPath) return ''
+    const subpaths = directoryQuerySubpaths({ directories, directoryFilterMode, enabledDirectoryIds, directorySubpaths })
+    const subpath = subpaths.find((item) => Number(item?.directoryId) === Number(ids[0]))
+    const rel = subpath ? String(subpath?.path || '').trim().replace(/^\/+|\/+$/g, '') : ''
+    return rel ? `${rootPath.replace(/\/+$/g, '')}/${rel}` : rootPath
+  }, [directories, enabledDirectoryIds, directoryFilterMode, directorySubpaths])
   const [tagPickerFor, setTagPickerFor] = useState(null)
   const [tagPickerSelected, setTagPickerSelected] = useState([])
   const [selectionOpsOpen, setSelectionOpsOpen] = useState(false)
@@ -584,12 +602,34 @@ export default function App() {
     (video) => {
       const dirId = Number(video?.directory?.id || video?.directory_id || 0)
       if (!Number.isFinite(dirId) || dirId <= 0) return
-      // 清除搜索与标签过滤，仅保留目录过滤，展示该目录下所有内容
+      // 计算视频所在目录（文件所属的父目录，而非整个根目录）
+      const rootPath = getVideoDirPath(video)
+      const relPath = getVideoRelPath(video)
+      let directoryIds = [dirId]
+      let subpaths = []
+      if (rootPath) {
+        const normalizedRoot = String(rootPath).replace(/[\\/]+$/g, '')
+        const fullPath = relPath
+          ? `${normalizedRoot}/${String(relPath).replace(/^[\\/]+/g, '')}`
+          : normalizedRoot
+        const parentPath = fullPath.slice(0, fullPath.lastIndexOf('/'))
+        // 以视频自身所属根目录为锚点，父目录相对该根目录的剩余部分即为聚焦子目录
+        if (parentPath.length > normalizedRoot.length) {
+          const remainder = parentPath
+            .slice(normalizedRoot.length)
+            .replace(/^[\\/]+/g, '')
+            .replace(/[\\/]+$/g, '')
+          if (remainder) {
+            subpaths = [{ directoryId: dirId, path: remainder }]
+          }
+        }
+      }
+      // 清除搜索与标签过滤，仅保留目录（及子目录）过滤，展示该目录下所有内容
       setSearchTerm('', { resetPage: false })
       setSelectedTags([], { resetPage: false })
-      setEnabledDirectoryIds([dirId])
+      setDirectorySubpathFilter(directoryIds, subpaths)
     },
-    [setEnabledDirectoryIds, setSearchTerm, setSelectedTags]
+    [getVideoDirPath, getVideoRelPath, setDirectorySubpathFilter, setSearchTerm, setSelectedTags]
   )
 
   const playVideoFromTime = useCallback(
@@ -1034,7 +1074,7 @@ export default function App() {
 
   const applyUrlState = useCallback(
     (parsed) => {
-      useStore.getState().setDirectoryFilterFromUrl(parsed.directoryIds)
+      useStore.getState().setDirectoryFilterFromUrl(parsed.directoryIds, parsed.directorySubpaths)
       useStore.getState().setClosedSubdirectoriesFromUrl(parsed.closedSubdirs)
       const mapTagIdsToNamesFromStore = (ids) => {
         if (!Array.isArray(ids) || ids.length === 0) return []
@@ -1151,6 +1191,7 @@ export default function App() {
           seriesPage,
           directories,
           enabledDirectoryIds,
+          directorySubpaths,
           directoryFilterMode,
           closedSubdirectories,
         },
@@ -1160,6 +1201,7 @@ export default function App() {
       directories,
       directoryFilterMode,
       enabledDirectoryIds,
+      directorySubpaths,
       closedSubdirectories,
       idolFavoriteGroupId,
       idolTempSort,
@@ -1899,6 +1941,10 @@ export default function App() {
     }
     if (isJavMode) {
       const parts = []
+      if (currentDirectoryPath) {
+        const displayPath = displayHostPath(currentDirectoryPath, hostPathPrefixEnabled)
+        parts.push(zh(`目录: ${displayPath}`, `Dir: ${displayPath}`))
+      }
       if (javTab === 'list') {
         const idolNames = javIdolIds
           .map((id) => javIdolOptionMap.get(Number(id)))
@@ -1943,6 +1989,10 @@ export default function App() {
       return parts.length ? parts.join(isChineseLocale() ? '；' : '; ') : ''
     }
     const parts = []
+    if (currentDirectoryPath) {
+      const displayPath = displayHostPath(currentDirectoryPath, hostPathPrefixEnabled)
+      parts.push(zh(`目录: ${displayPath}`, `Dir: ${displayPath}`))
+    }
     const tagsLabel = formatList(selectedTags)
     if (tagsLabel) parts.push(zh(`标签: ${tagsLabel}`, `Tags: ${tagsLabel}`))
     const searchLabel = (searchTerm || '').trim()
@@ -1971,6 +2021,8 @@ export default function App() {
     selectedTags,
     searchTerm,
     randomMode,
+    currentDirectoryPath,
+    hostPathPrefixEnabled,
   ])
 
   const openVideoSettings = useCallback(() => {
@@ -3341,6 +3393,7 @@ export default function App() {
         showDirectorySetupHint={showDirectorySetupHint}
         directories={directories}
         enabledDirectoryIds={enabledDirectoryIds}
+        directorySubpaths={directorySubpaths}
         onEnabledDirectoryIdsChange={setEnabledDirectoryIds}
         closedSubdirectories={closedSubdirectories}
         onClosedSubdirectoriesChange={setClosedSubdirectories}

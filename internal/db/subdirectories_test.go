@@ -177,7 +177,7 @@ func TestClosedSubdirectoryFilterNested(t *testing.T) {
 
 	// Closing only the nested JAV/ABC hides that subtree but keeps JAV direct files.
 	closed := []ClosedSubdirectory{{DirectoryID: dir.ID, Name: "JAV/ABC"}}
-	items, err := ListVideos(ctx, 50, 0, nil, "", "recent", nil, []int64{dir.ID}, closed)
+	items, err := ListVideos(ctx, 50, 0, nil, "", "recent", nil, []int64{dir.ID}, closed, nil)
 	if err != nil {
 		t.Fatalf("list videos with nested closed subdir: %v", err)
 	}
@@ -192,7 +192,7 @@ func TestClosedSubdirectoryFilterNested(t *testing.T) {
 
 	// Closing the parent JAV hides the whole subtree including JAV/ABC.
 	closedParent := []ClosedSubdirectory{{DirectoryID: dir.ID, Name: "JAV"}}
-	parentItems, err := ListVideos(ctx, 50, 0, nil, "", "recent", nil, []int64{dir.ID}, closedParent)
+	parentItems, err := ListVideos(ctx, 50, 0, nil, "", "recent", nil, []int64{dir.ID}, closedParent, nil)
 	if err != nil {
 		t.Fatalf("list videos with parent closed subdir: %v", err)
 	}
@@ -236,7 +236,7 @@ func TestClosedSubdirectoryFilterVideos(t *testing.T) {
 	}
 
 	// No closed subdirs: everything in dirA is visible.
-	all, err := ListVideos(ctx, 50, 0, nil, "", "recent", nil, []int64{dirA.ID}, nil)
+	all, err := ListVideos(ctx, 50, 0, nil, "", "recent", nil, []int64{dirA.ID}, nil, nil)
 	if err != nil {
 		t.Fatalf("list videos without filter: %v", err)
 	}
@@ -246,7 +246,7 @@ func TestClosedSubdirectoryFilterVideos(t *testing.T) {
 
 	// Close JAV under dirA: root + IDOL remain, JAV is hidden.
 	closed := []ClosedSubdirectory{{DirectoryID: dirA.ID, Name: "JAV"}}
-	filtered, err := ListVideos(ctx, 50, 0, nil, "", "recent", nil, []int64{dirA.ID}, closed)
+	filtered, err := ListVideos(ctx, 50, 0, nil, "", "recent", nil, []int64{dirA.ID}, closed, nil)
 	if err != nil {
 		t.Fatalf("list videos with closed subdir: %v", err)
 	}
@@ -258,7 +258,7 @@ func TestClosedSubdirectoryFilterVideos(t *testing.T) {
 			t.Fatalf("closed subdirectory video still visible: %s", item.Path)
 		}
 	}
-	count, err := CountVideos(ctx, nil, "", []int64{dirA.ID}, closed)
+	count, err := CountVideos(ctx, nil, "", []int64{dirA.ID}, closed, nil)
 	if err != nil {
 		t.Fatalf("count videos with closed subdir: %v", err)
 	}
@@ -267,7 +267,7 @@ func TestClosedSubdirectoryFilterVideos(t *testing.T) {
 	}
 
 	// Closing JAV in dirA must not affect dirB.
-	dirBItems, err := ListVideos(ctx, 50, 0, nil, "", "recent", nil, []int64{dirA.ID, dirB.ID}, closed)
+	dirBItems, err := ListVideos(ctx, 50, 0, nil, "", "recent", nil, []int64{dirA.ID, dirB.ID}, closed, nil)
 	if err != nil {
 		t.Fatalf("list videos across directories: %v", err)
 	}
@@ -317,7 +317,7 @@ func TestClosedSubdirectoryFilterJav(t *testing.T) {
 	}
 
 	closed := []ClosedSubdirectory{{DirectoryID: dir.ID, Name: "HIDE"}}
-	items, total, err := SearchJavWithPrefix(ctx, nil, nil, "", "", "recent", 50, 0, nil, []int64{dir.ID}, closed)
+	items, total, err := SearchJavWithPrefix(ctx, nil, nil, "", "", "recent", 50, 0, nil, []int64{dir.ID}, closed, nil)
 	if err != nil {
 		t.Fatalf("search jav with closed subdir: %v", err)
 	}
@@ -359,7 +359,7 @@ func TestClosedSubdirectoryFilterTags(t *testing.T) {
 	}
 
 	closed := []ClosedSubdirectory{{DirectoryID: dir.ID, Name: "HIDDEN"}}
-	tags, err := ListTags(ctx, []int64{dir.ID}, closed)
+	tags, err := ListTags(ctx, []int64{dir.ID}, closed, nil)
 	if err != nil {
 		t.Fatalf("list tags with closed subdir: %v", err)
 	}
@@ -398,7 +398,7 @@ func TestClosedSubdirectoryFilterSpecialNames(t *testing.T) {
 		{DirectoryID: dir.ID, Name: "50%_off"},
 		{DirectoryID: dir.ID, Name: "it's"},
 	}
-	items, err := ListVideos(ctx, 50, 0, nil, "", "recent", nil, []int64{dir.ID}, closed)
+	items, err := ListVideos(ctx, 50, 0, nil, "", "recent", nil, []int64{dir.ID}, closed, nil)
 	if err != nil {
 		t.Fatalf("list videos with special names: %v", err)
 	}
@@ -407,7 +407,7 @@ func TestClosedSubdirectoryFilterSpecialNames(t *testing.T) {
 	}
 
 	// The inline SQL variant (used by tag counts) must behave the same.
-	tags, err := ListTags(ctx, []int64{dir.ID}, closed)
+	tags, err := ListTags(ctx, []int64{dir.ID}, closed, nil)
 	if err != nil {
 		t.Fatalf("list tags with special names: %v", err)
 	}

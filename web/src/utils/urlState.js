@@ -55,6 +55,30 @@ const parseClosedSubdirs = (sp) => {
     .filter(Boolean)
 }
 
+// directory_subpaths: "<directoryId>:<relativePath>,..." — subtree focus inside root dirs.
+const parseDirectorySubpaths = (sp) => {
+  const raw = (sp.get('directory_subpaths') || '').trim()
+  if (!raw) return []
+  return raw
+    .split(',')
+    .map((part) => {
+      const idx = part.indexOf(':')
+      if (idx <= 0) return null
+      const id = Number.parseInt(part.slice(0, idx).trim(), 10)
+      const path = part.slice(idx + 1).trim()
+      if (!Number.isFinite(id) || id <= 0 || !path) return null
+      return { directoryId: id, path }
+    })
+    .filter(Boolean)
+}
+
+const serializeSubpathPairs = (pairs, field) =>
+  Array.isArray(pairs) && pairs.length
+    ? pairs
+        .map((pair) => `${Number(pair.directoryId)}:${pair[field]}`)
+        .join(',')
+    : ''
+
 const parseIntSafe = (val, def = 1) => {
   const n = Number.parseInt(val || '', 10)
   return Number.isFinite(n) && n > 0 ? n : def
@@ -67,6 +91,7 @@ export const parseUrlState = (searchString = window.location.search, options = {
   const view = rawView === 'jav' ? 'jav' : rawView === 'video' ? 'video' : defaultView
   const directoryIds = parseDirectoryIds(sp)
   const closedSubdirs = parseClosedSubdirs(sp)
+  const directorySubpaths = parseDirectorySubpaths(sp)
 
   const videoTempSort = normalizeVideoSort((sp.get('temp_sort') || '').trim(), '')
 
@@ -111,7 +136,7 @@ export const parseUrlState = (searchString = window.location.search, options = {
     seed: clampSeed(sp.get('seed')),
   }
 
-  return { view, directoryIds, closedSubdirs, video, jav }
+  return { view, directoryIds, closedSubdirs, directorySubpaths, video, jav }
 }
 
 export const buildUrlFromState = (state, basePath = window.location.pathname) => {
@@ -131,6 +156,8 @@ export const buildUrlFromState = (state, basePath = window.location.pathname) =>
           .join(',')
       )
     }
+    const subpaths = serializeSubpathPairs(state.directorySubpaths, 'path')
+    if (subpaths) sp.set('directory_subpaths', subpaths)
     if (state.jav.tab === 'idol' || state.jav.tab === 'studio' || state.jav.tab === 'series') {
       sp.set('tab', state.jav.tab)
     }
@@ -199,6 +226,8 @@ export const buildUrlFromState = (state, basePath = window.location.pathname) =>
         .join(',')
     )
   }
+  const subpaths = serializeSubpathPairs(state.directorySubpaths, 'path')
+  if (subpaths) sp.set('directory_subpaths', subpaths)
   if (state.video.search) sp.set('search', state.video.search)
   if (!state.video.random && state.video.tempSort) sp.set('temp_sort', state.video.tempSort)
   if (state.video.tagIds?.length) {
@@ -233,13 +262,29 @@ export const normalizeUrlStateFromStore = (store, tagsByName) => {
         .filter((id) => Number.isFinite(id) && id > 0 && activeSet.has(id))
     )
   ).sort((a, b) => a - b)
+  const directorySubpaths = []
+  if (store.directoryFilterMode === 'custom') {
+    const enabledSet = new Set(enabledDirectoryIds)
+    for (const item of Array.isArray(store.directorySubpaths) ? store.directorySubpaths : []) {
+      const id = Number(item?.directoryId)
+      const path = String(item?.path || '').trim()
+      if (!Number.isFinite(id) || id <= 0 || !path || !activeSet.has(id) || !enabledSet.has(id)) {
+        continue
+      }
+      directorySubpaths.push({ directoryId: id, path })
+    }
+    directorySubpaths.sort((a, b) =>
+      a.directoryId === b.directoryId ? a.path.localeCompare(b.path) : a.directoryId - b.directoryId
+    )
+  }
   let directoryIds = null
   if (store.directoryFilterMode === 'custom') {
     if (enabledDirectoryIds.length === 0) {
       directoryIds = []
     } else if (
       activeDirectoryIds.length === 0 ||
-      enabledDirectoryIds.length < activeDirectoryIds.length
+      enabledDirectoryIds.length < activeDirectoryIds.length ||
+      directorySubpaths.length > 0
     ) {
       directoryIds = enabledDirectoryIds
     }
@@ -264,6 +309,7 @@ export const normalizeUrlStateFromStore = (store, tagsByName) => {
     view: store.viewMode === 'jav' ? 'jav' : 'video',
     directoryIds,
     closedSubdirs,
+    directorySubpaths,
     video: {
       page: store.randomMode ? 1 : store.page,
       search: store.randomMode ? '' : (store.searchTerm || '').trim(),

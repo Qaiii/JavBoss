@@ -29,6 +29,7 @@ func listTags(c *gin.Context) {
 		c.Request.Context(),
 		parseDirectoryIDs(c.Query("directory_ids")),
 		parseClosedSubdirectories(c.Query("closed_subdirs")),
+		parseDirectorySubpaths(c.Query("directory_subpaths")),
 		queryBool(c, "hide_jav", false),
 	)
 	if err != nil {

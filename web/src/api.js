@@ -80,6 +80,7 @@ export async function fetchVideos({
   seed = null,
   directoryIds = [],
   closedSubdirs = [],
+  directorySubpaths = [],
   hideJav = false,
 } = {}) {
   const params = new URLSearchParams()
@@ -92,6 +93,8 @@ export async function fetchVideos({
   if (directoryIds.length) params.set('directory_ids', directoryIds.join(','))
   const closed = closedSubdirsParam(closedSubdirs)
   if (closed) params.set('closed_subdirs', closed)
+  const subpaths = directorySubpathsParam(directorySubpaths)
+  if (subpaths) params.set('directory_subpaths', subpaths)
   params.set('hide_jav', hideJav ? '1' : '0')
   const res = await apiFetch(`/videos?${params.toString()}`)
   if (!res.ok) throw await apiError(res)
@@ -103,11 +106,18 @@ export async function fetchVideos({
   return data
 }
 
-export async function fetchTags({ directoryIds = [], closedSubdirs = [], hideJav = false } = {}) {
+export async function fetchTags({
+  directoryIds = [],
+  closedSubdirs = [],
+  directorySubpaths = [],
+  hideJav = false,
+} = {}) {
   const params = new URLSearchParams()
   if (directoryIds.length) params.set('directory_ids', directoryIds.join(','))
   const closed = closedSubdirsParam(closedSubdirs)
   if (closed) params.set('closed_subdirs', closed)
+  const subpaths = directorySubpathsParam(directorySubpaths)
+  if (subpaths) params.set('directory_subpaths', subpaths)
   params.set('hide_jav', hideJav ? '1' : '0')
   const query = params.toString()
   const res = await apiFetch(`/tags${query ? `?${query}` : ''}`)
@@ -441,6 +451,20 @@ const closedSubdirsParam = (closedSubdirs = []) => {
     .join(',')
 }
 
+// directorySubpaths: [{ directoryId, path }] — subtree focus filter inside root dirs.
+const directorySubpathsParam = (subpaths = []) => {
+  if (!Array.isArray(subpaths) || subpaths.length === 0) return ''
+  return subpaths
+    .map((item) => {
+      const id = Number(item?.directoryId)
+      const path = String(item?.path || '').trim()
+      if (!Number.isFinite(id) || id <= 0 || !path) return ''
+      return `${id}:${path}`
+    })
+    .filter(Boolean)
+    .join(',')
+}
+
 export async function createDirectory({ path }) {
   const res = await apiFetch('/directories', {
     method: 'POST',
@@ -515,6 +539,7 @@ export async function fetchJavs({
   seed = null,
   directoryIds = [],
   closedSubdirs = [],
+  directorySubpaths = [],
   favoriteGroupId = null,
 } = {}) {
   const params = new URLSearchParams()
@@ -532,6 +557,8 @@ export async function fetchJavs({
   if (directoryIds.length) params.set('directory_ids', directoryIds.join(','))
   const closed = closedSubdirsParam(closedSubdirs)
   if (closed) params.set('closed_subdirs', closed)
+  const subpaths = directorySubpathsParam(directorySubpaths)
+  if (subpaths) params.set('directory_subpaths', subpaths)
   if (favoriteGroupId) params.set('favorite_group_id', String(favoriteGroupId))
   const res = await apiFetch(`/jav?${params.toString()}`)
   if (!res.ok) {
@@ -590,9 +617,11 @@ export function resolveJavSampleImages(id, { directoryIds = [] } = {}) {
   return request
 }
 
-export async function fetchJavPrefixes({ directoryIds = [] } = {}) {
+export async function fetchJavPrefixes({ directoryIds = [], directorySubpaths = [] } = {}) {
   const params = new URLSearchParams()
   if (directoryIds.length) params.set('directory_ids', directoryIds.join(','))
+  const subpaths = directorySubpathsParam(directorySubpaths)
+  if (subpaths) params.set('directory_subpaths', subpaths)
   const query = params.toString()
   const res = await apiFetch(`/jav/prefixes${query ? `?${query}` : ''}`)
   if (!res.ok) {
@@ -601,11 +630,13 @@ export async function fetchJavPrefixes({ directoryIds = [] } = {}) {
   return res.json()
 }
 
-export async function fetchJavTags({ directoryIds = [], closedSubdirs = [] } = {}) {
+export async function fetchJavTags({ directoryIds = [], closedSubdirs = [], directorySubpaths = [] } = {}) {
   const params = new URLSearchParams()
   if (directoryIds.length) params.set('directory_ids', directoryIds.join(','))
   const closed = closedSubdirsParam(closedSubdirs)
   if (closed) params.set('closed_subdirs', closed)
+  const subpaths = directorySubpathsParam(directorySubpaths)
+  if (subpaths) params.set('directory_subpaths', subpaths)
   const query = params.toString()
   const res = await apiFetch(`/jav/tags${query ? `?${query}` : ''}`)
   if (!res.ok) {
@@ -722,6 +753,7 @@ export async function fetchJavIdols({
   sort = '',
   directoryIds = [],
   closedSubdirs = [],
+  directorySubpaths = [],
   favoriteGroupId = null,
 } = {}) {
   const params = new URLSearchParams()
@@ -732,6 +764,8 @@ export async function fetchJavIdols({
   if (directoryIds.length) params.set('directory_ids', directoryIds.join(','))
   const closed = closedSubdirsParam(closedSubdirs)
   if (closed) params.set('closed_subdirs', closed)
+  const subpaths = directorySubpathsParam(directorySubpaths)
+  if (subpaths) params.set('directory_subpaths', subpaths)
   if (favoriteGroupId) params.set('favorite_group_id', String(favoriteGroupId))
   const res = await apiFetch(`/jav/idols?${params.toString()}`)
   if (!res.ok) {
@@ -967,6 +1001,7 @@ export async function fetchJavStudios({
   search = '',
   directoryIds = [],
   closedSubdirs = [],
+  directorySubpaths = [],
   favoriteGroupId = null,
 } = {}) {
   const params = new URLSearchParams()
@@ -976,6 +1011,8 @@ export async function fetchJavStudios({
   if (directoryIds.length) params.set('directory_ids', directoryIds.join(','))
   const closed = closedSubdirsParam(closedSubdirs)
   if (closed) params.set('closed_subdirs', closed)
+  const subpaths = directorySubpathsParam(directorySubpaths)
+  if (subpaths) params.set('directory_subpaths', subpaths)
   if (favoriteGroupId) params.set('favorite_group_id', String(favoriteGroupId))
   const res = await apiFetch(`/jav/studios?${params.toString()}`)
   if (!res.ok) {
@@ -1057,6 +1094,7 @@ export async function fetchJavSeries({
   search = '',
   directoryIds = [],
   closedSubdirs = [],
+  directorySubpaths = [],
   favoriteGroupId = null,
 } = {}) {
   const params = new URLSearchParams()
@@ -1066,6 +1104,8 @@ export async function fetchJavSeries({
   if (directoryIds.length) params.set('directory_ids', directoryIds.join(','))
   const closed = closedSubdirsParam(closedSubdirs)
   if (closed) params.set('closed_subdirs', closed)
+  const subpaths = directorySubpathsParam(directorySubpaths)
+  if (subpaths) params.set('directory_subpaths', subpaths)
   if (favoriteGroupId) params.set('favorite_group_id', String(favoriteGroupId))
   const res = await apiFetch(`/jav/series?${params.toString()}`)
   if (!res.ok) {

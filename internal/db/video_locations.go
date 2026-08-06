@@ -358,6 +358,75 @@ func closedSubdirectoryFilterSQL(locationAlias string, closed []ClosedSubdirecto
 	return " AND NOT (" + strings.Join(conditions, " OR ") + ")"
 }
 
+// DirectorySubpath represents a subtree focus filter: only locations under the
+// given relative path (relative_path starts with "path/") inside a root directory.
+type DirectorySubpath struct {
+	DirectoryID int64
+	Path        string
+}
+
+// directorySubpathConditionSQL builds one condition matching a focused subpath:
+// the location belongs to the directory and its relative path starts with "path/".
+func directorySubpathConditionSQL(locationAlias, path string) string {
+	return fmt.Sprintf(
+		"(%s.directory_id = ? AND %s.relative_path LIKE ? ESCAPE '\\')",
+		locationAlias, locationAlias,
+	)
+}
+
+// applyDirectorySubpathFilter keeps only locations under the given subpaths.
+// It is meant to be combined (AND) with applyDirectoryFilter.
+func applyDirectorySubpathFilter(q *gorm.DB, locationAlias string, subpaths []DirectorySubpath) *gorm.DB {
+	if len(subpaths) == 0 {
+		return q
+	}
+	locationAlias = strings.TrimSpace(locationAlias)
+	if locationAlias == "" {
+		locationAlias = "video_location"
+	}
+	conditions := make([]string, 0, len(subpaths))
+	args := make([]any, 0, len(subpaths)*2)
+	for _, item := range subpaths {
+		if item.DirectoryID <= 0 || strings.TrimSpace(item.Path) == "" {
+			continue
+		}
+		conditions = append(conditions, directorySubpathConditionSQL(locationAlias, item.Path))
+		args = append(args, item.DirectoryID, escapeLikeLiteral(item.Path)+"/%")
+	}
+	if len(conditions) == 0 {
+		return q
+	}
+	return q.Where("("+strings.Join(conditions, " OR ")+")", args...)
+}
+
+// directorySubpathFilterSQL returns an inline " AND (...)" fragment for use in
+// concatenated SQL expressions (e.g. ORDER BY subqueries or CASE WHEN counts).
+// Values are inlined so paths must be single-quote escaped.
+func directorySubpathFilterSQL(locationAlias string, subpaths []DirectorySubpath) string {
+	if len(subpaths) == 0 {
+		return ""
+	}
+	locationAlias = strings.TrimSpace(locationAlias)
+	if locationAlias == "" {
+		locationAlias = "video_location"
+	}
+	conditions := make([]string, 0, len(subpaths))
+	for _, item := range subpaths {
+		if item.DirectoryID <= 0 || strings.TrimSpace(item.Path) == "" {
+			continue
+		}
+		escaped := strings.ReplaceAll(item.Path, "'", "''")
+		conditions = append(conditions, fmt.Sprintf(
+			"(%s.directory_id = %d AND %s.relative_path LIKE '%s/%%' ESCAPE '\\')",
+			locationAlias, item.DirectoryID, locationAlias, escapeLikeLiteral(escaped),
+		))
+	}
+	if len(conditions) == 0 {
+		return ""
+	}
+	return " AND (" + strings.Join(conditions, " OR ") + ")"
+}
+
 func applyDirectoryFilter(q *gorm.DB, locationAlias string, directoryIDs []int64) *gorm.DB {
 	if hasZeroID(directoryIDs) {
 		return q.Where("1 = 0")
