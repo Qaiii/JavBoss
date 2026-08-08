@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -21,43 +22,81 @@ import (
 	"javboss/internal/util"
 )
 
-func searchJav(c *gin.Context) {
-	limit := queryInt(c, "limit", 100)
-	offset := queryInt(c, "offset", 0)
-	idolIDs := parseInt64CSV(c.Query("idol_ids"))
-	tagIDs := parseInt64CSV(c.Query("tag_ids"))
-	directoryIDs := parseDirectoryIDs(c.Query("directory_ids"))
-	studioID := int64(-1)
+type javFilterQuery struct {
+	IdolIDs           []int64
+	TagIDs            []int64
+	DirectoryIDs      []int64
+	Search            string
+	Prefix            string
+	StudioID          int64
+	SeriesID          int64
+	SoloOnly          bool
+	FavoriteGroupID   int64
+	FavoriteRatingMin *float64
+	FavoriteRatingMax *float64
+}
+
+func parseJavFilterQuery(c *gin.Context) (javFilterQuery, bool) {
+	query := javFilterQuery{
+		IdolIDs:      parseInt64CSV(c.Query("idol_ids")),
+		TagIDs:       parseInt64CSV(c.Query("tag_ids")),
+		DirectoryIDs: parseDirectoryIDs(c.Query("directory_ids")),
+		Search:       strings.TrimSpace(c.Query("search")),
+		Prefix:       strings.TrimSpace(c.Query("prefix")),
+		StudioID:     -1,
+		SoloOnly:     queryBool(c, "solo", false),
+	}
 	if studioParam := strings.TrimSpace(c.Query("studio_id")); studioParam != "" {
 		parsed, err := strconv.ParseInt(studioParam, 10, 64)
 		if err != nil || parsed < 0 {
 			respondLocalizedError(c, http.StatusBadRequest, "片商 ID 无效", "Invalid studio ID")
-			return
+			return query, false
 		}
-		studioID = parsed
+		query.StudioID = parsed
 	}
-	seriesID := int64(0)
 	if seriesParam := strings.TrimSpace(c.Query("series_id")); seriesParam != "" {
 		parsed, err := strconv.ParseInt(seriesParam, 10, 64)
 		if err != nil || parsed <= 0 {
 			respondLocalizedError(c, http.StatusBadRequest, "系列 ID 无效", "Invalid series ID")
-			return
+			return query, false
 		}
-		seriesID = parsed
+		query.SeriesID = parsed
 	}
-	search := strings.TrimSpace(c.Query("search"))
-	prefix := strings.TrimSpace(c.Query("prefix"))
-	sort := strings.TrimSpace(c.Query("sort"))
-	soloOnly := queryBool(c, "solo", false)
-	favoriteGroupID := int64(0)
+	favoriteRatingMinParam := strings.TrimSpace(c.Query("favorite_rating_min"))
+	favoriteRatingMaxParam := strings.TrimSpace(c.Query("favorite_rating_max"))
+	if favoriteRatingMinParam != "" || favoriteRatingMaxParam != "" {
+		if favoriteRatingMinParam == "" || favoriteRatingMaxParam == "" {
+			respondLocalizedError(c, http.StatusBadRequest, "喜爱度范围无效", "Invalid favorite rating range")
+			return query, false
+		}
+		parsedMin, minErr := strconv.ParseFloat(favoriteRatingMinParam, 64)
+		parsedMax, maxErr := strconv.ParseFloat(favoriteRatingMaxParam, 64)
+		if minErr != nil || maxErr != nil || math.IsNaN(parsedMin) || math.IsNaN(parsedMax) || math.IsInf(parsedMin, 0) || math.IsInf(parsedMax, 0) || parsedMin < 0.5 || parsedMax > 5 || parsedMin > parsedMax || math.Abs(parsedMin*2-math.Round(parsedMin*2)) > 1e-9 || math.Abs(parsedMax*2-math.Round(parsedMax*2)) > 1e-9 {
+			respondLocalizedError(c, http.StatusBadRequest, "喜爱度范围无效", "Invalid favorite rating range")
+			return query, false
+		}
+		query.FavoriteRatingMin = &parsedMin
+		query.FavoriteRatingMax = &parsedMax
+	}
 	if favoriteGroupParam := strings.TrimSpace(c.Query("favorite_group_id")); favoriteGroupParam != "" {
 		parsed, err := strconv.ParseInt(favoriteGroupParam, 10, 64)
 		if err != nil || parsed <= 0 {
 			respondLocalizedError(c, http.StatusBadRequest, "收藏夹 ID 无效", "Invalid favorite group ID")
-			return
+			return query, false
 		}
-		favoriteGroupID = parsed
+		query.FavoriteGroupID = parsed
 	}
+	return query, true
+}
+
+func searchJav(c *gin.Context) {
+	limit := queryInt(c, "limit", 100)
+	offset := queryInt(c, "offset", 0)
+	filterQuery, ok := parseJavFilterQuery(c)
+	if !ok {
+		return
+	}
+	sort := strings.TrimSpace(c.Query("sort"))
 	seedParam := strings.TrimSpace(c.Query("seed"))
 	var seed *int64
 	if seedParam != "" {
@@ -69,7 +108,14 @@ func searchJav(c *gin.Context) {
 		seed = &parsed
 	}
 
-	items, total, err := dbpkg.SearchJavWithPrefix(c.Request.Context(), idolIDs, tagIDs, search, prefix, sort, limit, offset, seed, directoryIDs, parseClosedSubdirectories(c.Query("closed_subdirs")), parseDirectorySubpaths(c.Query("directory_subpaths")), studioID, seriesID, boolInt64(soloOnly), favoriteGroupID)
+	items, total, err := dbpkg.SearchJavWithPrefixFilters(c.Request.Context(), filterQuery.IdolIDs, filterQuery.TagIDs, filterQuery.Search, filterQuery.Prefix, sort, limit, offset, seed, filterQuery.DirectoryIDs, dbpkg.JavSearchFilters{
+		StudioID:          filterQuery.StudioID,
+		SeriesID:          filterQuery.SeriesID,
+		SoloOnly:          filterQuery.SoloOnly,
+		FavoriteGroupID:   filterQuery.FavoriteGroupID,
+		FavoriteRatingMin: filterQuery.FavoriteRatingMin,
+		FavoriteRatingMax: filterQuery.FavoriteRatingMax,
+	}, parseClosedSubdirectories(c.Query("closed_subdirs")), parseDirectorySubpaths(c.Query("directory_subpaths")))
 	if err != nil {
 		logging.Error("SearchJav: %v", err)
 		respondLocalizedError(c, http.StatusInternalServerError, "搜索 JAV 作品失败", "Failed to search JAV items")
@@ -79,6 +125,43 @@ func searchJav(c *gin.Context) {
 		"items": items,
 		"total": total,
 	})
+}
+
+func listJavFilterOptions(c *gin.Context) {
+	filterQuery, ok := parseJavFilterQuery(c)
+	if !ok {
+		return
+	}
+	options, err := dbpkg.ListJavFilterOptions(
+		c.Request.Context(),
+		filterQuery.IdolIDs,
+		filterQuery.TagIDs,
+		filterQuery.Search,
+		filterQuery.Prefix,
+		filterQuery.DirectoryIDs,
+		dbpkg.JavSearchFilters{
+			StudioID:          filterQuery.StudioID,
+			SeriesID:          filterQuery.SeriesID,
+			SoloOnly:          filterQuery.SoloOnly,
+			FavoriteGroupID:   filterQuery.FavoriteGroupID,
+			FavoriteRatingMin: filterQuery.FavoriteRatingMin,
+			FavoriteRatingMax: filterQuery.FavoriteRatingMax,
+		},
+		dbpkg.JavFilterOptionSearches{
+			Prefix: strings.TrimSpace(c.Query("prefix_search")),
+			Idol:   strings.TrimSpace(c.Query("idol_search")),
+			Tag:    strings.TrimSpace(c.Query("tag_search")),
+			Studio: strings.TrimSpace(c.Query("studio_search")),
+			Series: strings.TrimSpace(c.Query("series_search")),
+		},
+		queryInt(c, "option_limit", 120),
+	)
+	if err != nil {
+		logging.Error("list JAV filter options: %v", err)
+		respondLocalizedError(c, http.StatusInternalServerError, "加载 JAV 筛选候选项失败", "Failed to load JAV filter options")
+		return
+	}
+	c.JSON(http.StatusOK, options)
 }
 
 func listJavPrefixes(c *gin.Context) {
@@ -92,13 +175,6 @@ func listJavPrefixes(c *gin.Context) {
 		items = []dbpkg.JavPrefixSummary{}
 	}
 	c.JSON(http.StatusOK, items)
-}
-
-func boolInt64(value bool) int64 {
-	if value {
-		return 1
-	}
-	return 0
 }
 
 func getJavJavDBURL(c *gin.Context) {
@@ -237,14 +313,15 @@ func listJavTags(c *gin.Context) {
 }
 
 type javItemUpdateRequest struct {
-	Title       *string  `json:"title"`
-	CoverURL    *string  `json:"cover_url"`
-	TagIDs      *[]int64 `json:"tag_ids"`
-	IdolIDs     *[]int64 `json:"idol_ids"`
-	StudioID    *int64   `json:"studio_id"`
-	SeriesID    *int64   `json:"series_id"`
-	ReleaseDate *string  `json:"release_date"`
-	DurationMin *int     `json:"duration_min"`
+	Title          *string  `json:"title"`
+	CoverURL       *string  `json:"cover_url"`
+	TagIDs         *[]int64 `json:"tag_ids"`
+	IdolIDs        *[]int64 `json:"idol_ids"`
+	StudioID       *int64   `json:"studio_id"`
+	SeriesID       *int64   `json:"series_id"`
+	ReleaseDate    *string  `json:"release_date"`
+	DurationMin    *int     `json:"duration_min"`
+	FavoriteRating *float64 `json:"favorite_rating"`
 }
 
 func updateJavItem(c *gin.Context) {
@@ -294,13 +371,14 @@ func updateJavItem(c *gin.Context) {
 	}
 
 	updated, err := dbpkg.UpdateJav(c.Request.Context(), id, dbpkg.JavUpdateInput{
-		Title:       req.Title,
-		StudioID:    req.StudioID,
-		SeriesID:    req.SeriesID,
-		IdolIDs:     req.IdolIDs,
-		UserTagIDs:  req.TagIDs,
-		ReleaseUnix: releaseUnix,
-		DurationMin: req.DurationMin,
+		Title:          req.Title,
+		StudioID:       req.StudioID,
+		SeriesID:       req.SeriesID,
+		IdolIDs:        req.IdolIDs,
+		UserTagIDs:     req.TagIDs,
+		ReleaseUnix:    releaseUnix,
+		DurationMin:    req.DurationMin,
+		FavoriteRating: req.FavoriteRating,
 	}, parseDirectoryIDs(c.Query("directory_ids")))
 	if err != nil {
 		logging.Error("update jav item error: %v", err)

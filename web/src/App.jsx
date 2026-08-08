@@ -12,7 +12,7 @@ import {
   revealVideoLocation,
   updateVideoJavScrapeSettings,
   fetchVideoJavScrapePossibleCodes,
-  lookupVideoJavScrapeJavDB,
+  lookupVideoJavScrape,
   manualVideoJavScrape,
   createJavTag,
   renameJavTag,
@@ -42,6 +42,7 @@ import SelectionTagsModal from '@/components/SelectionTagsModal'
 import TagPickerModal from '@/components/TagPickerModal'
 import Toast from '@/components/Toast'
 import CenterToast from '@/components/CenterToast'
+import SideTabs from '@/components/SideTabs'
 import TopBar from '@/components/TopBar'
 import PlayerModal from '@/components/PlayerModal'
 import VideoSettingsModal from '@/components/VideoSettingsModal'
@@ -191,7 +192,6 @@ export default function App() {
     randomMode,
     randomSeed,
     viewMode,
-    setViewMode,
     javTab,
     javPage,
     setJavPage,
@@ -209,6 +209,9 @@ export default function App() {
     javSeriesName,
     javPrefix,
     javSoloOnly,
+    javFavoriteRatingEnabled,
+    javFavoriteRatingMin,
+    javFavoriteRatingMax,
     javFavoriteGroupId,
     setJavFavoriteGroupId,
     javSort,
@@ -337,8 +340,6 @@ export default function App() {
   const [hydrated, setHydrated] = useState(false)
   const [configLoaded, setConfigLoaded] = useState(false)
   const isJavMode = viewMode === 'jav'
-  const isModifiedClick = (e) =>
-    e && (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0)
   const selectedTagIds = useMemo(
     () =>
       tags
@@ -418,6 +419,9 @@ export default function App() {
   const [javHideActionsInput, setJavHideActionsInput] = useState(
     configFlag(config?.jav_hide_actions)
   )
+  const [javFavoriteRatingShowFullInput, setJavFavoriteRatingShowFullInput] = useState(
+    configFlag(config?.jav_favorite_rating_show_full, false)
+  )
   const [javWaterfallDefaultInput, setJavWaterfallDefaultInput] = useState(
     configFlag(config?.jav_waterfall_default)
   )
@@ -483,7 +487,6 @@ export default function App() {
     ? 'browser'
     : normalizeDefaultPlayer(config?.default_player, mpvEnabled)
   const initialViewMode = normalizeInitialViewMode(config?.initial_view_mode)
-  const showTopBarButtonTooltips = configFlag(config?.show_top_bar_button_tooltips, true)
   const alternatePlayer = browserPlaybackOnly
     ? ''
     : defaultPlayer === 'system'
@@ -865,11 +868,11 @@ export default function App() {
     [loadVideos, scrapeSettingsVideo, showCenterToast, showToast]
   )
 
-  const handleLookupScrapeJavDB = useCallback(
-    async (code) => {
+  const handleLookupScrapeMetadata = useCallback(
+    async (code, provider) => {
       const video = scrapeSettingsVideo
       if (!video?.id) throw new Error(zh('缺少视频 ID', 'Missing video ID'))
-      return lookupVideoJavScrapeJavDB(video.id, code)
+      return lookupVideoJavScrape(video.id, code, provider)
     },
     [scrapeSettingsVideo]
   )
@@ -1152,6 +1155,9 @@ export default function App() {
           javSeriesName: jav.tab === 'list' && jav.seriesId ? jav.seriesName : '',
           javPrefix: jav.tab === 'list' ? jav.prefix : '',
           javSoloOnly: jav.tab === 'list' ? jav.soloOnly : false,
+          javFavoriteRatingEnabled: jav.tab === 'list' ? jav.favoriteRatingEnabled : false,
+          javFavoriteRatingMin: jav.tab === 'list' ? jav.favoriteRatingMin : 0.5,
+          javFavoriteRatingMax: jav.tab === 'list' ? jav.favoriteRatingMax : 5,
           javFavoriteGroupId: jav.tab === 'list' ? jav.favoriteGroupId : null,
           javPage: jav.random ? 1 : jav.page,
           idolPage: jav.tab === 'idol' ? jav.page : 1,
@@ -1182,7 +1188,7 @@ export default function App() {
         videoTempSort: video.random ? '' : video.tempSort,
         randomMode: video.random,
         randomSeed: video.random ? video.seed : null,
-        searchTerm: video.random ? '' : video.search,
+        searchTerm: video.search,
         page: video.random ? 1 : video.page,
       })
       setSearchInput(video.search)
@@ -1222,6 +1228,9 @@ export default function App() {
           javSeriesName,
           javPrefix,
           javSoloOnly,
+          javFavoriteRatingEnabled,
+          javFavoriteRatingMin,
+          javFavoriteRatingMax,
           javFavoriteGroupId,
           javTempSort,
           idolTempSort,
@@ -1258,6 +1267,9 @@ export default function App() {
       javSeriesId,
       javPrefix,
       javSoloOnly,
+      javFavoriteRatingEnabled,
+      javFavoriteRatingMin,
+      javFavoriteRatingMax,
       studioFavoriteGroupId,
       seriesFavoriteGroupId,
       javPage,
@@ -1370,6 +1382,9 @@ export default function App() {
         seriesName: seriesNameOverride,
         prefix: prefixOverride,
         soloOnly: soloOnlyOverride,
+        favoriteRatingEnabled: favoriteRatingEnabledOverride,
+        favoriteRatingMin: favoriteRatingMinOverride,
+        favoriteRatingMax: favoriteRatingMaxOverride,
         favoriteGroupId: favoriteGroupIdOverride,
         tagIds: tagIdsOverride,
         random: randomOverride,
@@ -1425,6 +1440,19 @@ export default function App() {
       const soloOnly = hasSoloOnlyOverride ? Boolean(soloOnlyOverride) : Boolean(javSoloOnly)
       if (tab === 'list' && soloOnly) {
         sp.set('solo', '1')
+      }
+      const hasFavoriteRatingEnabledOverride = Object.prototype.hasOwnProperty.call(
+        options,
+        'favoriteRatingEnabled'
+      )
+      const favoriteRatingEnabled = hasFavoriteRatingEnabledOverride
+        ? Boolean(favoriteRatingEnabledOverride)
+        : Boolean(javFavoriteRatingEnabled)
+      if (tab === 'list' && favoriteRatingEnabled) {
+        const favoriteRatingMin = favoriteRatingMinOverride ?? javFavoriteRatingMin
+        const favoriteRatingMax = favoriteRatingMaxOverride ?? javFavoriteRatingMax
+        sp.set('favorite_rating_min', String(favoriteRatingMin))
+        sp.set('favorite_rating_max', String(favoriteRatingMax))
       }
       const hasFavoriteGroupIdOverride = Object.prototype.hasOwnProperty.call(
         options,
@@ -1497,6 +1525,9 @@ export default function App() {
       javSeriesName,
       javPrefix,
       javSoloOnly,
+      javFavoriteRatingEnabled,
+      javFavoriteRatingMin,
+      javFavoriteRatingMax,
       javPage,
       javTempSort,
       javSearchTerm,
@@ -1532,6 +1563,9 @@ export default function App() {
         javSeriesName: '',
         javPrefix: '',
         javSoloOnly: false,
+        javFavoriteRatingEnabled: false,
+        javFavoriteRatingMin: 0.5,
+        javFavoriteRatingMax: 5,
         idolFavoriteGroupId: null,
         javTags: clean,
         javSearchTerm: '',
@@ -1616,6 +1650,11 @@ export default function App() {
     javTags,
     javStudioId,
     javSeriesId,
+    javPrefix,
+    javSoloOnly,
+    javFavoriteRatingEnabled,
+    javFavoriteRatingMin,
+    javFavoriteRatingMax,
     javFavoriteGroupId,
     javSort,
     javTempSort,
@@ -1867,16 +1906,6 @@ export default function App() {
     () => Array.from(javIdolOptionMap.values()),
     [javIdolOptionMap]
   )
-  const showJavFilterRandomButton =
-    isJavMode &&
-    javTab === 'list' &&
-    (javIdolIds.length > 0 ||
-      javTags.length > 0 ||
-      javStudioId !== null ||
-      Boolean(javSeriesId) ||
-      Boolean((javPrefix || '').trim()) ||
-      Boolean(javSoloOnly) ||
-      Boolean((javSearchTerm || '').trim()))
   useEffect(() => {
     setJavResolvedIdols({})
   }, [javDirectoryKey])
@@ -1914,34 +1943,14 @@ export default function App() {
     search: searchInput,
     page: 1,
     random: false,
-    tagIds: [],
     tempSort: '',
   })
-  const randomHref = buildVideoUrl({ random: true, page: 1, tagIds: [], search: '' })
   const javSearchHref = buildJavUrl({
     search: javSearchInput,
     page: 1,
     tab: javTab,
-    idolIds: [],
-    tagIds: [],
-    studioId: null,
-    seriesId: null,
-    prefix: '',
-    soloOnly: false,
     random: false,
     tempSort: '',
-  })
-  const javRandomHref = buildJavUrl({
-    random: true,
-    page: 1,
-    tab: 'list',
-    idolIds: [],
-    tagIds: [],
-    studioId: null,
-    seriesId: null,
-    prefix: '',
-    soloOnly: false,
-    search: '',
   })
   const handleJavRandomClick = useCallback(() => {
     const nextSeed = generateRandomSeed()
@@ -1949,33 +1958,7 @@ export default function App() {
       viewMode: 'jav',
       videoTempSort: '',
       javTab: 'list',
-      javTempSort: '',
       idolTempSort: '',
-      javIdolIds: [],
-      javTags: [],
-      javStudioId: null,
-      javStudioName: '',
-      javSeriesId: null,
-      javSeriesName: '',
-      javPrefix: '',
-      javSoloOnly: false,
-      idolFavoriteGroupId: null,
-      javSearchTerm: '',
-      javPage: 1,
-      idolPage: 1,
-      studioPage: 1,
-      seriesPage: 1,
-    })
-    setJavSearchInput('')
-    loadJavRandom(nextSeed)
-  }, [loadJavRandom])
-
-  const handleJavFilterRandomClick = useCallback(() => {
-    const nextSeed = generateRandomSeed()
-    useStore.setState({
-      viewMode: 'jav',
-      videoTempSort: '',
-      javTab: 'list',
       idolFavoriteGroupId: null,
       idolPage: 1,
       studioPage: 1,
@@ -1983,29 +1966,11 @@ export default function App() {
     })
     loadJavRandom(nextSeed)
   }, [loadJavRandom])
-
-  const handleCancelJavFilterRandom = useCallback(() => {
-    useStore.setState({
-      javTempSort: '',
-      idolTempSort: '',
-      javRandomMode: false,
-      javRandomSeed: null,
-      javPage: 1,
-    })
-  }, [])
 
   const handleVideoRandomClick = useCallback(() => {
     const nextSeed = generateRandomSeed()
-    setSearchInput('')
-    useStore.setState({
-      viewMode: 'video',
-      selectedTags: [],
-      searchTerm: '',
-      videoTempSort: '',
-      page: 1,
-      randomMode: true,
-      randomSeed: nextSeed,
-    })
+    useStore.setState({ viewMode: 'video' })
+    useStore.getState().loadRandom(nextSeed)
   }, [])
   const filterSummary = useMemo(() => {
     const formatList = (items) => {
@@ -2099,6 +2064,227 @@ export default function App() {
     hostPathPrefixEnabled,
   ])
 
+  const updateVideoFilters = useCallback(
+    (updates) => {
+      saveScrollBeforeUrlStateChange()
+      useStore.setState({
+        videoTempSort: '',
+        randomMode: false,
+        randomSeed: null,
+        page: 1,
+        ...updates,
+      })
+    },
+    [saveScrollBeforeUrlStateChange]
+  )
+
+  const updateJavFilters = useCallback(
+    (updates) => {
+      saveScrollBeforeUrlStateChange()
+      useStore.setState({
+        javTempSort: '',
+        idolTempSort: '',
+        javRandomMode: false,
+        javRandomSeed: null,
+        javPage: 1,
+        ...updates,
+      })
+    },
+    [saveScrollBeforeUrlStateChange]
+  )
+
+  const handleFavoriteRatingEnabledChange = useCallback(
+    (enabled) => {
+      updateJavFilters({ javFavoriteRatingEnabled: Boolean(enabled) })
+    },
+    [updateJavFilters]
+  )
+
+  const handleFavoriteRatingRangeChange = useCallback(
+    (range) => {
+      if (!Array.isArray(range) || range.length !== 2) return
+      const min = Number(range[0])
+      const max = Number(range[1])
+      if (!Number.isFinite(min) || !Number.isFinite(max) || min > max) return
+      updateJavFilters({
+        javFavoriteRatingMin: min,
+        javFavoriteRatingMax: max,
+      })
+    },
+    [updateJavFilters]
+  )
+
+  const activeFilterItems = useMemo(() => {
+    if (!isJavMode) {
+      const items = []
+      const activeSearch = String(searchTerm || '').trim()
+      if (activeSearch) {
+        items.push({
+          key: 'video-search',
+          label: zh(`搜索: ${activeSearch}`, `Search: ${activeSearch}`),
+          onRemove: () => {
+            setSearchInput('')
+            updateVideoFilters({ searchTerm: '' })
+          },
+        })
+      }
+      selectedTags.forEach((name) => {
+        items.push({
+          key: `video-tag-${name}`,
+          label: zh(`标签: ${name}`, `Tag: ${name}`),
+          onRemove: () =>
+            updateVideoFilters({ selectedTags: selectedTags.filter((tag) => tag !== name) }),
+        })
+      })
+      if (randomMode) {
+        items.push({
+          key: 'video-random',
+          label: zh('随机', 'Random'),
+          onRemove: () => updateVideoFilters({}),
+        })
+      }
+      return items
+    }
+    const items = []
+    const activeSearch = String(javSearchTerm || '').trim()
+    if (activeSearch) {
+      items.push({
+        key: 'jav-search',
+        label: zh(`搜索: ${activeSearch}`, `Search: ${activeSearch}`),
+        onRemove: () => {
+          setJavSearchInput('')
+          updateJavFilters({
+            javSearchTerm: '',
+            ...(javTab === 'idol'
+              ? { idolPage: 1 }
+              : javTab === 'studio'
+                ? { studioPage: 1 }
+                : javTab === 'series'
+                  ? { seriesPage: 1 }
+                  : {}),
+          })
+        },
+      })
+    }
+    if (javTab !== 'list') return items
+
+    javIdolIds.forEach((id) => {
+      const idol = javIdolOptionMap.get(Number(id))
+      const name = idol
+        ? getIdolDisplayName(idol, configFlag(config?.jav_idol_prefer_chinese_name))
+        : `#${id}`
+      items.push({
+        key: `jav-idol-${id}`,
+        label: zh(`女优: ${name}`, `Idol: ${name}`),
+        onRemove: () =>
+          updateJavFilters({
+            javIdolIds: javIdolIds.filter((item) => Number(item) !== Number(id)),
+          }),
+      })
+    })
+    javTags.forEach((id) => {
+      const name = javTagNameMap.get(id) || `#${id}`
+      items.push({
+        key: `jav-tag-${id}`,
+        label: zh(`标签: ${name}`, `Tag: ${name}`),
+        onRemove: () =>
+          updateJavFilters({ javTags: javTags.filter((item) => Number(item) !== Number(id)) }),
+      })
+    })
+    if (javStudioId !== null) {
+      const name =
+        javStudioName || (javStudioId === 0 ? zh('未知片商', 'Unknown studio') : `#${javStudioId}`)
+      items.push({
+        key: 'jav-studio',
+        label: zh(`片商: ${name}`, `Studio: ${name}`),
+        onRemove: () => updateJavFilters({ javStudioId: null, javStudioName: '' }),
+      })
+    }
+    if (javSeriesId) {
+      const name = javSeriesName || `#${javSeriesId}`
+      items.push({
+        key: 'jav-series',
+        label: zh(`系列: ${name}`, `Series: ${name}`),
+        onRemove: () => updateJavFilters({ javSeriesId: null, javSeriesName: '' }),
+      })
+    }
+    if (javPrefix) {
+      items.push({
+        key: 'jav-prefix',
+        label: zh(`番号: ${javPrefix}`, `Code: ${javPrefix}`),
+        onRemove: () => updateJavFilters({ javPrefix: '' }),
+      })
+    }
+    if (javSoloOnly) {
+      items.push({
+        key: 'jav-solo',
+        label: zh('单体作品', 'Solo works'),
+        onRemove: () => updateJavFilters({ javSoloOnly: false }),
+      })
+    }
+    if (javRandomMode) {
+      items.push({
+        key: 'jav-random',
+        label: zh('随机', 'Random'),
+        onRemove: () => updateJavFilters({}),
+      })
+    }
+    return items
+  }, [
+    config?.jav_idol_prefer_chinese_name,
+    isJavMode,
+    javIdolIds,
+    javIdolOptionMap,
+    javPrefix,
+    javRandomMode,
+    javSearchTerm,
+    javSeriesId,
+    javSeriesName,
+    javSoloOnly,
+    javStudioId,
+    javStudioName,
+    javTab,
+    javTagNameMap,
+    javTags,
+    randomMode,
+    searchTerm,
+    selectedTags,
+    updateJavFilters,
+    updateVideoFilters,
+  ])
+
+  const handleClearActiveFilters = useCallback(() => {
+    if (!isJavMode) {
+      setSearchInput('')
+      updateVideoFilters({ selectedTags: [], searchTerm: '' })
+      return
+    }
+    setJavSearchInput('')
+    const updates = { javSearchTerm: '' }
+    if (javTab === 'list') {
+      Object.assign(updates, {
+        javIdolIds: [],
+        javTags: [],
+        javStudioId: null,
+        javStudioName: '',
+        javSeriesId: null,
+        javSeriesName: '',
+        javPrefix: '',
+        javSoloOnly: false,
+        javFavoriteRatingEnabled: false,
+        javFavoriteRatingMin: 0.5,
+        javFavoriteRatingMax: 5,
+      })
+    } else if (javTab === 'idol') {
+      Object.assign(updates, { idolPage: 1 })
+    } else if (javTab === 'studio') {
+      Object.assign(updates, { studioPage: 1 })
+    } else {
+      Object.assign(updates, { seriesPage: 1 })
+    }
+    updateJavFilters(updates)
+  }, [isJavMode, javTab, updateJavFilters, updateVideoFilters])
+
   const openVideoSettings = useCallback(() => {
     setVideoPageSizeInput(pageSize)
     setVideoSortInput(sortOrder)
@@ -2116,6 +2302,7 @@ export default function App() {
     setJavHideIdolsInput(configFlag(config?.jav_hide_idols))
     setJavHideTagsInput(configFlag(config?.jav_hide_tags))
     setJavHideActionsInput(configFlag(config?.jav_hide_actions))
+    setJavFavoriteRatingShowFullInput(configFlag(config?.jav_favorite_rating_show_full, false))
     setJavWaterfallDefaultInput(configFlag(config?.jav_waterfall_default))
     setIdolPageSizeInput(idolPageSize)
     setIdolWaterfallDefaultInput(configFlag(config?.idol_waterfall_default))
@@ -2136,6 +2323,7 @@ export default function App() {
     config?.jav_hide_idols,
     config?.jav_hide_tags,
     config?.jav_hide_actions,
+    config?.jav_favorite_rating_show_full,
     config?.jav_waterfall_default,
     config?.idol_waterfall_default,
     config?.studio_waterfall_default,
@@ -2152,7 +2340,6 @@ export default function App() {
     const nextSearch = (searchInput || '').trim()
     useStore.setState({
       viewMode: 'video',
-      selectedTags: [],
       searchTerm: nextSearch,
       videoTempSort: '',
       page: 1,
@@ -2170,14 +2357,6 @@ export default function App() {
       idolTempSort: '',
       javRandomMode: false,
       javRandomSeed: null,
-      javIdolIds: [],
-      javTags: [],
-      javStudioId: null,
-      javStudioName: '',
-      javSeriesId: null,
-      javSeriesName: '',
-      javPrefix: '',
-      javSoloOnly: false,
       javSearchTerm: (javSearchInput || '').trim(),
       javPage: 1,
       idolPage: 1,
@@ -2256,6 +2435,7 @@ export default function App() {
         jav_hide_idols: Boolean(javHideIdolsInput),
         jav_hide_tags: Boolean(javHideTagsInput),
         jav_hide_actions: Boolean(javHideActionsInput),
+        jav_favorite_rating_show_full: Boolean(javFavoriteRatingShowFullInput),
         jav_waterfall_default: waterfallDefaults.jav,
         idol_page_size: idolSize,
         idol_waterfall_default: waterfallDefaults.idol,
@@ -2331,6 +2511,7 @@ export default function App() {
       setJavHideIdolsInput(configFlag(config?.jav_hide_idols))
       setJavHideTagsInput(configFlag(config?.jav_hide_tags))
       setJavHideActionsInput(configFlag(config?.jav_hide_actions))
+      setJavFavoriteRatingShowFullInput(configFlag(config?.jav_favorite_rating_show_full, false))
       setJavWaterfallDefaultInput(configFlag(config?.jav_waterfall_default))
       setIdolPageSizeInput(idolPageSize)
       setIdolWaterfallDefaultInput(configFlag(config?.idol_waterfall_default))
@@ -2351,6 +2532,7 @@ export default function App() {
     config?.jav_hide_idols,
     config?.jav_hide_tags,
     config?.jav_hide_actions,
+    config?.jav_favorite_rating_show_full,
     config?.jav_waterfall_default,
     config?.idol_waterfall_default,
     config?.studio_waterfall_default,
@@ -2635,9 +2817,9 @@ export default function App() {
     setJavSettingsOpen(false)
     setGlobalSettingsOpen(false)
     if (isJavMode) {
-      useStore.setState({
+      const updates = {
         viewMode: 'jav',
-        javTab: 'list',
+        javTab,
         videoTempSort: '',
         javTempSort: '',
         idolTempSort: '',
@@ -2651,15 +2833,22 @@ export default function App() {
         javSeriesName: '',
         javPrefix: '',
         javSoloOnly: false,
-        idolFavoriteGroupId: null,
+        javFavoriteRatingEnabled: false,
+        javFavoriteRatingMin: 0.5,
+        javFavoriteRatingMax: 5,
         javSearchTerm: '',
         javPage: 1,
         idolPage: 1,
         studioPage: 1,
         seriesPage: 1,
-      })
+      }
+      if (javTab === 'idol') updates.idolFavoriteGroupId = null
+      else if (javTab === 'studio') updates.studioFavoriteGroupId = null
+      else if (javTab === 'series') updates.seriesFavoriteGroupId = null
+      else updates.javFavoriteGroupId = null
+      useStore.setState(updates)
       setJavSearchInput('')
-      forceReloadJavByTab('list')
+      forceReloadJavByTab(javTab)
     } else {
       useStore.setState({
         viewMode: 'video',
@@ -2676,20 +2865,6 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  const handleSwitchToJav = () => {
-    const targetTab =
-      javTab === 'idol' || javTab === 'studio' || javTab === 'series' ? javTab : 'list'
-    saveScrollBeforeUrlStateChange()
-    useStore.setState({
-      viewMode: 'jav',
-      videoTempSort: '',
-      javTab: targetTab,
-      javTempSort: '',
-      idolTempSort: '',
-    })
-    forceReloadJavByTab(targetTab)
-  }
-
   const handleSwitchJavTab = (tab) => {
     const nextTab =
       tab === 'idol' ? 'idol' : tab === 'studio' ? 'studio' : tab === 'series' ? 'series' : 'list'
@@ -2698,6 +2873,8 @@ export default function App() {
     const nextRandomMode = nextTab === 'list' && !shouldResetRandomList ? javRandomMode : false
     const nextRandomSeed = nextTab === 'list' && !shouldResetRandomList ? javRandomSeed : null
     const updates = {
+      viewMode: 'jav',
+      videoTempSort: '',
       javTab: nextTab,
       javTempSort: '',
       idolTempSort: '',
@@ -2709,6 +2886,9 @@ export default function App() {
       javSeriesName: '',
       javPrefix: '',
       javSoloOnly: false,
+      javFavoriteRatingEnabled: false,
+      javFavoriteRatingMin: 0.5,
+      javFavoriteRatingMax: 5,
       idolFavoriteGroupId: null,
       javRandomMode: nextRandomMode,
       javRandomSeed: nextRandomSeed,
@@ -2726,14 +2906,18 @@ export default function App() {
     forceReloadJavByTab(nextTab)
   }
 
-  const handleToggleMode = () => {
-    if (isJavMode) {
+  const handleSelectSideTab = (tab) => {
+    if (tab === 'video') {
+      if (!isJavMode) return
       saveScrollBeforeUrlStateChange()
-      setViewMode('video')
+      useStore.setState({ viewMode: 'video', javTempSort: '', idolTempSort: '' })
       forceReloadVideos()
-    } else {
-      handleSwitchToJav()
+      return
     }
+    const nextTab =
+      tab === 'idol' ? 'idol' : tab === 'studio' ? 'studio' : tab === 'series' ? 'series' : 'list'
+    if (isJavMode && nextTab === javTab) return
+    handleSwitchJavTab(nextTab)
   }
 
   const handleSelectIdol = (idol) => {
@@ -2755,6 +2939,9 @@ export default function App() {
       javSeriesId: null,
       javSeriesName: '',
       javSoloOnly: false,
+      javFavoriteRatingEnabled: false,
+      javFavoriteRatingMin: 0.5,
+      javFavoriteRatingMax: 5,
       idolFavoriteGroupId: null,
       javSearchTerm: '',
       javPage: 1,
@@ -2876,6 +3063,41 @@ export default function App() {
       setSeriesFavoriteGroupId,
       setStudioFavoriteGroupId,
     ]
+  )
+
+  const handleFavoriteGroupSelect = useCallback(
+    (entityType, groupId) => {
+      const type = ['jav', 'idol', 'studio', 'series'].includes(entityType) ? entityType : 'idol'
+      const parsedGroupId = Number(groupId)
+      const nextGroupId = Number.isFinite(parsedGroupId) && parsedGroupId > 0 ? parsedGroupId : null
+      const parsedCurrentGroupId = Number(activeFavoriteGroupId(type))
+      const currentGroupId =
+        Number.isFinite(parsedCurrentGroupId) && parsedCurrentGroupId > 0
+          ? parsedCurrentGroupId
+          : null
+      if (currentGroupId === nextGroupId) return
+
+      saveScrollBeforeUrlStateChange()
+      setJavSearchInput('')
+      useStore.setState({
+        javSearchTerm: '',
+        javIdolIds: [],
+        javTags: [],
+        javStudioId: null,
+        javStudioName: '',
+        javSeriesId: null,
+        javSeriesName: '',
+        javPrefix: '',
+        javSoloOnly: false,
+        javFavoriteRatingEnabled: false,
+        javFavoriteRatingMin: 0.5,
+        javFavoriteRatingMax: 5,
+        javRandomMode: false,
+        javRandomSeed: null,
+      })
+      setActiveFavoriteGroupId(type, nextGroupId)
+    },
+    [activeFavoriteGroupId, saveScrollBeforeUrlStateChange, setActiveFavoriteGroupId]
   )
 
   const patchFavoriteCountInCurrentList = useCallback(
@@ -3076,6 +3298,9 @@ export default function App() {
         javSeriesId: null,
         javSeriesName: '',
         javSoloOnly: false,
+        javFavoriteRatingEnabled: false,
+        javFavoriteRatingMin: 0.5,
+        javFavoriteRatingMax: 5,
         idolFavoriteGroupId: null,
         javSearchTerm: '',
         javPage: 1,
@@ -3107,6 +3332,9 @@ export default function App() {
       javSeriesName: '',
       javPrefix: '',
       javSoloOnly: false,
+      javFavoriteRatingEnabled: false,
+      javFavoriteRatingMin: 0.5,
+      javFavoriteRatingMax: 5,
       idolFavoriteGroupId: null,
       javSearchTerm: '',
       javPage: 1,
@@ -3136,6 +3364,9 @@ export default function App() {
       javSeriesName: String(series?.name || '').trim(),
       javPrefix: '',
       javSoloOnly: false,
+      javFavoriteRatingEnabled: false,
+      javFavoriteRatingMin: 0.5,
+      javFavoriteRatingMax: 5,
       idolFavoriteGroupId: null,
       javSearchTerm: '',
       javPage: 1,
@@ -3171,6 +3402,9 @@ export default function App() {
       javSeriesName: '',
       javPrefix: prefix,
       javSoloOnly: false,
+      javFavoriteRatingEnabled: false,
+      javFavoriteRatingMin: 0.5,
+      javFavoriteRatingMax: 5,
       javFavoriteGroupId: null,
       idolFavoriteGroupId: null,
       javSearchTerm: '',
@@ -3222,6 +3456,18 @@ export default function App() {
       const nextPrefix = String(query?.prefix || '')
         .trim()
         .toUpperCase()
+      const nextFavoriteRatingEnabled = Boolean(query?.favoriteRatingEnabled)
+      const normalizeFavoriteRating = (value, fallback) => {
+        const parsed = Number(value)
+        if (!Number.isFinite(parsed)) return fallback
+        return Math.min(5, Math.max(0.5, Math.round(parsed * 2) / 2))
+      }
+      let nextFavoriteRatingMin = normalizeFavoriteRating(query?.favoriteRatingMin, 0.5)
+      let nextFavoriteRatingMax = normalizeFavoriteRating(query?.favoriteRatingMax, 5)
+      if (nextFavoriteRatingMin > nextFavoriteRatingMax) {
+        nextFavoriteRatingMin = 0.5
+        nextFavoriteRatingMax = 5
+      }
       saveScrollBeforeUrlStateChange()
       useStore.setState({
         viewMode: 'jav',
@@ -3240,6 +3486,9 @@ export default function App() {
         javSeriesName: nextSeriesName,
         javPrefix: nextPrefix,
         javSoloOnly: Boolean(query?.soloOnly),
+        javFavoriteRatingEnabled: nextFavoriteRatingEnabled,
+        javFavoriteRatingMin: nextFavoriteRatingMin,
+        javFavoriteRatingMax: nextFavoriteRatingMax,
         idolFavoriteGroupId: null,
         javPage: 1,
         idolPage: 1,
@@ -3382,41 +3631,9 @@ export default function App() {
   const activeSelectedFavoriteGroupId = activeFavoriteGroupId(activeFavoriteEntityType)
 
   return (
-    <div className="min-h-screen">
-      <TopBar
-        onHome={handleHomeClick}
-        canGoBack={browserNavigation.canGoBack}
-        canGoForward={browserNavigation.canGoForward}
-        onBrowserBack={handleBrowserBack}
-        onBrowserForward={handleBrowserForward}
-        isJavMode={isJavMode}
-        onToggleMode={handleToggleMode}
-        videoSearchInput={searchInput}
-        onVideoSearchInputChange={setSearchInput}
-        onSubmitVideoSearch={submitSearch}
-        videoSearchHref={searchHref}
-        randomMode={randomMode}
-        randomHref={randomHref}
-        onRandomClick={handleVideoRandomClick}
-        onOpenTagModal={handleOpenTagModal}
-        onOpenJavTagModal={handleOpenJavTagModal}
-        onOpenVideoSettings={openVideoSettings}
-        onOpenJavSettings={openJavSettings}
-        onOpenGlobalSettings={() => setGlobalSettingsOpen(true)}
-        javSearchInput={javSearchInput}
-        onJavSearchInputChange={setJavSearchInput}
-        onSubmitJavSearch={submitJavSearch}
-        javSearchHref={javSearchHref}
-        javRandomHref={javRandomHref}
-        javRandomMode={javRandomMode}
-        onJavRandomClick={handleJavRandomClick}
-        onJavFilterRandomClick={handleJavFilterRandomClick}
-        onCancelJavFilterRandom={handleCancelJavFilterRandom}
-        showJavFilterRandomButton={showJavFilterRandomButton}
-        isModifiedClick={isModifiedClick}
-        javTab={javTab}
-        javPrefix={javPrefix}
-        javPrefixDirectoryIds={javQueryDirectoryIds}
+    <div className="app-shell min-h-screen">
+      <SideTabs
+        activeTab={isJavMode ? javTab : 'video'}
         buildJavPrefixUrl={(item) =>
           buildJavUrl({
             page: 1,
@@ -3429,38 +3646,95 @@ export default function App() {
             seriesId: null,
             prefix: item?.prefix || '',
             soloOnly: false,
+            favoriteRatingEnabled: false,
             favoriteGroupId: null,
             random: false,
             tempSort: '',
           })
         }
+        canGoBack={browserNavigation.canGoBack}
+        canGoForward={browserNavigation.canGoForward}
+        directories={directories}
+        enabledDirectoryIds={enabledDirectoryIds}
+        hostPathPrefixEnabled={hostPathPrefixEnabled}
+        isJavMode={isJavMode}
+        javPrefix={javPrefix}
+        javPrefixDirectoryIds={javQueryDirectoryIds}
+        onBrowserBack={handleBrowserBack}
+        onBrowserForward={handleBrowserForward}
+        onEnabledDirectoryIdsChange={setEnabledDirectoryIds}
+        onOpenGlobalSettings={() => setGlobalSettingsOpen(true)}
+        onOpenJavSettings={openJavSettings}
+        onOpenJavTagModal={handleOpenJavTagModal}
         onJavPrefixClick={handleSelectJavPrefix}
-        onSwitchJavTab={handleSwitchJavTab}
+        onOpenTagModal={handleOpenTagModal}
+        onOpenVideoSettings={openVideoSettings}
+        onSelectTab={handleSelectSideTab}
+        showDirectorySetupHint={showDirectorySetupHint}
+      />
+      <TopBar
+        buildFavoriteGroupUrl={(groupId) => {
+          const parsedGroupId = Number(groupId)
+          const targetGroupId =
+            Number.isFinite(parsedGroupId) && parsedGroupId > 0 ? parsedGroupId : null
+          const parsedCurrentGroupId = Number(activeSelectedFavoriteGroupId)
+          const currentGroupId =
+            Number.isFinite(parsedCurrentGroupId) && parsedCurrentGroupId > 0
+              ? parsedCurrentGroupId
+              : null
+          if (targetGroupId === currentGroupId) {
+            return buildJavUrl({
+              page: 1,
+              tab: javTab,
+              favoriteGroupId: targetGroupId,
+            })
+          }
+          return buildJavUrl({
+            page: 1,
+            tab: javTab,
+            search: '',
+            idolIds: [],
+            tagIds: [],
+            studioId: null,
+            studioName: '',
+            seriesId: null,
+            seriesName: '',
+            prefix: '',
+            soloOnly: false,
+            favoriteRatingEnabled: false,
+            favoriteGroupId: targetGroupId,
+            random: false,
+            tempSort: '',
+          })
+        }}
         favoriteEntityType={activeFavoriteEntityType}
         favoriteGroups={activeFavoriteGroups}
         favoriteGroupsLoading={activeFavoriteGroupsLoading}
         favoriteGroupsError={activeFavoriteGroupsError}
-        selectedFavoriteGroupId={activeSelectedFavoriteGroupId}
-        idolFavoriteEditorOpen={idolFavoriteManageOpen}
-        buildIdolFavoriteGroupUrl={(groupId) =>
-          buildJavUrl({
-            page: 1,
-            tab: javTab,
-            favoriteGroupId: groupId || null,
-            random: false,
-            tempSort: '',
-          })
+        favoriteManagerOpen={idolFavoriteManageOpen}
+        favoriteRatingEnabled={javFavoriteRatingEnabled}
+        favoriteRatingMin={javFavoriteRatingMin}
+        favoriteRatingMax={javFavoriteRatingMax}
+        filterItems={activeFilterItems}
+        hasActiveControlFilter={isJavMode && javTab === 'list' && javFavoriteRatingEnabled}
+        isJavMode={isJavMode}
+        javSearchHref={javSearchHref}
+        javSearchInput={javSearchInput}
+        javTab={javTab}
+        onClearFilters={handleClearActiveFilters}
+        onFavoriteGroupSelect={(groupId) =>
+          handleFavoriteGroupSelect(activeFavoriteEntityType, groupId)
         }
-        onOpenIdolFavoriteGroups={() =>
+        onFavoriteRatingEnabledChange={handleFavoriteRatingEnabledChange}
+        onFavoriteRatingRangeChange={handleFavoriteRatingRangeChange}
+        onHome={handleHomeClick}
+        onOpenFavoriteGroups={() =>
           loadJavFavoriteGroups(activeFavoriteEntityType, { force: true })
         }
-        onIdolFavoriteGroupSelect={(groupId) =>
-          setActiveFavoriteGroupId(activeFavoriteEntityType, groupId)
-        }
-        onOpenIdolFavoriteManager={(group) => {
-          const id = Number(group?.id)
+        onOpenFavoriteManager={(group) => {
+          const groupId = Number(group?.id)
           setFavoriteManageEntityType(activeFavoriteEntityType)
-          setIdolFavoriteManageEditGroupId(Number.isFinite(id) && id > 0 ? id : null)
+          setIdolFavoriteManageEditGroupId(Number.isFinite(groupId) && groupId > 0 ? groupId : null)
           setIdolFavoriteManageOpen(true)
         }}
         filterSummary={filterSummary}
@@ -3476,10 +3750,27 @@ export default function App() {
         closedSubdirectories={closedSubdirectories}
         onClosedSubdirectoriesChange={setClosedSubdirectories}
         hostPathPrefixEnabled={hostPathPrefixEnabled}
-        selectedCount={selectedCount}
+        onOpenFilterEditor={
+          isJavMode
+            ? javTab === 'list'
+              ? () => {
+                  setJavQueryEditorOpen(true)
+                  loadJavTags()
+                }
+              : null
+            : handleOpenTagModal
+        }
         onOpenSelectionOps={() => setSelectionOpsOpen(true)}
         onClearSelection={clearSelection}
-        showButtonTooltips={showTopBarButtonTooltips}
+        onRandomClick={
+          !isJavMode ? handleVideoRandomClick : javTab === 'list' ? handleJavRandomClick : null
+        }
+        onSearchInputChange={isJavMode ? setJavSearchInput : setSearchInput}
+        onSubmitSearch={isJavMode ? submitJavSearch : submitSearch}
+        searchHref={searchHref}
+        searchInput={searchInput}
+        selectedCount={selectedCount}
+        selectedFavoriteGroupId={activeSelectedFavoriteGroupId}
       />
 
       <main className="page-main w-full pb-6 pt-0">
@@ -3699,6 +3990,10 @@ export default function App() {
         soloOnly={javSoloOnly}
         directoryIds={javQueryDirectoryIds}
         preferChineseName={configFlag(config?.jav_idol_prefer_chinese_name)}
+        favoriteGroupId={javFavoriteGroupId}
+        favoriteRatingEnabled={javFavoriteRatingEnabled}
+        favoriteRatingMin={javFavoriteRatingMin}
+        favoriteRatingMax={javFavoriteRatingMax}
       />
 
       <VideoSettingsModal
@@ -3743,7 +4038,7 @@ export default function App() {
         }}
         onSave={handleSaveScrapeSettings}
         onFetchPossibleCodes={handleFetchScrapePossibleCodes}
-        onLookupJavDB={handleLookupScrapeJavDB}
+        onLookupMetadata={handleLookupScrapeMetadata}
         onManualScrape={handleManualScrape}
       />
 
@@ -3770,6 +4065,8 @@ export default function App() {
         onJavHideTagsChange={setJavHideTagsInput}
         javHideActionsInput={javHideActionsInput}
         onJavHideActionsChange={setJavHideActionsInput}
+        javFavoriteRatingShowFullInput={javFavoriteRatingShowFullInput}
+        onJavFavoriteRatingShowFullChange={setJavFavoriteRatingShowFullInput}
         javWaterfallDefaultInput={javWaterfallDefaultInput}
         onJavWaterfallDefaultChange={setJavWaterfallDefaultInput}
         idolPageSizeInput={idolPageSizeInput}
@@ -4083,11 +4380,6 @@ export default function App() {
         initialViewMode={initialViewMode}
         onSaveInitialViewMode={async (mode) => {
           const cfg = await updateConfig({ initial_view_mode: normalizeInitialViewMode(mode) })
-          useStore.setState({ config: cfg })
-        }}
-        showTopBarButtonTooltips={showTopBarButtonTooltips}
-        onSaveShowTopBarButtonTooltips={async (enabled) => {
-          const cfg = await updateConfig({ show_top_bar_button_tooltips: Boolean(enabled) })
           useStore.setState({ config: cfg })
         }}
         playerWindowWidth={

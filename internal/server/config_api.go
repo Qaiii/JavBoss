@@ -49,6 +49,7 @@ func updateConfig(c *gin.Context) {
 		JavHideIdols           *bool                 `json:"jav_hide_idols"`
 		JavHideTags            *bool                 `json:"jav_hide_tags"`
 		JavHideActions         *bool                 `json:"jav_hide_actions"`
+		JavFavoriteRatingFull  *bool                 `json:"jav_favorite_rating_show_full"`
 		JavWaterfallDefault    *bool                 `json:"jav_waterfall_default"`
 		IdolPageSize           *int                  `json:"idol_page_size"`
 		IdolWaterfallDefault   *bool                 `json:"idol_waterfall_default"`
@@ -65,7 +66,6 @@ func updateConfig(c *gin.Context) {
 		JavTagShowSimplified   *bool                 `json:"jav_tag_show_simplified"`
 		DefaultPlayer          string                `json:"default_player"`
 		InitialViewMode        string                `json:"initial_view_mode"`
-		ShowTopBarTooltips     *bool                 `json:"show_top_bar_button_tooltips"`
 		AllowLANAccess         *bool                 `json:"allow_lan_access"`
 		ProxyHost              *string               `json:"proxy_host"`
 		ProxyPort              *int                  `json:"proxy_port"`
@@ -165,6 +165,9 @@ func updateConfig(c *gin.Context) {
 	if req.JavHideActions != nil {
 		entries["jav_hide_actions"] = strconv.FormatBool(*req.JavHideActions)
 	}
+	if req.JavFavoriteRatingFull != nil {
+		entries["jav_favorite_rating_show_full"] = strconv.FormatBool(*req.JavFavoriteRatingFull)
+	}
 	if req.JavWaterfallDefault != nil {
 		entries["jav_waterfall_default"] = strconv.FormatBool(*req.JavWaterfallDefault)
 	}
@@ -205,7 +208,7 @@ func updateConfig(c *gin.Context) {
 	}
 	if s := strings.ToLower(strings.TrimSpace(req.JavSort)); s != "" {
 		switch s {
-		case "recent", "recent_asc", "code", "code_desc", "duration", "duration_asc", "release", "release_asc", "play_count", "play_count_asc":
+		case "recent", "recent_asc", "code", "code_desc", "duration", "duration_asc", "release", "release_asc", "play_count", "play_count_asc", "favorite_rating", "favorite_rating_asc":
 			entries["jav_sort"] = s
 		default:
 			// ignore invalid values
@@ -242,9 +245,6 @@ func updateConfig(c *gin.Context) {
 			respondLocalizedError(c, http.StatusBadRequest, "初始页面模式无效", "Invalid initial page mode")
 			return
 		}
-	}
-	if req.ShowTopBarTooltips != nil {
-		entries["show_top_bar_button_tooltips"] = strconv.FormatBool(*req.ShowTopBarTooltips)
 	}
 	if req.AllowLANAccess != nil {
 		entries["allow_lan_access"] = strconv.FormatBool(*req.AllowLANAccess)
