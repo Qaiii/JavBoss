@@ -630,7 +630,11 @@ export async function fetchJavPrefixes({ directoryIds = [], directorySubpaths = 
   return res.json()
 }
 
-export async function fetchJavTags({ directoryIds = [], closedSubdirs = [], directorySubpaths = [] } = {}) {
+export async function fetchJavTags({
+  directoryIds = [],
+  closedSubdirs = [],
+  directorySubpaths = [],
+} = {}) {
   const params = new URLSearchParams()
   if (directoryIds.length) params.set('directory_ids', directoryIds.join(','))
   const closed = closedSubdirsParam(closedSubdirs)
@@ -1157,6 +1161,20 @@ export async function fetchJavIdolJavDBURL({ code = '', name = '' } = {}) {
   }
   const data = await res.json()
   return data?.url || ''
+}
+
+// fetchJavExternalWorks lists the idol's persisted JavDB works (scraped in the
+// background), each flagged with whether it already exists in the library.
+export async function fetchJavExternalWorks(idolId, { page = 1 } = {}) {
+  const params = new URLSearchParams()
+  params.set('page', String(page))
+  const res = await apiFetch(
+    `/jav/idols/${encodeURIComponent(idolId)}/external-works?${params.toString()}`
+  )
+  if (!res.ok) {
+    throw await apiError(res)
+  }
+  return res.json()
 }
 
 export async function fetchJavJavDBURL({ code = '' } = {}) {

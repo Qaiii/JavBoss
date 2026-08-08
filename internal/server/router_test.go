@@ -172,3 +172,38 @@ func TestFrontendStaticFileCannotEscapeStaticDirectory(t *testing.T) {
 		t.Fatalf("body exposed file outside static directory: %s", recorder.Body.String())
 	}
 }
+
+func TestJavIdolExternalWorksRouteRegistered(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := NewRouter("", testAuthService(t))
+	for _, route := range router.Routes() {
+		if route.Method == http.MethodGet && route.Path == "/jav/idols/:id/external-works" {
+			return
+		}
+	}
+	t.Fatal("GET /jav/idols/:id/external-works is not registered")
+}
+
+func TestJavIdolTrackRoutesRegistered(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := NewRouter("", testAuthService(t))
+	got := map[string]bool{}
+	for _, route := range router.Routes() {
+		got[route.Method+" "+route.Path] = true
+	}
+	for _, want := range []string{
+		"GET /jav/idols/:id/external-works",
+	} {
+		if !got[want] {
+			t.Fatalf("route %s is not registered", want)
+		}
+	}
+	for _, absent := range []string{
+		"PUT /jav/idols/:id/track",
+		"DELETE /jav/idols/:id/track",
+	} {
+		if got[absent] {
+			t.Fatalf("route %s should not be registered", absent)
+		}
+	}
+}

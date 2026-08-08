@@ -56,6 +56,7 @@ func updateConfig(c *gin.Context) {
 		StudioWaterfallDefault *bool                 `json:"studio_waterfall_default"`
 		SeriesPageSize         *int                  `json:"series_page_size"`
 		SeriesWaterfallDefault *bool                 `json:"series_waterfall_default"`
+		JavIdolRefreshDays     *int                  `json:"jav_idol_refresh_days"`
 		VideoHideJav           *bool                 `json:"video_hide_jav"`
 		VideoSort              string                `json:"video_sort"`
 		JavSort                string                `json:"jav_sort"`
@@ -143,6 +144,14 @@ func updateConfig(c *gin.Context) {
 			rows = maxJavDisplayRows
 		}
 		entries["jav_tag_max_rows"] = strconv.Itoa(rows)
+	}
+	if req.JavIdolRefreshDays != nil {
+		days := *req.JavIdolRefreshDays
+		if days < 1 || days > 365 {
+			respondLocalizedError(c, http.StatusBadRequest, "女优作品刷新间隔必须在 1-365 天之间", "Idol works refresh interval must be between 1 and 365 days")
+			return
+		}
+		entries["jav_idol_refresh_days"] = strconv.Itoa(days)
 	}
 	if req.JavHideSeries != nil {
 		entries["jav_hide_series"] = strconv.FormatBool(*req.JavHideSeries)

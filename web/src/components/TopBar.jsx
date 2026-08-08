@@ -946,6 +946,15 @@ export default function TopBar({
                   {zh('设置', 'Settings')}
                 </Button>
               )}
+              {focusedSubpath ? (
+                <span
+                  className="flex min-w-0 max-w-[16rem] items-center gap-1 text-xs text-gray-500"
+                  title={zh(`当前目录：${focusedSubpath}`, `Current directory: ${focusedSubpath}`)}
+                >
+                  <FolderRoundedIcon fontSize="small" className="shrink-0 text-gray-400" />
+                  <span className="min-w-0 truncate whitespace-nowrap">{focusedSubpath}</span>
+                </span>
+              ) : null}
             </div>
 
             {isJavMode && javTab === 'list' ? (

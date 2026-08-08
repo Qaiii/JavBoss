@@ -206,3 +206,41 @@ type JavIdolMap struct {
 	JavIdol   JavIdol   `gorm:"foreignKey:JavIdolID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 	CreatedAt time.Time `gorm:"autoCreateTime"`
 }
+
+// JavIdolTrack marks an idol as followed for periodic JavDB works refresh.
+// Its primary key is the idol ID, so an idol is tracked at most once.
+type JavIdolTrack struct {
+	JavIdolID     int64      `json:"jav_idol_id" gorm:"primaryKey"`
+	JavIdol       JavIdol    `json:"-" gorm:"foreignKey:JavIdolID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	JavdbURL      string     `json:"javdb_url" gorm:"type:text"`
+	LastScrapedAt *time.Time `json:"last_scraped_at" gorm:"index"`
+	WorksCount    int        `json:"works_count" gorm:"not null;default:0"`
+	LastError     string     `json:"last_error" gorm:"type:text"`
+	CreatedAt     time.Time  `json:"created_at"`
+	UpdatedAt     time.Time  `json:"updated_at"`
+}
+
+func (JavIdolTrack) TableName() string {
+	return "jav_idol_track"
+}
+
+// JavIdolWork is one work scraped from an idol's JavDB profile page. The
+// library membership of a code is not stored here; it is derived at read time
+// against the jav table.
+type JavIdolWork struct {
+	ID          int64     `json:"id" gorm:"primaryKey"`
+	JavIdolID   int64     `json:"jav_idol_id" gorm:"not null;uniqueIndex:idx_jav_idol_work_jav_idol_id_code,priority:1"`
+	JavIdol     JavIdol   `json:"-" gorm:"foreignKey:JavIdolID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	Code        string    `json:"code" gorm:"not null;uniqueIndex:idx_jav_idol_work_jav_idol_id_code,priority:2"`
+	Title       string    `json:"title" gorm:"type:text"`
+	CoverURL    string    `json:"cover_url" gorm:"type:text"`
+	ReleaseUnix int64     `json:"release_unix" gorm:"not null;default:0"`
+	DurationMin int       `json:"duration_min" gorm:"not null;default:0"`
+	SourceURL   string    `json:"source_url" gorm:"type:text"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+func (JavIdolWork) TableName() string {
+	return "jav_idol_work"
+}

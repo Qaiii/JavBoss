@@ -13,6 +13,7 @@ import {
   deleteDirectory as deleteDirectoryApi,
   fetchJavs,
   fetchJavIdols,
+  fetchJavExternalWorks,
   fetchJavFavoriteGroups,
   fetchJavStudios,
   fetchJavSeries,
@@ -36,6 +37,7 @@ let videoLoadSeq = 0
 let videoLoadMoreSeq = 0
 let javLoadSeq = 0
 let javLoadMoreSeq = 0
+let javExternalLoadSeq = 0
 let idolLoadSeq = 0
 let idolLoadMoreSeq = 0
 let studioLoadSeq = 0
@@ -44,6 +46,7 @@ let seriesLoadSeq = 0
 let seriesLoadMoreSeq = 0
 let lastVideoFetchKey = null
 let lastJavFetchKey = null
+let lastJavExternalFetchKey = null
 let lastIdolFetchKey = null
 const lastFavoriteGroupFetchKeys = {}
 let lastStudioFetchKey = null
@@ -104,9 +107,7 @@ const closedSubdirectoryPairs = (state) => {
     }
   }
   return pairs.sort((a, b) =>
-    a.directoryId === b.directoryId
-      ? a.name.localeCompare(b.name)
-      : a.directoryId - b.directoryId
+    a.directoryId === b.directoryId ? a.name.localeCompare(b.name) : a.directoryId - b.directoryId
   )
 }
 
@@ -354,6 +355,18 @@ export const useStore = create((set, get) => ({
   javLoading: false,
   javLoadingMore: false,
   javError: null,
+  // External (JavDB) works for the single selected idol, persisted by the
+  // background scrape queue and read on demand.
+  javExternalItems: [],
+  javExternalPage: 1,
+  javExternalHasNext: false,
+  javExternalTotal: 0,
+  javExternalTracked: false,
+  javExternalLastScrapedAt: null,
+  javExternalScrapeError: '',
+  javExternalLoading: false,
+  javExternalError: null,
+  javExternalSourceURL: '',
   idolPage: 1,
   idolPageSize: JAV_PAGE_SIZE,
   idolSort: 'work',
@@ -666,7 +679,12 @@ export const useStore = create((set, get) => ({
     tagFetchInFlightKey = key
     tagFetchInFlight = (async () => {
       try {
-        const tags = await fetchTags({ directoryIds, directorySubpaths, closedSubdirs, hideJav: videoHideJav })
+        const tags = await fetchTags({
+          directoryIds,
+          directorySubpaths,
+          closedSubdirs,
+          hideJav: videoHideJav,
+        })
         set({ tags })
         lastTagFetchKey = key
         return tags
@@ -1057,6 +1075,61 @@ export const useStore = create((set, get) => ({
     } finally {
       if (loadMoreReqId === javLoadMoreSeq) {
         set({ javLoadingMore: false })
+      }
+    }
+  },
+  // loadJavExternalWorks reads one page of the selected idol's persisted
+  // JavDB works (scraped in the background). The library list (loadJavs) only
+  // contains works with local files; this covers the rest so both can be shown
+  // side by side. No live JavDB requests happen here.
+  loadJavExternalWorks: async (targetPage = 1, options = {}) => {
+    const state = get()
+    const idolIds = Array.isArray(state.javIdolIds) ? state.javIdolIds : []
+    if (idolIds.length !== 1) {
+      set({
+        javExternalItems: [],
+        javExternalPage: 1,
+        javExternalHasNext: false,
+        javExternalTotal: 0,
+        javExternalTracked: false,
+        javExternalLastScrapedAt: null,
+        javExternalScrapeError: '',
+        javExternalError: null,
+      })
+      return
+    }
+    const idolId = Number(idolIds[0])
+    const page = Math.max(1, Math.floor(Number(targetPage) || 1))
+    const key = `${idolId}|${page}`
+    if (!options.force && key === lastJavExternalFetchKey) {
+      return
+    }
+    lastJavExternalFetchKey = key
+    const reqId = (javExternalLoadSeq += 1)
+    set({ javExternalLoading: true, javExternalError: null })
+    try {
+      const resp = await fetchJavExternalWorks(idolId, { page })
+      if (reqId !== javExternalLoadSeq || key !== `${Number(get().javIdolIds[0])}|${page}`) {
+        return
+      }
+      set({
+        javExternalItems: resp.items || [],
+        javExternalPage: page,
+        javExternalHasNext: Boolean(resp.has_next),
+        javExternalTotal: resp.total || 0,
+        javExternalTracked: Boolean(resp.tracked),
+        javExternalLastScrapedAt: resp.last_scraped_at || null,
+        javExternalScrapeError: resp.last_error || '',
+        javExternalSourceURL: resp.source_url || '',
+      })
+    } catch (e) {
+      if (reqId !== javExternalLoadSeq || key !== `${Number(get().javIdolIds[0])}|${page}`) {
+        return
+      }
+      set({ javExternalError: getErrorMessage(e) })
+    } finally {
+      if (reqId === javExternalLoadSeq) {
+        set({ javExternalLoading: false })
       }
     }
   },
@@ -1630,7 +1703,11 @@ export const useStore = create((set, get) => ({
       ) {
         return
       }
-      set({ directoryFilterMode: DIRECTORY_FILTER_ALL, enabledDirectoryIds: active, directorySubpaths: [] })
+      set({
+        directoryFilterMode: DIRECTORY_FILTER_ALL,
+        enabledDirectoryIds: active,
+        directorySubpaths: [],
+      })
       resetKeys()
       return
     }

@@ -785,3 +785,133 @@ func normalizeJavDBCode(code string) string {
 	}
 	return b.String()
 }
+
+// javDBWorksPage is the cached unit for a single actress works listing page.
+type javDBWorksPage struct {
+	Items   []*JavInfo
+	HasNext bool
+}
+
+// ListJavWorksByActressURL fetches one page of an actress's works from her
+// JavDB profile page. The returned bool reports whether more pages exist.
+// Results (and 404s) are cached in the persistent lookup cache.
+func ListJavWorksByActressURL(ctx context.Context, profileURL string, page int) ([]*JavInfo, bool, error) {
+	profileURL = strings.TrimSpace(profileURL)
+	if profileURL == "" || !strings.Contains(strings.ToLower(profileURL), "/actors/") {
+		return nil, false, ResourceNotFonud
+	}
+	if page < 1 {
+		page = 1
+	}
+
+	targetURL := javDBActressWorksPageURL(profileURL, page)
+	cacheKey := lookupCacheKey(ProviderJavDB, "list_actress_works", fmt.Sprintf("%s|%d", profileURL, page))
+	if cached, ok, err := lookupCacheGet[javDBWorksPage](cacheKey); ok {
+		if err != nil {
+			return nil, false, err
+		}
+		return cached.Items, cached.HasNext, nil
+	}
+
+	doc, status, err := fetchJavDBHTML(ctx, targetURL, javDBBaseURL)
+	if err != nil {
+		return nil, false, err
+	}
+	if status == http.StatusNotFound || doc == nil {
+		cacheableLookupResult(cacheKey, nil, ResourceNotFonud)
+		return nil, false, ResourceNotFonud
+	}
+
+	result := javDBWorksPage{
+		Items:   parseJavDBActressWorksPage(doc, targetURL),
+		HasNext: hasJavDBNextPage(doc),
+	}
+	cacheableLookupResult(cacheKey, result, nil)
+	return result.Items, result.HasNext, nil
+}
+
+// javDBActressWorksPageURL appends the page query param. Page 1 uses the bare
+// profile URL, matching the default first page served by JavDB.
+func javDBActressWorksPageURL(profileURL string, page int) string {
+	if page <= 1 {
+		return strings.TrimSpace(profileURL)
+	}
+	sep := "?"
+	if strings.Contains(profileURL, "?") {
+		sep = "&"
+	}
+	return fmt.Sprintf("%s%s%s", profileURL, sep, fmt.Sprintf("page=%d", page))
+}
+
+// parseJavDBActressWorksPage extracts works from an actress profile listing.
+// Items share the same DOM as search results (div.movie-list > div.item) with
+// the code inside div.video-title strong; the cover may use lazy-load attrs.
+func parseJavDBActressWorksPage(root *html.Node, pageURL string) []*JavInfo {
+	if root == nil {
+		return nil
+	}
+
+	seen := make(map[string]struct{})
+	var items []*JavInfo
+	documentSelection(root).Find("div.movie-list div.item").Each(func(_ int, item *goquery.Selection) {
+		code := cleanSelectionText(item.Find("div.video-title strong").First())
+		if code == "" {
+			return
+		}
+		title := cleanSelectionText(item.Find("div.video-title").First())
+		title = strings.TrimSpace(strings.TrimPrefix(title, code))
+
+		info := &JavInfo{
+			Title:    title,
+			Code:     code,
+			CoverURL: javDBListItemCoverURL(firstSelectionNode(item), pageURL),
+			Provider: ProviderJavDB,
+		}
+		if href := selectionAttr(item.Find(`a[href*="/v/"]`).First(), "href"); href != "" {
+			info.SampleImages = []SampleImage{{DetailURL: resolveURL(pageURL, href)}}
+		}
+
+		key := normalizeJavDBCode(code)
+		if _, exists := seen[key]; exists {
+			return
+		}
+		seen[key] = struct{}{}
+		items = append(items, info)
+	})
+	return items
+}
+
+// javDBListItemCoverURL resolves the cover image of a listing item, honoring
+// lazy-load attributes (data-src / data-original / data-lazy-src).
+func javDBListItemCoverURL(root *html.Node, pageURL string) string {
+	if root == nil {
+		return ""
+	}
+	img := documentSelection(root).Find("a.box img, a img, img").First()
+	return firstResolvedSampleURL(
+		pageURL,
+		selectionAttr(img, "data-src"),
+		selectionAttr(img, "data-original"),
+		selectionAttr(img, "data-lazy-src"),
+		selectionAttr(img, "src"),
+	)
+}
+
+// hasJavDBNextPage reports whether the page contains pagination links pointing
+// at another page (i.e. the listing is not the last one).
+func hasJavDBNextPage(root *html.Node) bool {
+	if root == nil {
+		return false
+	}
+	found := false
+	documentSelection(root).
+		Find("div.pagination a, nav.pagination a, ul.pagination a, .pagination a").
+		EachWithBreak(func(_ int, link *goquery.Selection) bool {
+			if strings.Contains(selectionAttr(link, "href"), "page=") {
+				found = true
+				return false
+			}
+			return true
+		})
+	return found
+}

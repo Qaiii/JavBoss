@@ -177,6 +177,8 @@ func main() {
 	screenshotManager.Start(ctx)
 	coverManager.Start(ctx)
 	streamManager.Start(ctx)
+	service.InitIdolWorksManager()
+	service.StartIdolWorksScanner(ctx)
 	go func() {
 		timer := time.NewTimer(5 * time.Second)
 		defer timer.Stop()
@@ -189,6 +191,7 @@ func main() {
 			service.StartJavMetadataScanner(ctx, time.Minute)
 			service.StartSlowJavMetadataScanner(ctx, time.Minute)
 			service.StartIdolProfileScanner(ctx, time.Minute)
+			service.StartIdolWorksRefreshScheduler(ctx, 30*time.Minute)
 		}
 	}()
 

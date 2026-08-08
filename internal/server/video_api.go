@@ -23,6 +23,7 @@ import (
 	"javboss/internal/models"
 	"javboss/internal/mpv"
 	"javboss/internal/runtimeconfig"
+	"javboss/internal/service"
 	"javboss/internal/util"
 )
 
@@ -785,6 +786,7 @@ func manualVideoJavScrape(c *gin.Context) {
 		respondLocalizedError(c, http.StatusNotFound, "未生成 JAV 元数据", "JAV metadata was not created")
 		return
 	}
+	service.EnqueueIdolWorksForActors(c.Request.Context(), info.Actors)
 
 	manualOverride := models.JavScrapeOverrideManualPrefix + info.Code
 	if _, err := dbpkg.UpdateVideoJavScrapeOverride(c.Request.Context(), id, manualOverride); err != nil {

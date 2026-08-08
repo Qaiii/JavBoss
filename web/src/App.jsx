@@ -64,6 +64,25 @@ import { useAuth } from '@/auth'
 
 const WATERFALL_STORAGE_KEY = 'javboss.waterfallModes'
 const WATERFALL_KEYS = ['video', 'jav', 'idol', 'studio', 'series']
+const SHOW_EXTERNAL_WORKS_KEY = 'javboss.showExternalWorks'
+
+const loadSavedShowExternalWorks = () => {
+  try {
+    const raw = window.localStorage.getItem(SHOW_EXTERNAL_WORKS_KEY)
+    if (raw === null) return true // default on
+    return raw !== '0' && raw !== 'false'
+  } catch {
+    return true
+  }
+}
+
+const saveShowExternalWorks = (enabled) => {
+  try {
+    window.localStorage.setItem(SHOW_EXTERNAL_WORKS_KEY, enabled ? '1' : '0')
+  } catch {
+    // 忽略存储失败（如隐私模式）
+  }
+}
 
 const loadSavedWaterfallModes = () => {
   try {
@@ -207,6 +226,17 @@ export default function App() {
     javLoading,
     javLoadingMore,
     javError,
+    loadJavExternalWorks,
+    javExternalItems,
+    javExternalPage,
+    javExternalHasNext,
+    javExternalTotal,
+    javExternalTracked,
+    javExternalLastScrapedAt,
+    javExternalScrapeError,
+    javExternalLoading,
+    javExternalError,
+    javExternalSourceURL,
     javTagOptions,
     loadJavTags,
     loadConfig,
@@ -303,6 +333,7 @@ export default function App() {
     series: false,
     ...loadSavedWaterfallModes(),
   }))
+  const [showExternalWorks, setShowExternalWorks] = useState(loadSavedShowExternalWorks)
   const [hydrated, setHydrated] = useState(false)
   const [configLoaded, setConfigLoaded] = useState(false)
   const isJavMode = viewMode === 'jav'
@@ -352,9 +383,18 @@ export default function App() {
     const directory = directories.find((item) => Number(item?.id) === Number(ids[0]))
     const rootPath = String(directory?.path || '').trim()
     if (!rootPath) return ''
-    const subpaths = directoryQuerySubpaths({ directories, directoryFilterMode, enabledDirectoryIds, directorySubpaths })
+    const subpaths = directoryQuerySubpaths({
+      directories,
+      directoryFilterMode,
+      enabledDirectoryIds,
+      directorySubpaths,
+    })
     const subpath = subpaths.find((item) => Number(item?.directoryId) === Number(ids[0]))
-    const rel = subpath ? String(subpath?.path || '').trim().replace(/^\/+|\/+$/g, '') : ''
+    const rel = subpath
+      ? String(subpath?.path || '')
+          .trim()
+          .replace(/^\/+|\/+$/g, '')
+      : ''
     return rel ? `${rootPath.replace(/\/+$/g, '')}/${rel}` : rootPath
   }, [directories, enabledDirectoryIds, directoryFilterMode, directorySubpaths])
   const [tagPickerFor, setTagPickerFor] = useState(null)
@@ -398,6 +438,10 @@ export default function App() {
   const [javIdolPreferChineseNameInput, setJavIdolPreferChineseNameInput] = useState(
     configFlag(config?.jav_idol_prefer_chinese_name)
   )
+  const [javIdolRefreshDaysInput, setJavIdolRefreshDaysInput] = useState(() => {
+    const parsed = Number.parseInt(String(config?.jav_idol_refresh_days || '7'), 10)
+    return Number.isFinite(parsed) && parsed >= 1 && parsed <= 365 ? parsed : 7
+  })
   const [javTagShowSimplifiedInput, setJavTagShowSimplifiedInput] = useState(
     configFlag(config?.jav_tag_show_simplified)
   )
@@ -1598,6 +1642,23 @@ export default function App() {
     configLoaded,
   ])
 
+  // Automatically fetch the selected idol's JavDB works when viewing a single
+  // idol's works list. The show/hide switch only controls the rendered block.
+  const activeExternalIdolId = javIdolIds.length === 1 ? Number(javIdolIds[0]) : 0
+
+  useEffect(() => {
+    if (
+      !hydrated ||
+      !configLoaded ||
+      !isJavMode ||
+      javTab !== 'list' ||
+      activeExternalIdolId <= 0
+    ) {
+      return
+    }
+    loadJavExternalWorks(1)
+  }, [activeExternalIdolId, configLoaded, hydrated, isJavMode, javTab, loadJavExternalWorks])
+
   const forceReloadVideos = useCallback(() => {
     if (!hydrated || !configLoaded) return
     loadVideos({ force: true })
@@ -1707,6 +1768,19 @@ export default function App() {
       }
     },
     [configLoaded, hydrated, loadJavIdols, loadJavSeries, loadJavStudios, loadJavs, loadVideos]
+  )
+
+  const handleShowExternalWorksChange = useCallback((enabled) => {
+    setShowExternalWorks(Boolean(enabled))
+    saveShowExternalWorks(Boolean(enabled))
+  }, [])
+
+  const handleExternalPageChange = useCallback(
+    (targetPage) => {
+      if (!targetPage || targetPage < 1) return
+      loadJavExternalWorks(targetPage)
+    },
+    [loadJavExternalWorks]
   )
 
   const canPrev = page > 1
@@ -2193,6 +2267,10 @@ export default function App() {
         idol_sort: normalizedIdolSort,
         jav_idol_prefer_chinese_name: Boolean(javIdolPreferChineseNameInput),
         jav_tag_show_simplified: Boolean(javTagShowSimplifiedInput),
+        jav_idol_refresh_days: Math.min(
+          365,
+          Math.max(1, parseInt(javIdolRefreshDaysInput, 10) || 7)
+        ),
       })
       const prevJavPage = javPage
       const prevIdolPage = idolPage
@@ -3549,6 +3627,20 @@ export default function App() {
               onLoadMore: loadMoreJavs,
               loadingMore: javLoadingMore,
               hasMore: javWaterfallHasMore,
+              showExternalWorks,
+              onShowExternalWorksChange: handleShowExternalWorksChange,
+              externalItems: javExternalItems,
+              externalPage: javExternalPage,
+              externalHasNext: javExternalHasNext,
+              externalTotal: javExternalTotal,
+              externalTracked: javExternalTracked,
+              externalLastScrapedAt: javExternalLastScrapedAt,
+              externalScrapeError: javExternalScrapeError,
+              externalLoading: javExternalLoading,
+              externalError: javExternalError,
+              externalSourceURL: javExternalSourceURL,
+              activeIdolId: Number(javIdolIds[0]) || 0,
+              onExternalPageChange: handleExternalPageChange,
             }}
           />
         ) : (
@@ -3698,6 +3790,8 @@ export default function App() {
         onIdolSortChange={setIdolSortInput}
         javIdolPreferChineseNameInput={javIdolPreferChineseNameInput}
         onJavIdolPreferChineseNameChange={setJavIdolPreferChineseNameInput}
+        javIdolRefreshDaysInput={javIdolRefreshDaysInput}
+        onJavIdolRefreshDaysChange={setJavIdolRefreshDaysInput}
         javTagShowSimplifiedInput={javTagShowSimplifiedInput}
         onJavTagShowSimplifiedChange={setJavTagShowSimplifiedInput}
         onSave={handleSaveJavSettings}

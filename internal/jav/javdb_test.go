@@ -519,3 +519,107 @@ func TestJavDBRateLimiterHonorsContext(t *testing.T) {
 		t.Fatalf("waitForJavDBRateLimit() err = %v, want context deadline exceeded", err)
 	}
 }
+
+func TestParseJavDBActressWorksPage(t *testing.T) {
+	doc, err := html.Parse(strings.NewReader(`
+<!doctype html>
+<html>
+<body>
+  <div class="movie-list h cols-4 vcols-8">
+    <div class="item">
+      <a class="box" href="/v/kKdRm">
+        <div class="video-title"><strong>IPX-228</strong> ケースの女</div>
+        <img class="lazy" data-src="https://c0.jdbstatic.com/covers/kk/kKdRm.jpg">
+      </a>
+    </div>
+    <div class="item">
+      <a class="box" href="/v/aBcDe">
+        <div class="video-title"><strong>ABP-999</strong> Some Title</div>
+        <img data-original="https://c0.jdbstatic.com/covers/ab/aBcDe.jpg">
+      </a>
+    </div>
+    <div class="item">
+      <a class="box" href="/v/duplicate">
+        <div class="video-title"><strong>ipx-228</strong> Case duplicate</div>
+        <img src="https://c0.jdbstatic.com/covers/xx/xx.jpg">
+      </a>
+    </div>
+  </div>
+</body>
+</html>`))
+	if err != nil {
+		t.Fatalf("parse html: %v", err)
+	}
+
+	items := parseJavDBActressWorksPage(doc, "https://javdb.com/actors/1pKDJx")
+	if len(items) != 2 {
+		t.Fatalf("parseJavDBActressWorksPage() = %d items, want 2 (dup codes deduped)", len(items))
+	}
+	if items[0].Code != "IPX-228" {
+		t.Fatalf("items[0].Code = %q, want IPX-228", items[0].Code)
+	}
+	if items[0].Title != "ケースの女" {
+		t.Fatalf("items[0].Title = %q, want ケースの女", items[0].Title)
+	}
+	if items[0].CoverURL != "https://c0.jdbstatic.com/covers/kk/kKdRm.jpg" {
+		t.Fatalf("items[0].CoverURL = %q", items[0].CoverURL)
+	}
+	if len(items[0].SampleImages) != 1 || items[0].SampleImages[0].DetailURL != "https://javdb.com/v/kKdRm" {
+		t.Fatalf("items[0].SampleImages = %+v", items[0].SampleImages)
+	}
+	if items[1].CoverURL != "https://c0.jdbstatic.com/covers/ab/aBcDe.jpg" {
+		t.Fatalf("items[1].CoverURL = %q", items[1].CoverURL)
+	}
+}
+
+func TestParseJavDBActressWorksPageEmpty(t *testing.T) {
+	items := parseJavDBActressWorksPage(nil, "https://javdb.com/actors/x")
+	if len(items) != 0 {
+		t.Fatalf("parseJavDBActressWorksPage(nil) = %d items, want 0", len(items))
+	}
+}
+
+func TestHasJavDBNextPage(t *testing.T) {
+	withPages, err := html.Parse(strings.NewReader(`
+<html><body>
+<nav class="pagination">
+  <a href="/actors/1pKDJx?page=2">2</a>
+  <a href="/actors/1pKDJx?page=3">3</a>
+</nav>
+</body></html>`))
+	if err != nil {
+		t.Fatalf("parse html: %v", err)
+	}
+	if !hasJavDBNextPage(withPages) {
+		t.Fatal("hasJavDBNextPage() = false, want true")
+	}
+
+	lastPage, err := html.Parse(strings.NewReader(`
+<html><body>
+<nav class="pagination">
+  <span class="page-link">1</span>
+</nav>
+</body></html>`))
+	if err != nil {
+		t.Fatalf("parse html: %v", err)
+	}
+	if hasJavDBNextPage(lastPage) {
+		t.Fatal("hasJavDBNextPage() = true, want false")
+	}
+
+	if hasJavDBNextPage(nil) {
+		t.Fatal("hasJavDBNextPage(nil) = true, want false")
+	}
+}
+
+func TestJavDBActressWorksPageURL(t *testing.T) {
+	if got := javDBActressWorksPageURL("https://javdb.com/actors/1pKDJx", 1); got != "https://javdb.com/actors/1pKDJx" {
+		t.Fatalf("page 1 url = %q", got)
+	}
+	if got := javDBActressWorksPageURL("https://javdb.com/actors/1pKDJx", 2); got != "https://javdb.com/actors/1pKDJx?page=2" {
+		t.Fatalf("page 2 url = %q", got)
+	}
+	if got := javDBActressWorksPageURL("https://javdb.com/actors/1pKDJx?foo=1", 3); got != "https://javdb.com/actors/1pKDJx?foo=1&page=3" {
+		t.Fatalf("url with existing query = %q", got)
+	}
+}

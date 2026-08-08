@@ -247,6 +247,7 @@ func lookupAndLinkVideoLocationJav(ctx context.Context, v *db.JavScanVideo, file
 		} else {
 			logging.Info("link video location->jav success provider=%s location=%s code=%s", provider.String(), filename, info.Code)
 			enqueueCover(info.Code)
+			EnqueueIdolWorksForActors(ctx, info.Actors)
 		}
 		return true, nil
 	}

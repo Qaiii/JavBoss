@@ -157,6 +157,8 @@ export default function JavSettingsModal({
   onIdolSortChange,
   javIdolPreferChineseNameInput = false,
   onJavIdolPreferChineseNameChange,
+  javIdolRefreshDaysInput = 7,
+  onJavIdolRefreshDaysChange,
   javTagShowSimplifiedInput = false,
   onJavTagShowSimplifiedChange,
   onSave,
@@ -412,6 +414,20 @@ export default function JavSettingsModal({
                     label={zh('优先显示中文名', 'Prefer Chinese name')}
                     checked={javIdolPreferChineseNameInput}
                     onChange={onJavIdolPreferChineseNameChange}
+                  />
+                </SettingsRow>
+              </SettingsSection>
+              <SettingsSection title={zh('作品同步', 'Works sync')}>
+                <SettingsRow
+                  label={zh('女优新作品刷新间隔（天）', 'Refresh new works every (days)')}
+                >
+                  <input
+                    type="number"
+                    min="1"
+                    max="365"
+                    value={javIdolRefreshDaysInput}
+                    onChange={(e) => onJavIdolRefreshDaysChange?.(e.target.value)}
+                    className={controlClassName}
                   />
                 </SettingsRow>
               </SettingsSection>

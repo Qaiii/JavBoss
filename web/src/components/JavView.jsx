@@ -1,6 +1,7 @@
 import SwapVertIcon from '@mui/icons-material/SwapVert'
-import { Popover } from '@mui/material'
+import { Popover, Switch } from '@mui/material'
 import { useState } from 'react'
+import ExternalJavGrid from '@/components/ExternalJavGrid'
 import JavGrid from '@/components/JavGrid'
 import Pagination from '@/components/Pagination'
 import WaterfallLoader from '@/components/WaterfallLoader'
@@ -67,12 +68,27 @@ export default function JavView({
   onLoadMore,
   loadingMore,
   hasMore,
+  showExternalWorks,
+  onShowExternalWorksChange,
+  externalItems,
+  externalPage,
+  externalHasNext,
+  externalTotal,
+  externalTracked,
+  externalLastScrapedAt,
+  externalScrapeError,
+  externalLoading,
+  externalError,
+  externalSourceURL,
+  onExternalPageChange,
+  activeIdolId = 0,
 }) {
   const contentClass = javRandomMode ? 'mt-4' : ''
   const [sortAnchorEl, setSortAnchorEl] = useState(null)
   const effectiveSort = javTempSort || javGlobalSort
   const currentOption = findSortOption(JAV_SORT_OPTIONS, effectiveSort) || JAV_SORT_OPTIONS[0]
   const activeWaterfallMode = waterfallMode && !javRandomMode
+  const hasSingleIdolFilter = Number(activeIdolId) > 0
 
   const isOptionActive = (option) => {
     return findSortOption([option], effectiveSort)
@@ -114,8 +130,21 @@ export default function JavView({
             />
           </div>
           <div className="flex justify-end">
-            <div className="pagination-sort-group flex items-center">
-              <span className="pagination-sort-label text-gray-500">{zh('排序', 'Sort')}</span>
+            <div className="pagination-sort-group flex items-center gap-2">
+              {hasSingleIdolFilter ? (
+                <span className="flex items-center gap-1.5 text-gray-500">
+                  <Switch
+                    size="small"
+                    checked={Boolean(showExternalWorks)}
+                    onChange={(event) => onShowExternalWorksChange?.(event.target.checked)}
+                    inputProps={{ 'aria-label': zh('显示未入库作品', 'Show works not in library') }}
+                  />
+                  <span className="whitespace-nowrap text-xs">
+                    {zh('未入库作品', 'Not in library')}
+                  </span>
+                </span>
+              ) : null}
+              <span className="pagination-sort-label text-gray-500">{zh('排序', 'Sort')}</span>{' '}
               <button
                 type="button"
                 onClick={openSortMenu}
@@ -231,6 +260,21 @@ export default function JavView({
         loading={loadingMore}
         onLoadMore={onLoadMore}
       />
+      {showExternalWorks && hasSingleIdolFilter ? (
+        <ExternalJavGrid
+          items={externalItems}
+          page={externalPage}
+          hasNext={externalHasNext}
+          total={externalTotal}
+          tracked={externalTracked}
+          lastScrapedAt={externalLastScrapedAt}
+          scrapeError={externalScrapeError}
+          loading={externalLoading}
+          error={externalError}
+          sourceURL={externalSourceURL}
+          onPageChange={onExternalPageChange}
+        />
+      ) : null}
     </>
   )
 }

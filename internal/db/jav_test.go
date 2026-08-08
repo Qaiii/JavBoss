@@ -3352,3 +3352,49 @@ func assertJavIdolSummaries(t *testing.T, items []JavIdolSummary, total int64, w
 		}
 	}
 }
+
+func TestGetJavsByCodesMatchesCaseInsensitively(t *testing.T) {
+	gdb := openTestDB(t)
+	ctx := context.Background()
+
+	for _, code := range []string{"IPX-001", "ABP-999", "SSIS-123"} {
+		if err := gdb.Create(&models.Jav{Code: code, Title: "t-" + code}).Error; err != nil {
+			t.Fatalf("create jav %s: %v", code, err)
+		}
+	}
+
+	got, err := GetJavsByCodes(ctx, []string{"ipx-001", "ABP-999", "missing-code", "SSIS-123", "ipx-001"})
+	if err != nil {
+		t.Fatalf("GetJavsByCodes: %v", err)
+	}
+	if len(got) != 3 {
+		t.Fatalf("GetJavsByCodes() = %d records, want 3", len(got))
+	}
+	for _, want := range []string{"IPX-001", "ABP-999", "SSIS-123"} {
+		if rec, ok := got[want]; !ok || rec.Code != want {
+			t.Fatalf("GetJavsByCodes() missing normalized key %q (got %+v)", want, got)
+		}
+	}
+	if rec, ok := got["MISSING-CODE"]; ok {
+		t.Fatalf("GetJavsByCodes() returned non-existent code: %+v", rec)
+	}
+}
+
+func TestGetJavsByCodesEmptyAndNil(t *testing.T) {
+	gdb := openTestDB(t)
+	ctx := context.Background()
+
+	if err := gdb.Create(&models.Jav{Code: "IPX-001", Title: "t"}).Error; err != nil {
+		t.Fatalf("create jav: %v", err)
+	}
+
+	for _, codes := range [][]string{nil, {}, {""}, {"  ", ""}} {
+		got, err := GetJavsByCodes(ctx, codes)
+		if err != nil {
+			t.Fatalf("GetJavsByCodes(%v): %v", codes, err)
+		}
+		if len(got) != 0 {
+			t.Fatalf("GetJavsByCodes(%v) = %d records, want 0", codes, len(got))
+		}
+	}
+}

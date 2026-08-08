@@ -357,6 +357,7 @@ func scanMissingJavZhInfo(ctx context.Context, providers []jav.Provider) error {
 				continue
 			}
 			logging.Info("jav title metadata updated provider=%s id=%d code=%s title=%s", provider.String(), item.ID, code, strings.TrimSpace(info.Title))
+			EnqueueIdolWorksForActors(ctx, info.Actors)
 			break
 		}
 	}

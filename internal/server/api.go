@@ -95,6 +95,7 @@ func RegisterRoutes(router gin.IRoutes) {
 	router.GET("/jav/idols/:id/cover-options", listJavIdolCoverOptions)
 	router.PUT("/jav/idols/:id/cover", updateJavIdolCover)
 	router.GET("/jav/idols/:id", getJavIdol)
+	router.GET("/jav/idols/:id/external-works", getJavIdolExternalWorks)
 }
 
 const (

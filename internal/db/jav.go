@@ -1450,6 +1450,7 @@ type JavIdolSummary struct {
 	CoverCode     string     `json:"cover_code"`
 	CoverCropLeft float64    `json:"cover_crop_left"`
 	FavoriteCount int64      `json:"favorite_count"`
+	Tracked       bool       `json:"tracked" gorm:"-"`
 }
 
 // JavIdolCoverOption represents one visible JAV work that can be used as an idol card cover.
@@ -1692,6 +1693,9 @@ func ListJavIdols(ctx context.Context, search, sort string, limit, offset int, d
 	if err := attachJavIdolAliases(ctx, items); err != nil {
 		return nil, 0, err
 	}
+	if err := attachJavIdolTracked(ctx, items); err != nil {
+		return nil, 0, err
+	}
 
 	return items, total, nil
 }
@@ -1731,6 +1735,39 @@ func attachJavIdolAliases(ctx context.Context, items []JavIdolSummary) error {
 		alias := strings.TrimSpace(row.Alias)
 		if alias != "" {
 			items[index].Aliases = append(items[index].Aliases, alias)
+		}
+	}
+	return nil
+}
+
+// attachJavIdolTracked marks items whose id appears in the works tracking
+// table, so the UI can offer an "unfollow" state without an extra query per
+// idol.
+func attachJavIdolTracked(ctx context.Context, items []JavIdolSummary) error {
+	if len(items) == 0 {
+		return nil
+	}
+	ids := make([]int64, 0, len(items))
+	indexByID := make(map[int64]int, len(items))
+	for i, item := range items {
+		if item.ID > 0 {
+			ids = append(ids, item.ID)
+			indexByID[item.ID] = i
+		}
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	var trackedIDs []int64
+	if err := common.DB.WithContext(ctx).
+		Model(&models.JavIdolTrack{}).
+		Where("jav_idol_id IN ?", ids).
+		Pluck("jav_idol_id", &trackedIDs).Error; err != nil {
+		return fmt.Errorf("load jav idol tracked state: %w", err)
+	}
+	for _, id := range trackedIDs {
+		if index, ok := indexByID[id]; ok {
+			items[index].Tracked = true
 		}
 	}
 	return nil
@@ -2193,6 +2230,42 @@ func GetJavByCode(ctx context.Context, code string) (*models.Jav, error) {
 		return nil, fmt.Errorf("get jav by code: %w", err)
 	}
 	return &javRec, nil
+}
+
+// GetJavsByCodes fetches jav records by code in one query, returning a map
+// keyed by upper-cased normalized code. Codes are matched case-insensitively
+// so external codes can be checked against the library regardless of the
+// case used when the record was saved.
+func GetJavsByCodes(ctx context.Context, codes []string) (map[string]*models.Jav, error) {
+	normalized := make([]string, 0, len(codes))
+	seen := make(map[string]struct{}, len(codes))
+	for _, code := range codes {
+		code = strings.ToUpper(strings.TrimSpace(code))
+		if code == "" {
+			continue
+		}
+		if _, ok := seen[code]; ok {
+			continue
+		}
+		seen[code] = struct{}{}
+		normalized = append(normalized, code)
+	}
+	if len(normalized) == 0 {
+		return map[string]*models.Jav{}, nil
+	}
+
+	var javRecs []models.Jav
+	if err := common.DB.WithContext(ctx).
+		Where("UPPER(code) IN ?", normalized).
+		Find(&javRecs).Error; err != nil {
+		return nil, fmt.Errorf("get javs by codes: %w", err)
+	}
+
+	byCode := make(map[string]*models.Jav, len(javRecs))
+	for i := range javRecs {
+		byCode[strings.ToUpper(strings.TrimSpace(javRecs[i].Code))] = &javRecs[i]
+	}
+	return byCode, nil
 }
 
 // SetVideoLocationJavID links a file location to a jav record, guarding against stale updates when expectedUpdatedAt is provided.
