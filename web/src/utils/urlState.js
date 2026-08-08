@@ -82,9 +82,7 @@ const parseDirectorySubpaths = (sp) => {
 
 const serializeSubpathPairs = (pairs, field) =>
   Array.isArray(pairs) && pairs.length
-    ? pairs
-        .map((pair) => `${Number(pair.directoryId)}:${pair[field]}`)
-        .join(',')
+    ? pairs.map((pair) => `${Number(pair.directoryId)}:${pair[field]}`).join(',')
     : ''
 
 const parseIntSafe = (val, def = 1) => {
@@ -168,9 +166,7 @@ export const buildUrlFromState = (state, basePath = window.location.pathname) =>
     if (state.closedSubdirs?.length) {
       sp.set(
         'closed_subdirs',
-        state.closedSubdirs
-          .map((pair) => `${Number(pair.directoryId)}:${pair.name}`)
-          .join(',')
+        state.closedSubdirs.map((pair) => `${Number(pair.directoryId)}:${pair.name}`).join(',')
       )
     }
     const subpaths = serializeSubpathPairs(state.directorySubpaths, 'path')
@@ -242,9 +238,7 @@ export const buildUrlFromState = (state, basePath = window.location.pathname) =>
   if (state.closedSubdirs?.length) {
     sp.set(
       'closed_subdirs',
-      state.closedSubdirs
-        .map((pair) => `${Number(pair.directoryId)}:${pair.name}`)
-        .join(',')
+      state.closedSubdirs.map((pair) => `${Number(pair.directoryId)}:${pair.name}`).join(',')
     )
   }
   const subpaths = serializeSubpathPairs(state.directorySubpaths, 'path')
@@ -321,9 +315,7 @@ export const normalizeUrlStateFromStore = (store, tagsByName) => {
     }
   }
   closedSubdirs.sort((a, b) =>
-    a.directoryId === b.directoryId
-      ? a.name.localeCompare(b.name)
-      : a.directoryId - b.directoryId
+    a.directoryId === b.directoryId ? a.name.localeCompare(b.name) : a.directoryId - b.directoryId
   )
 
   return {

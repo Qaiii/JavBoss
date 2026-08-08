@@ -1147,7 +1147,7 @@ func TestSearchJavSortByFavoriteRating(t *testing.T) {
 		StudioID:          -1,
 		FavoriteRatingMin: &minRating,
 		FavoriteRatingMax: &maxRating,
-	})
+	}, nil, nil)
 	if err != nil {
 		t.Fatalf("SearchJav favorite rating range: %v", err)
 	}
