@@ -26,7 +26,14 @@ func init() {
 }
 
 func runMigrations(ctx context.Context, db *sql.DB) error {
-	return goose.UpContext(ctx, db, migrationDir)
+	// Allow missing migrations: this repo is a fork whose migration history can
+	// interleave with upstream. A database migrated by an older fork build may
+	// already sit at a version newer than a later-merged upstream migration
+	// (e.g. 202608050001_add_jav_favorite_rating vs 202608080001_add_jav_idol_works).
+	// WithAllowMissing applies those older-but-missing migrations in order and
+	// skips already-applied ones, so both fresh and pre-existing databases
+	// upgrade cleanly instead of aborting at startup.
+	return goose.UpContext(ctx, db, migrationDir, goose.WithAllowMissing())
 }
 
 func execDB(ctx context.Context, execer sqlExecer, stmt string, args ...any) error {
