@@ -17,6 +17,7 @@ import (
 	dbpkg "javboss/internal/db"
 	"javboss/internal/jav"
 	"javboss/internal/manager"
+	"javboss/internal/service"
 )
 
 func listJavIdols(c *gin.Context) {
@@ -347,6 +348,16 @@ func getJavIdolExternalWorks(c *gin.Context) {
 		logging.Error("get jav idol track id=%d: %v", id, err)
 		respondLocalizedError(c, http.StatusInternalServerError, "加载女优跟踪状态失败", "Failed to load idol tracking state")
 		return
+	}
+	if !track.Tracked {
+		// First time this idol is viewed: make sure she enters the background
+		// scrape queue immediately instead of waiting for the periodic sweep.
+		if err := dbpkg.UpsertJavIdolTrack(ctx, id, nil); err != nil {
+			logging.Error("track jav idol on view id=%d: %v", id, err)
+		} else {
+			service.EnqueueIdolWorks(id)
+			track.Tracked = true
+		}
 	}
 
 	items, total, err := dbpkg.ListJavIdolWorks(ctx, id, limit, (page-1)*limit)

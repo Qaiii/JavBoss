@@ -63,17 +63,25 @@ export default function ExternalJavGrid({
         <span>
           {tracked
             ? zh(
-                '该女优的作品数据尚未抓取完成，将在后台自动获取',
-                'Works are being fetched in the background'
+                '该女优的作品数据尚未抓取完成，正在后台自动获取，完成后将自动显示',
+                'Works are being fetched in the background and will appear when ready'
               )
             : zh(
-                '该女优的作品数据将在后台自动抓取',
-                'Works will be fetched automatically in the background'
+                '该女优的作品数据已进入后台抓取队列，完成后将自动显示',
+                'Works are queued for background fetching and will appear when ready'
               )}
         </span>
         {scrapeError ? (
           <span className="max-w-xl break-all text-center text-xs text-amber-600">
             {zh(`上次抓取失败：${scrapeError}`, `Last scrape failed: ${scrapeError}`)}
+          </span>
+        ) : null}
+        {!tracked && !scrapeError ? (
+          <span className="max-w-xl text-center text-xs text-gray-400">
+            {zh(
+              '首次抓取需要一点时间（每页抓取间隔约 2 秒），若一直无数据请检查网络能否访问 javdb.com，或配置代理后重启',
+              'First fetch takes a while (~2s per page). If nothing appears, make sure javdb.com is reachable or configure a proxy and restart'
+            )}
           </span>
         ) : null}
       </div>

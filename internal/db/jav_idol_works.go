@@ -198,18 +198,28 @@ func RemoveJavIdolTrack(ctx context.Context, idolID int64) error {
 	return nil
 }
 
-// ListDueJavIdolTrackIDs returns tracked idol IDs whose last successful scrape
-// is older than the given interval. Idols that have never been scraped
-// successfully are excluded here; they are re-queued when one of their works
-// is imported again, which avoids hammering JavDB for unresolvable profiles.
-func ListDueJavIdolTrackIDs(ctx context.Context, since time.Time) ([]int64, error) {
+// ListIdolsNeedingWorksScrape returns ids of idols that should be queued for a
+// JavDB works scrape:
+//   - idols never attempted at all (including ones imported by older versions
+//     that predate the works queue);
+//   - idols whose last attempt failed and happened before `since` (failed
+//     attempts are retried, but not more often than the refresh interval);
+//   - idols whose last successful scrape is older than `since`.
+//
+// `since` is typically now - refreshInterval.
+func ListIdolsNeedingWorksScrape(ctx context.Context, since time.Time) ([]int64, error) {
 	var ids []int64
 	err := common.DB.WithContext(ctx).
-		Model(&models.JavIdolTrack{}).
-		Where("last_scraped_at IS NOT NULL AND last_scraped_at < ?", since).
-		Pluck("jav_idol_id", &ids).Error
+		Table("jav_idol ji").
+		Select("ji.id").
+		Joins("LEFT JOIN jav_idol_track jit ON jit.jav_idol_id = ji.id").
+		Where(`jit.jav_idol_id IS NULL
+			OR (jit.last_scraped_at IS NULL AND (jit.updated_at IS NULL OR jit.updated_at < ?))
+			OR jit.last_scraped_at < ?`, since, since).
+		Order("ji.id ASC").
+		Pluck("ji.id", &ids).Error
 	if err != nil {
-		return nil, fmt.Errorf("list due jav idol tracks: %w", err)
+		return nil, fmt.Errorf("list idols needing works scrape: %w", err)
 	}
 	return ids, nil
 }

@@ -122,15 +122,17 @@ func TestReplaceAndListJavIdolWorks(t *testing.T) {
 	}
 }
 
-func TestListDueJavIdolTrackIDs(t *testing.T) {
+func TestListIdolsNeedingWorksScrape(t *testing.T) {
 	gdb := openTestDB(t)
 	ctx := context.Background()
 
 	now := time.Unix(1750000000, 0).UTC()
-	idol1 := models.JavIdol{Name: "Due Idol"}
-	idol2 := models.JavIdol{Name: "Fresh Idol"}
-	idol3 := models.JavIdol{Name: "Never Scraped"}
-	for _, id := range []*models.JavIdol{&idol1, &idol2, &idol3} {
+	idol1 := models.JavIdol{Name: "Stale Idol"}      // scraped long ago -> due
+	idol2 := models.JavIdol{Name: "Fresh Idol"}      // scraped recently -> not due
+	idol3 := models.JavIdol{Name: "Never Attempted"} // no track row -> due
+	idol4 := models.JavIdol{Name: "Old Failure"}     // failed long ago -> due
+	idol5 := models.JavIdol{Name: "Recent Failure"}  // failed recently -> not due (avoid hammering)
+	for _, id := range []*models.JavIdol{&idol1, &idol2, &idol3, &idol4, &idol5} {
 		if err := gdb.Create(id).Error; err != nil {
 			t.Fatalf("create idol: %v", err)
 		}
@@ -143,27 +145,41 @@ func TestListDueJavIdolTrackIDs(t *testing.T) {
 	if err := MarkJavIdolTrackScraped(ctx, idol2.ID, "url2", 3, fresh); err != nil {
 		t.Fatalf("mark idol2: %v", err)
 	}
-	if err := UpsertJavIdolTrack(ctx, idol3.ID, nil); err != nil {
-		t.Fatalf("track idol3 without scrape: %v", err)
+	if err := MarkJavIdolTrackError(ctx, idol4.ID, nil); err != nil {
+		t.Fatalf("mark idol4 failure: %v", err)
+	}
+	// idol4's failure happened at now; backdate its updated_at so it looks old.
+	if err := gdb.Model(&models.JavIdolTrack{}).Where("jav_idol_id = ?", idol4.ID).
+		Update("updated_at", old).Error; err != nil {
+		t.Fatalf("backdate idol4: %v", err)
+	}
+	if err := MarkJavIdolTrackError(ctx, idol5.ID, nil); err != nil {
+		t.Fatalf("mark idol5 failure: %v", err)
 	}
 
 	since := now.Add(-7 * 24 * time.Hour)
-	due, err := ListDueJavIdolTrackIDs(ctx, since)
+	due, err := ListIdolsNeedingWorksScrape(ctx, since)
 	if err != nil {
-		t.Fatalf("list due: %v", err)
+		t.Fatalf("list needing: %v", err)
 	}
 	got := map[int64]bool{}
 	for _, id := range due {
 		got[id] = true
 	}
 	if !got[idol1.ID] {
-		t.Fatal("idol1 (old scrape) should be due")
+		t.Fatal("idol1 (stale success) should be due")
 	}
 	if got[idol2.ID] {
-		t.Fatal("idol2 (fresh scrape) should not be due")
+		t.Fatal("idol2 (fresh success) should not be due")
 	}
-	if got[idol3.ID] {
-		t.Fatal("idol3 (never scraped) should not be due via the refresh scheduler; it is re-queued on import")
+	if !got[idol3.ID] {
+		t.Fatal("idol3 (never attempted, e.g. imported by an older version) should be due")
+	}
+	if !got[idol4.ID] {
+		t.Fatal("idol4 (old failure) should be retried")
+	}
+	if got[idol5.ID] {
+		t.Fatal("idol5 (recent failure) should not be retried yet")
 	}
 }
 

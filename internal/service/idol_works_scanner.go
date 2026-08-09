@@ -243,15 +243,15 @@ func StartIdolWorksRefreshScheduler(ctx context.Context, checkInterval time.Dura
 func refreshDueIdolWorks(ctx context.Context) {
 	days := dbpkg.JavIdolRefreshDays(ctx)
 	since := time.Now().Add(-time.Duration(days) * 24 * time.Hour)
-	ids, err := dbpkg.ListDueJavIdolTrackIDs(ctx, since)
+	ids, err := dbpkg.ListIdolsNeedingWorksScrape(ctx, since)
 	if err != nil {
-		logging.Error("list due idol works refreshes: %v", err)
+		logging.Error("list idol works refreshes: %v", err)
 		return
 	}
 	if len(ids) == 0 {
 		return
 	}
-	logging.Info("queued %d idols for periodic works refresh (interval %dd)", len(ids), days)
+	logging.Info("queued %d idols for works scrape/refresh (interval %dd)", len(ids), days)
 	for _, id := range ids {
 		if idolWorksMgr == nil {
 			return
