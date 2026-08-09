@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded'
 import SwapVertIcon from '@mui/icons-material/SwapVert'
 import {
@@ -166,6 +166,15 @@ export default function JavSettingsModal({
   onSave,
 }) {
   const [activeTab, setActiveTab] = useState(() => normalizeSettingsTab(initialTab))
+
+  useEffect(() => {
+    if (!open) return undefined
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [open, onClose])
 
   if (!open) return null
 

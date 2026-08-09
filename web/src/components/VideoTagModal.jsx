@@ -3,6 +3,7 @@ import { Button, IconButton, TextField } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import CheckBoxOutlinedIcon from '@mui/icons-material/CheckBoxOutlined'
 import CloseOutlinedIcon from '@mui/icons-material/CloseOutlined'
+import CloseRoundedIcon from '@mui/icons-material/CloseRounded'
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
 import SearchOutlinedIcon from '@mui/icons-material/SearchOutlined'
 
@@ -82,6 +83,27 @@ export default function VideoTagModal({
     }
   }, [open])
 
+  // Esc closes the innermost open dialog: the rename/create popup first, then the modal.
+  useEffect(() => {
+    if (!open) return undefined
+    const handleKeyDown = (event) => {
+      if (event.key !== 'Escape') return
+      if (renameOpen) {
+        handleCloseRename()
+        return
+      }
+      if (createOpen) {
+        setCreateOpen(false)
+        setNewTagName('')
+        setCreateError('')
+        return
+      }
+      onClose()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [open, renameOpen, createOpen, onClose])
+
   const selectedTags = useMemo(() => {
     if (selectedTagIds.length === 0) return []
     const set = new Set(selectedTagIds)
@@ -118,15 +140,15 @@ export default function VideoTagModal({
           <h2 className="text-lg font-semibold text-slate-900">
             {zh('标签管理', 'Tag Management')}
           </h2>
-          <Button
+          <IconButton
+            type="button"
             size="small"
-            variant="text"
             onClick={onClose}
             aria-label={zh('关闭', 'Close')}
-            sx={compactButtonSx}
+            className="text-slate-500 hover:bg-slate-200/70 hover:text-slate-800"
           >
-            {zh('关闭', 'Close')}
-          </Button>
+            <CloseRoundedIcon sx={{ fontSize: 22 }} />
+          </IconButton>
         </div>
         <div className="space-y-6 p-6">
           <section className="space-y-4">

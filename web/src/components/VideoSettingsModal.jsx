@@ -1,4 +1,6 @@
+import { useEffect } from 'react'
 import SwapVertIcon from '@mui/icons-material/SwapVert'
+import CloseRoundedIcon from '@mui/icons-material/CloseRounded'
 import FolderOutlinedIcon from '@mui/icons-material/FolderOutlined'
 import {
   VIDEO_SORT_OPTIONS,
@@ -63,6 +65,15 @@ export default function VideoSettingsModal({
   onHideJavChange,
   onSave,
 }) {
+  useEffect(() => {
+    if (!open) return undefined
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [open, onClose])
+
   if (!open) return null
 
   return (
@@ -83,10 +94,10 @@ export default function VideoSettingsModal({
           )}
           <button
             onClick={onClose}
-            className="rounded px-2 py-1 text-gray-500 hover:bg-gray-100"
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-700"
             aria-label={zh('关闭设置', 'Close settings')}
           >
-            ✕
+            <CloseRoundedIcon sx={{ fontSize: 20 }} />
           </button>
         </div>
         <div className="space-y-2">

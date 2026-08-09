@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded'
-import { Button } from '@mui/material'
 import { isChineseLocale, zh } from '@/utils/i18n'
 
 const isModifiedClick = (event) =>
@@ -111,6 +110,15 @@ export default function JavPrefixModal({
     setSortMode('count')
     setCensorMode('all')
   }, [open])
+
+  useEffect(() => {
+    if (!open) return undefined
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [open, onClose])
 
   if (!open) return null
 
@@ -345,12 +353,6 @@ export default function JavPrefixModal({
               </tbody>
             </table>
           )}
-        </div>
-
-        <div className="flex justify-end border-t px-5 py-3">
-          <Button variant="outlined" onClick={onClose}>
-            {zh('关闭', 'Close')}
-          </Button>
         </div>
       </div>
     </div>,

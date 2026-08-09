@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import CloseRoundedIcon from '@mui/icons-material/CloseRounded'
 
 import { pickDirectory } from '@/api'
 import { apiHostPath, displayHostPath } from '@/utils/hostPath'
@@ -219,25 +220,30 @@ export default function DirectoryManager({
 
   useEffect(() => {
     if (!toolDirectory) return undefined
+    // Esc is handled on the capture phase and stops propagation so the closing
+    // keypress does not also reach the enclosing global settings dialog's own
+    // window-level Esc listener.
     const handleKeyDown = (event) => {
       if (event.key === 'Escape') {
+        event.stopPropagation()
         setToolDirectory(null)
       }
     }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
+    document.addEventListener('keydown', handleKeyDown, true)
+    return () => document.removeEventListener('keydown', handleKeyDown, true)
   }, [toolDirectory])
 
   useEffect(() => {
     if (!scanSettingsDirectory) return undefined
     const handleKeyDown = (event) => {
       if (event.key === 'Escape' && savingScanSettingsId == null) {
+        event.stopPropagation()
         setScanSettingsDirectory(null)
         setScanSettingsError('')
       }
     }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
+    document.addEventListener('keydown', handleKeyDown, true)
+    return () => document.removeEventListener('keydown', handleKeyDown, true)
   }, [savingScanSettingsId, scanSettingsDirectory])
 
   useEffect(() => {
@@ -728,11 +734,23 @@ export default function DirectoryManager({
             aria-labelledby="directory-tools-title"
             className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-xl"
           >
-            <div id="directory-tools-title" className="text-base font-semibold text-zinc-900">
-              {zh('目录工具', 'Directory Tools')}
-            </div>
-            <div className="mt-1 truncate text-xs text-zinc-500">
-              {displayPath(toolDirectory.path)}
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div id="directory-tools-title" className="text-base font-semibold text-zinc-900">
+                  {zh('目录工具', 'Directory Tools')}
+                </div>
+                <div className="mt-1 truncate text-xs text-zinc-500">
+                  {displayPath(toolDirectory.path)}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setToolDirectory(null)}
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-800"
+                aria-label={zh('关闭目录工具', 'Close directory tools')}
+              >
+                <CloseRoundedIcon sx={{ fontSize: 20 }} />
+              </button>
             </div>
             <div className="mt-4 space-y-2">
               {directoryProcessOptions().map((option) => (
@@ -844,17 +862,33 @@ export default function DirectoryManager({
             aria-labelledby="directory-scan-settings-title"
             className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl"
           >
-            <div
-              id="directory-scan-settings-title"
-              className="text-base font-semibold text-zinc-900"
-            >
-              {zh('扫描设置', 'Scan Settings')}
-            </div>
-            <div
-              title={displayPath(currentScanSettingsDirectory.path)}
-              className="mt-2 truncate rounded-lg bg-zinc-50 px-3 py-2 text-xs text-zinc-500"
-            >
-              {displayPath(currentScanSettingsDirectory.path)}
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div
+                  id="directory-scan-settings-title"
+                  className="text-base font-semibold text-zinc-900"
+                >
+                  {zh('扫描设置', 'Scan Settings')}
+                </div>
+                <div
+                  title={displayPath(currentScanSettingsDirectory.path)}
+                  className="mt-2 truncate rounded-lg bg-zinc-50 px-3 py-2 text-xs text-zinc-500"
+                >
+                  {displayPath(currentScanSettingsDirectory.path)}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setScanSettingsDirectory(null)
+                  setScanSettingsError('')
+                }}
+                disabled={savingScanSettingsId != null}
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-800 disabled:opacity-50"
+                aria-label={zh('关闭扫描设置', 'Close scan settings')}
+              >
+                <CloseRoundedIcon sx={{ fontSize: 20 }} />
+              </button>
             </div>
             <div className="mt-4 overflow-hidden rounded-xl border border-zinc-200">
               <label
