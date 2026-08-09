@@ -723,6 +723,16 @@ export default function TopBar({
               />
             ) : null}
 
+            {focusedSubpath ? (
+              <span
+                className="filter-location-path"
+                title={zh(`当前目录：${focusedSubpath}`, `Current directory: ${focusedSubpath}`)}
+              >
+                <FolderRoundedIcon fontSize="small" className="shrink-0 text-gray-400" />
+                <span className="min-w-0 truncate">{focusedSubpath}</span>
+              </span>
+            ) : null}
+
             <div ref={directoryMenuRef} className="relative">
               <button
                 type="button"

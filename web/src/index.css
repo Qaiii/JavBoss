@@ -274,6 +274,28 @@ body.has-page-scroll .sticky-pagination {
   color: #1d4ed8;
 }
 
+.filter-location-path {
+  display: inline-flex;
+  height: 34px;
+  max-width: 220px;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid #dbe3ec;
+  border-radius: 9px;
+  background: #fff;
+  padding: 0 10px;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 500;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.filter-location-path:hover {
+  border-color: #cbd5e1;
+  color: #334155;
+}
+
 .filter-search {
   display: flex;
   width: clamp(8.5rem, 9.5vw, 10.5rem);

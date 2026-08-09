@@ -2917,6 +2917,22 @@ export default function App() {
     const nextTab =
       tab === 'idol' ? 'idol' : tab === 'studio' ? 'studio' : tab === 'series' ? 'series' : 'list'
     if (isJavMode && nextTab === javTab) return
+    // 从视频页切换到 JAV 页时，清除“查看所在目录”聚焦的子目录过滤，仅保留
+    // 启用的根目录，避免 JAV 各页因聚焦子目录内没有 JAV 作品而显示为空。
+    if (!isJavMode && directorySubpaths.length > 0) {
+      const state = useStore.getState()
+      const active = (state.directories || [])
+        .map((directory) => Number(directory?.id))
+        .filter((id) => Number.isFinite(id) && id > 0)
+      const enabled = (state.enabledDirectoryIds || [])
+        .map((id) => Number(id))
+        .filter((id) => Number.isFinite(id) && id > 0)
+      useStore.setState({
+        directorySubpaths: [],
+        directoryFilterMode:
+          active.length > 0 && enabled.length === active.length ? 'all' : 'custom',
+      })
+    }
     handleSwitchJavTab(nextTab)
   }
 
