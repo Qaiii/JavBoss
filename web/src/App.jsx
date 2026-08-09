@@ -15,6 +15,13 @@ import {
   lookupVideoJavScrape,
   manualVideoJavScrape,
   createJavTag,
+  organizeJavTags,
+  fetchJavTagCategories,
+  createJavTagCategory,
+  reorderJavTagCategories,
+  renameJavTagCategory,
+  deleteJavTagCategory,
+  assignJavTagsCategory,
   renameJavTag,
   deleteJavTag,
   resolveJavIdols,
@@ -31,8 +38,8 @@ import {
   scanDirectory,
 } from '@/api'
 import GlobalSettingsModal from '@/components/GlobalSettingsModal'
-import JavIdolFavoriteManageModal from '@/components/JavIdolFavoriteManageModal'
-import JavIdolFavoriteModal from '@/components/JavIdolFavoriteModal'
+import JavFavoriteManageModal from '@/components/JavFavoriteManageModal'
+import JavFavoriteModal from '@/components/JavFavoriteModal'
 import JavQueryEditorModal from '@/components/JavQueryEditorModal'
 import JavSettingsModal from '@/components/JavSettingsModal'
 import JavTagModal from '@/components/JavTagModal'
@@ -298,10 +305,12 @@ export default function App() {
   } = useStore()
 
   const [tagModalOpen, setTagModalOpen] = useState(false)
+  const [tagModalApplyMode, setTagModalApplyMode] = useState('replace')
   const [videoSettingsOpen, setVideoSettingsOpen] = useState(false)
   const [javSettingsOpen, setJavSettingsOpen] = useState(false)
   const [globalSettingsOpen, setGlobalSettingsOpen] = useState(false)
   const [javTagModalOpen, setJavTagModalOpen] = useState(false)
+  const [javTagCategories, setJavTagCategories] = useState([])
   const [javQueryEditorOpen, setJavQueryEditorOpen] = useState(false)
   const [javVideoPickerOpen, setJavVideoPickerOpen] = useState(false)
   const [javVideoPickerItem, setJavVideoPickerItem] = useState(null)
@@ -526,6 +535,12 @@ export default function App() {
   }, [])
   const handleOpenTagModal = useCallback(() => {
     loadTags()
+    setTagModalApplyMode('replace')
+    setTagModalOpen(true)
+  }, [loadTags])
+  const handleOpenTagFilterEditor = useCallback(() => {
+    loadTags()
+    setTagModalApplyMode('append')
     setTagModalOpen(true)
   }, [loadTags])
 
@@ -1942,14 +1957,12 @@ export default function App() {
   const searchHref = buildVideoUrl({
     search: searchInput,
     page: 1,
-    random: false,
     tempSort: '',
   })
   const javSearchHref = buildJavUrl({
     search: javSearchInput,
     page: 1,
     tab: javTab,
-    random: false,
     tempSort: '',
   })
   const handleJavRandomClick = useCallback(() => {
@@ -2069,8 +2082,6 @@ export default function App() {
       saveScrollBeforeUrlStateChange()
       useStore.setState({
         videoTempSort: '',
-        randomMode: false,
-        randomSeed: null,
         page: 1,
         ...updates,
       })
@@ -2084,8 +2095,6 @@ export default function App() {
       useStore.setState({
         javTempSort: '',
         idolTempSort: '',
-        javRandomMode: false,
-        javRandomSeed: null,
         javPage: 1,
         ...updates,
       })
@@ -2140,7 +2149,7 @@ export default function App() {
         items.push({
           key: 'video-random',
           label: zh('随机', 'Random'),
-          onRemove: () => updateVideoFilters({}),
+          onRemove: () => updateVideoFilters({ randomMode: false, randomSeed: null }),
         })
       }
       return items
@@ -2222,17 +2231,32 @@ export default function App() {
         onRemove: () => updateJavFilters({ javSoloOnly: false }),
       })
     }
+    if (javFavoriteRatingEnabled) {
+      const formatRating = (value) => {
+        const rating = Number(value)
+        return Number.isInteger(rating) ? String(rating) : rating.toFixed(1)
+      }
+      const range = `${formatRating(javFavoriteRatingMin)}–${formatRating(javFavoriteRatingMax)}`
+      items.push({
+        key: 'jav-favorite-rating',
+        label: zh(`喜爱度: ${range}`, `Favorite rating: ${range}`),
+        onRemove: () => updateJavFilters({ javFavoriteRatingEnabled: false }),
+      })
+    }
     if (javRandomMode) {
       items.push({
         key: 'jav-random',
         label: zh('随机', 'Random'),
-        onRemove: () => updateJavFilters({}),
+        onRemove: () => updateJavFilters({ javRandomMode: false, javRandomSeed: null }),
       })
     }
     return items
   }, [
     config?.jav_idol_prefer_chinese_name,
     isJavMode,
+    javFavoriteRatingEnabled,
+    javFavoriteRatingMax,
+    javFavoriteRatingMin,
     javIdolIds,
     javIdolOptionMap,
     javPrefix,
@@ -2256,7 +2280,12 @@ export default function App() {
   const handleClearActiveFilters = useCallback(() => {
     if (!isJavMode) {
       setSearchInput('')
-      updateVideoFilters({ selectedTags: [], searchTerm: '' })
+      updateVideoFilters({
+        selectedTags: [],
+        searchTerm: '',
+        randomMode: false,
+        randomSeed: null,
+      })
       return
     }
     setJavSearchInput('')
@@ -2274,6 +2303,8 @@ export default function App() {
         javFavoriteRatingEnabled: false,
         javFavoriteRatingMin: 0.5,
         javFavoriteRatingMax: 5,
+        javRandomMode: false,
+        javRandomSeed: null,
       })
     } else if (javTab === 'idol') {
       Object.assign(updates, { idolPage: 1 })
@@ -2343,8 +2374,6 @@ export default function App() {
       searchTerm: nextSearch,
       videoTempSort: '',
       page: 1,
-      randomMode: false,
-      randomSeed: null,
     })
   }
 
@@ -2355,8 +2384,6 @@ export default function App() {
       videoTempSort: '',
       javTempSort: '',
       idolTempSort: '',
-      javRandomMode: false,
-      javRandomSeed: null,
       javSearchTerm: (javSearchInput || '').trim(),
       javPage: 1,
       idolPage: 1,
@@ -3441,10 +3468,17 @@ export default function App() {
     [applyJavTagFilter]
   )
 
+  const loadJavTagCategories = useCallback(async () => {
+    const categories = await fetchJavTagCategories()
+    setJavTagCategories(Array.isArray(categories) ? categories : [])
+    return categories
+  }, [])
+
   const handleOpenJavTagModal = useCallback(() => {
     setJavTagModalOpen(true)
     loadJavTags()
-  }, [loadJavTags])
+    loadJavTagCategories().catch(() => setJavTagCategories([]))
+  }, [loadJavTagCategories, loadJavTags])
 
   const handleApplyJavQuery = useCallback(
     (query) => {
@@ -3491,8 +3525,6 @@ export default function App() {
         javTab: 'list',
         javTempSort: '',
         idolTempSort: '',
-        javRandomMode: false,
-        javRandomSeed: null,
         javSearchTerm: nextSearch,
         javIdolIds: nextIdolIds,
         javTags: nextTags,
@@ -3774,7 +3806,7 @@ export default function App() {
                   loadJavTags()
                 }
               : null
-            : handleOpenTagModal
+            : handleOpenTagFilterEditor
         }
         onOpenSelectionOps={() => setSelectionOpsOpen(true)}
         onClearSelection={clearSelection}
@@ -4123,7 +4155,7 @@ export default function App() {
         onSelectVideo={handleSelectJavVideo}
       />
 
-      <JavIdolFavoriteModal
+      <JavFavoriteModal
         open={idolFavoriteModalOpen}
         entityType={favoriteModalEntityType}
         idol={idolFavoriteModalItem}
@@ -4141,7 +4173,7 @@ export default function App() {
         preferChineseName={configFlag(config?.jav_idol_prefer_chinese_name)}
       />
 
-      <JavIdolFavoriteManageModal
+      <JavFavoriteManageModal
         open={idolFavoriteManageOpen}
         entityType={favoriteManageEntityType}
         groups={favoriteGroupsByType?.[favoriteManageEntityType] || []}
@@ -4229,6 +4261,7 @@ export default function App() {
         tags={tags}
         selectedIds={tagPickerSelected}
         onToggleChoice={handleTagPickerToggle}
+        onCreateTag={createTag}
         onClose={handleTagPickerClose}
         onSave={handleApplyTags}
         saveDisabled={!tagPickerDirty}
@@ -4281,6 +4314,10 @@ export default function App() {
           await loadTags()
         }}
         onApplyTagFilter={(names) => {
+          if (tagModalApplyMode === 'append') {
+            setSelectedTags([...selectedTags, ...names])
+            return
+          }
           setSearchTerm('', { resetPage: false, triggerLoad: false })
           setSelectedTags(names)
         }}
@@ -4289,10 +4326,39 @@ export default function App() {
         open={javTagModalOpen}
         onClose={() => setJavTagModalOpen(false)}
         tags={displayJavTagOptions}
+        categories={javTagCategories}
         onApplyTagFilter={applyJavTagFilter}
-        onCreateTag={async (name) => {
-          await createJavTag(name)
-          await loadJavTags()
+        onCreateTag={async (name, categoryId) => {
+          const tag = await createJavTag(name)
+          await assignJavTagsCategory([tag.id], categoryId)
+          await loadJavTags({ force: true })
+          return tag
+        }}
+        onOrganizeTags={async () => {
+          const result = await organizeJavTags()
+          await Promise.all([loadJavTags({ force: true }), loadJavTagCategories()])
+          return result
+        }}
+        onCreateCategory={async (name) => {
+          const category = await createJavTagCategory(name)
+          await loadJavTagCategories()
+          return category
+        }}
+        onReorderCategories={async (categoryIds) => {
+          await reorderJavTagCategories(categoryIds)
+          await loadJavTagCategories()
+        }}
+        onRenameCategory={async (id, name) => {
+          await renameJavTagCategory(id, name)
+          await Promise.all([loadJavTags({ force: true }), loadJavTagCategories()])
+        }}
+        onDeleteCategory={async (id) => {
+          await deleteJavTagCategory(id)
+          await Promise.all([loadJavTags({ force: true }), loadJavTagCategories()])
+        }}
+        onAssignCategory={async (tagIds, categoryId) => {
+          await assignJavTagsCategory(tagIds, categoryId)
+          await Promise.all([loadJavTags({ force: true }), loadJavTagCategories()])
         }}
         onRenameTag={async (id, name) => {
           await renameJavTag(id, name)

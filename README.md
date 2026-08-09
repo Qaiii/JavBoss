@@ -71,10 +71,10 @@ curl -fsSL https://raw.githubusercontent.com/Solr159/JavBoss/main/scripts/instal
 
 点击下载对应系统的最新版发布包并解压：
 
-- [Windows](https://github.com/Solr159/JavBoss/releases/download/v1.9.1/javboss-v1.9.1-windows-x86_64.zip)
-- [Linux](https://github.com/Solr159/JavBoss/releases/download/v1.9.1/javboss-v1.9.1-linux-x86_64.zip)
-- [macOS-x86_64](https://github.com/Solr159/JavBoss/releases/download/v1.9.1/javboss-v1.9.1-macos-x86_64.zip)（适用于 Intel 芯片的 macOS）
-- [macOS-arm64](https://github.com/Solr159/JavBoss/releases/download/v1.9.1/javboss-v1.9.1-macos-arm64.zip)（适用于 M 芯片的 macOS）
+- [Windows](https://github.com/Solr159/JavBoss/releases/download/v2.0.0/javboss-v2.0.0-windows-x86_64.zip)
+- [Linux](https://github.com/Solr159/JavBoss/releases/download/v2.0.0/javboss-v2.0.0-linux-x86_64.zip)
+- [macOS-x86_64](https://github.com/Solr159/JavBoss/releases/download/v2.0.0/javboss-v2.0.0-macos-x86_64.zip)（适用于 Intel 芯片的 macOS）
+- [macOS-arm64](https://github.com/Solr159/JavBoss/releases/download/v2.0.0/javboss-v2.0.0-macos-arm64.zip)（适用于 M 芯片的 macOS）
 
 也可以前往 [Releases](https://github.com/Solr159/JavBoss/releases) 页面查看所有版本。
 
@@ -128,9 +128,9 @@ Docker 部署下使用浏览器播放视频，不会调用本机 mpv。添加目
 
 ### 2. 添加本地目录
 
-进入“全局设置” -> “目录管理”，添加存放视频的本地文件夹。
+点击左下角“设置” -> “目录管理”，添加存放视频的本地文件夹。
 
-视频扫描入库、封面截图生成、JAV 刮削会在后台持续运行，刷新页面或者点击右上角按钮在视频模式和 JAV 模式之间切换查看当前进度。
+视频扫描入库、封面截图生成、JAV 刮削会在后台持续运行，刷新页面或点击侧边栏视频、作品等按钮查看当前进度。
 
 **注意事项：**
   - JavBoss 只会读取不会主动修改目录里的任何内容，请放心添加。

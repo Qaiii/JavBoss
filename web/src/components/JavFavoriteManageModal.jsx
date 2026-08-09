@@ -1,14 +1,15 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded'
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded'
 import EditRoundedIcon from '@mui/icons-material/EditRounded'
-import MenuRoundedIcon from '@mui/icons-material/MenuRounded'
 import { Button, IconButton } from '@mui/material'
+import AppModal from '@/components/AppModal'
+import SortableList from '@/components/SortableList'
 import { zh } from '@/utils/i18n'
 import { getErrorMessage } from '@/utils/errors'
 import { getIdolDisplayName } from '@/utils/javIdol'
 
-export default function JavIdolFavoriteManageModal({
+export default function JavFavoriteManageModal({
   open,
   entityType = 'idol',
   groups,
@@ -112,54 +113,57 @@ export default function JavIdolFavoriteManageModal({
   return (
     <>
       {!directEditMode ? (
-        <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center px-4">
-          <div className="pointer-events-auto flex max-h-[82vh] w-full max-w-lg flex-col rounded-lg bg-white shadow-xl">
-            <div className="flex items-center justify-between border-b px-4 py-3">
-              <h2 className="text-base font-semibold text-gray-950">{labels.manageTitle}</h2>
-              <IconButton
-                type="button"
-                size="small"
-                onClick={onClose}
-                disabled={saving}
-                aria-label={zh('关闭收藏夹管理', 'Close favorite manager')}
-              >
-                <CloseRoundedIcon fontSize="small" />
-              </IconButton>
-            </div>
-
-            <div className="min-h-0 flex-1 overflow-y-auto p-4">
-              {error ? (
-                <div className="mb-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                  {error}
-                </div>
-              ) : null}
-
-              <GroupOrderList
-                groups={localGroups}
-                selectedGroupId={selectedGroupId}
-                emptyText={loading ? zh('加载中…', 'Loading...') : zh('暂无收藏夹', 'No favorites')}
-                labels={labels}
-                onReorder={setLocalGroups}
-                onReorderCommit={commitGroupOrder}
-                onEdit={(group) => setEditingGroup(group)}
-              />
-            </div>
-
-            <div className="flex justify-end gap-2 border-t px-4 py-3">
-              <Button variant="outlined" onClick={() => setCreatingOpen(true)} disabled={saving}>
-                {zh('新增收藏夹', 'Add favorite')}
-              </Button>
-              <Button variant="outlined" onClick={onClose} disabled={saving}>
-                {zh('关闭', 'Close')}
-              </Button>
-            </div>
+        <AppModal
+          ariaLabel={labels.manageTitle}
+          className="px-4"
+          closeDisabled={saving}
+          contentClassName="flex max-h-[82vh] w-full max-w-lg flex-col rounded-lg bg-white shadow-xl"
+          onClose={onClose}
+        >
+          <div className="flex items-center justify-between border-b px-4 py-3">
+            <h2 className="text-base font-semibold text-gray-950">{labels.manageTitle}</h2>
+            <IconButton
+              type="button"
+              size="small"
+              onClick={onClose}
+              disabled={saving}
+              aria-label={zh('关闭收藏夹管理', 'Close favorite manager')}
+            >
+              <CloseRoundedIcon fontSize="small" />
+            </IconButton>
           </div>
-        </div>
+
+          <div className="min-h-0 flex-1 overflow-y-auto p-4">
+            {error ? (
+              <div className="mb-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {error}
+              </div>
+            ) : null}
+
+            <GroupOrderList
+              groups={localGroups}
+              selectedGroupId={selectedGroupId}
+              emptyText={loading ? zh('加载中…', 'Loading...') : zh('暂无收藏夹', 'No favorites')}
+              labels={labels}
+              onReorder={setLocalGroups}
+              onReorderCommit={commitGroupOrder}
+              onEdit={(group) => setEditingGroup(group)}
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 border-t px-4 py-3">
+            <Button variant="outlined" onClick={() => setCreatingOpen(true)} disabled={saving}>
+              {zh('新增收藏夹', 'Add favorite')}
+            </Button>
+            <Button variant="outlined" onClick={onClose} disabled={saving}>
+              {zh('关闭', 'Close')}
+            </Button>
+          </div>
+        </AppModal>
       ) : null}
 
       <FavoriteGroupEditModal
         group={editingGroup}
-        directMode={directEditMode}
         onClose={directEditMode ? onClose : () => setEditingGroup(null)}
         onRename={handleRename}
         onDelete={handleDelete}
@@ -190,41 +194,48 @@ function CreateGroupModal({ open, name, creating, onNameChange, onClose, onSubmi
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 px-4">
-      <form onSubmit={onSubmit} className="w-full max-w-sm rounded-lg bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b px-4 py-3">
-          <h2 className="text-base font-semibold text-gray-950">
-            {zh('新增收藏夹', 'Add favorite')}
-          </h2>
-          <IconButton
-            type="button"
-            size="small"
-            onClick={onClose}
-            disabled={creating}
-            aria-label={zh('关闭新增收藏夹', 'Close add favorite')}
-          >
-            <CloseRoundedIcon fontSize="small" />
-          </IconButton>
-        </div>
-        <div className="p-4">
-          <input
-            value={name}
-            onChange={(event) => onNameChange(event.target.value)}
-            placeholder={zh('收藏夹名称', 'Favorite name')}
-            className="h-9 w-full rounded border border-gray-200 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-            disabled={creating}
-          />
-        </div>
-        <div className="flex justify-end gap-2 border-t px-4 py-3">
-          <Button variant="outlined" onClick={onClose} disabled={creating}>
-            {zh('取消', 'Cancel')}
-          </Button>
-          <Button type="submit" variant="contained" disabled={!name.trim() || creating}>
-            {creating ? zh('添加中…', 'Adding...') : zh('添加', 'Add')}
-          </Button>
-        </div>
-      </form>
-    </div>
+    <AppModal
+      ariaLabel={zh('新增收藏夹', 'Add favorite')}
+      className="px-4"
+      closeDisabled={creating}
+      contentClassName="w-full max-w-sm rounded-lg bg-white shadow-xl"
+      contentComponent="form"
+      contentProps={{ onSubmit }}
+      onClose={onClose}
+      zIndex={1400}
+    >
+      <div className="flex items-center justify-between border-b px-4 py-3">
+        <h2 className="text-base font-semibold text-gray-950">
+          {zh('新增收藏夹', 'Add favorite')}
+        </h2>
+        <IconButton
+          type="button"
+          size="small"
+          onClick={onClose}
+          disabled={creating}
+          aria-label={zh('关闭新增收藏夹', 'Close add favorite')}
+        >
+          <CloseRoundedIcon fontSize="small" />
+        </IconButton>
+      </div>
+      <div className="p-4">
+        <input
+          value={name}
+          onChange={(event) => onNameChange(event.target.value)}
+          placeholder={zh('收藏夹名称', 'Favorite name')}
+          className="h-9 w-full rounded border border-gray-200 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+          disabled={creating}
+        />
+      </div>
+      <div className="flex justify-end gap-2 border-t px-4 py-3">
+        <Button variant="outlined" onClick={onClose} disabled={creating}>
+          {zh('取消', 'Cancel')}
+        </Button>
+        <Button type="submit" variant="contained" disabled={!name.trim() || creating}>
+          {creating ? zh('添加中…', 'Adding...') : zh('添加', 'Add')}
+        </Button>
+      </div>
+    </AppModal>
   )
 }
 
@@ -270,7 +281,6 @@ function GroupOrderList({
 
 function FavoriteGroupEditModal({
   group,
-  directMode = false,
   onClose,
   onRename,
   onDelete,
@@ -407,87 +417,88 @@ function FavoriteGroupEditModal({
   }
 
   return (
-    <div
-      className={`fixed inset-0 z-[60] flex items-center justify-center px-4 ${
-        directMode ? 'pointer-events-none' : 'bg-black/40'
-      }`}
+    <AppModal
+      ariaLabel={zh('编辑收藏夹', 'Edit favorite')}
+      className="px-4"
+      closeDisabled={saving}
+      contentClassName="flex max-h-[86vh] w-full max-w-xl flex-col rounded-lg bg-white shadow-xl"
+      onClose={onClose}
+      zIndex={1400}
     >
-      <div className="pointer-events-auto flex max-h-[86vh] w-full max-w-xl flex-col rounded-lg bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b px-4 py-3">
-          <h2 className="min-w-0 truncate text-base font-semibold text-gray-950">
-            {zh('编辑收藏夹', 'Edit favorite')}
-          </h2>
+      <div className="flex items-center justify-between border-b px-4 py-3">
+        <h2 className="min-w-0 truncate text-base font-semibold text-gray-950">
+          {zh('编辑收藏夹', 'Edit favorite')}
+        </h2>
+        <IconButton
+          type="button"
+          size="small"
+          onClick={onClose}
+          disabled={saving}
+          aria-label={zh('关闭编辑收藏夹', 'Close favorite editor')}
+        >
+          <CloseRoundedIcon fontSize="small" />
+        </IconButton>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto p-4">
+        {error ? (
+          <div className="mb-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            {error}
+          </div>
+        ) : null}
+
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <input
+            value={groupName}
+            onChange={(event) => setGroupName(event.target.value)}
+            className="h-8 min-w-0 flex-1 rounded border border-gray-200 px-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            disabled={saving}
+          />
+          <Button
+            variant="outlined"
+            size="small"
+            onClick={saveRename}
+            disabled={saving || !groupName.trim()}
+          >
+            {zh('重命名', 'Rename')}
+          </Button>
           <IconButton
             type="button"
             size="small"
-            onClick={onClose}
+            onClick={deleteGroup}
             disabled={saving}
-            aria-label={zh('关闭编辑收藏夹', 'Close favorite editor')}
+            aria-label={zh('删除收藏夹', 'Delete favorite')}
           >
-            <CloseRoundedIcon fontSize="small" />
+            <DeleteOutlineRoundedIcon fontSize="small" />
           </IconButton>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto p-4">
-          {error ? (
-            <div className="mb-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-              {error}
-            </div>
-          ) : null}
-
-          <div className="mb-4 flex flex-wrap items-center gap-2">
-            <input
-              value={groupName}
-              onChange={(event) => setGroupName(event.target.value)}
-              className="h-8 min-w-0 flex-1 rounded border border-gray-200 px-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-              disabled={saving}
-            />
-            <Button
-              variant="outlined"
-              size="small"
-              onClick={saveRename}
-              disabled={saving || !groupName.trim()}
-            >
-              {zh('重命名', 'Rename')}
-            </Button>
-            <IconButton
-              type="button"
-              size="small"
-              onClick={deleteGroup}
-              disabled={saving}
-              aria-label={zh('删除收藏夹', 'Delete favorite')}
-            >
-              <DeleteOutlineRoundedIcon fontSize="small" />
-            </IconButton>
-          </div>
-
-          <IdolOrderList
-            idols={idols}
-            loading={loading}
-            selectedIds={selectedIds}
-            onToggleSelected={toggleSelected}
-            onReorder={setIdols}
-            onReorderCommit={commitIdolOrder}
-            labels={labels}
-            preferChineseName={preferChineseName}
-          />
-        </div>
-
-        <div className="flex justify-end gap-2 border-t px-4 py-3">
-          <Button
-            variant="outlined"
-            color="error"
-            onClick={removeSelected}
-            disabled={saving || loading || selectedIds.length === 0}
-          >
-            {zh('移除', 'Remove')}
-          </Button>
-          <Button variant="outlined" onClick={onClose} disabled={saving}>
-            {zh('关闭', 'Close')}
-          </Button>
-        </div>
+        <IdolOrderList
+          idols={idols}
+          loading={loading}
+          selectedIds={selectedIds}
+          onToggleSelected={toggleSelected}
+          onReorder={setIdols}
+          onReorderCommit={commitIdolOrder}
+          labels={labels}
+          preferChineseName={preferChineseName}
+        />
       </div>
-    </div>
+
+      <div className="flex justify-end gap-2 border-t px-4 py-3">
+        <Button
+          variant="outlined"
+          color="error"
+          onClick={removeSelected}
+          disabled={saving || loading || selectedIds.length === 0}
+        >
+          {zh('移除', 'Remove')}
+        </Button>
+        <Button variant="outlined" onClick={onClose} disabled={saving}>
+          {zh('关闭', 'Close')}
+        </Button>
+      </div>
+    </AppModal>
   )
 }
 
@@ -526,199 +537,6 @@ function IdolOrderList({
       )}
     />
   )
-}
-
-function SortableList({
-  items,
-  onReorder,
-  onReorderCommit,
-  getLabel,
-  getMeta,
-  isActive = () => false,
-  renderLeading = null,
-}) {
-  const containerRef = useRef(null)
-  const rowRefs = useRef(new Map())
-  const draftItemsRef = useRef(null)
-  const [drag, setDrag] = useState(null)
-
-  useEffect(() => {
-    if (!drag) return undefined
-
-    const handlePointerMove = (event) => {
-      event.preventDefault()
-      setDrag((current) =>
-        current
-          ? {
-              ...current,
-              pointerX: event.clientX,
-              pointerY: event.clientY,
-            }
-          : current
-      )
-
-      const nextIndex = calculateDropIndex(items, rowRefs.current, drag.id, event.clientY)
-      const currentIndex = items.findIndex((item) => String(item.id) === drag.id)
-      if (nextIndex >= 0 && currentIndex >= 0 && nextIndex !== currentIndex) {
-        const nextItems = moveItemToIndex(items, drag.id, nextIndex)
-        draftItemsRef.current = nextItems
-        onReorder?.(nextItems)
-      }
-    }
-
-    const handlePointerUp = () => {
-      const nextItems = draftItemsRef.current
-      draftItemsRef.current = null
-      setDrag(null)
-      if (nextItems) onReorderCommit?.(nextItems)
-    }
-
-    window.addEventListener('pointermove', handlePointerMove, { passive: false })
-    window.addEventListener('pointerup', handlePointerUp)
-    window.addEventListener('pointercancel', handlePointerUp)
-    return () => {
-      window.removeEventListener('pointermove', handlePointerMove)
-      window.removeEventListener('pointerup', handlePointerUp)
-      window.removeEventListener('pointercancel', handlePointerUp)
-    }
-  }, [drag, items, onReorder, onReorderCommit])
-
-  const startDrag = (event, item) => {
-    if (event.button !== 0) return
-    const id = String(item.id)
-    const row = rowRefs.current.get(id)
-    if (!row) return
-    const rect = row.getBoundingClientRect()
-    event.preventDefault()
-    setDrag({
-      id,
-      pointerX: event.clientX,
-      pointerY: event.clientY,
-      offsetX: event.clientX - rect.left,
-      offsetY: event.clientY - rect.top,
-      left: rect.left,
-      top: rect.top,
-      width: rect.width,
-      height: rect.height,
-    })
-  }
-
-  return (
-    <div
-      ref={containerRef}
-      className={`rounded border border-gray-200 p-1 ${drag ? 'select-none' : ''}`}
-    >
-      {items.map((item) => {
-        const id = String(item.id)
-        const isDragging = drag?.id === id
-        return (
-          <SortableRow
-            key={id}
-            refCallback={(node) => {
-              if (node) rowRefs.current.set(id, node)
-              else rowRefs.current.delete(id)
-            }}
-            item={item}
-            label={getLabel(item)}
-            meta={getMeta?.(item)}
-            leading={renderLeading?.(item)}
-            active={isActive(item)}
-            dragging={isDragging}
-            onHandlePointerDown={(event) => startDrag(event, item)}
-          />
-        )
-      })}
-      {drag ? (
-        <div
-          className="pointer-events-none fixed z-[80]"
-          style={{
-            left: drag.pointerX - drag.offsetX,
-            top: drag.pointerY - drag.offsetY,
-            width: drag.width,
-            height: drag.height,
-          }}
-        >
-          {(() => {
-            const item = items.find((candidate) => String(candidate.id) === drag.id)
-            if (!item) return null
-            return (
-              <SortableRow
-                item={item}
-                label={getLabel(item)}
-                meta={getMeta?.(item)}
-                leading={renderLeading?.(item)}
-                active={isActive(item)}
-                dragging={false}
-                floating
-              />
-            )
-          })()}
-        </div>
-      ) : null}
-    </div>
-  )
-}
-
-function SortableRow({
-  item,
-  label,
-  meta,
-  leading = null,
-  active = false,
-  dragging = false,
-  floating = false,
-  refCallback,
-  onHandlePointerDown,
-}) {
-  return (
-    <div
-      ref={refCallback}
-      className={`mb-1 flex items-center gap-2 rounded border px-2 py-1.5 last:mb-0 ${
-        floating ? 'shadow-lg ring-1 ring-blue-200' : 'transition-[background-color,opacity]'
-      } ${dragging ? 'opacity-0' : 'opacity-100'} ${
-        active ? 'border-blue-200 bg-blue-50' : 'border-transparent bg-gray-50'
-      }`}
-      data-sortable-id={item.id}
-    >
-      {leading}
-      <span className="min-w-0 flex-1 truncate text-sm text-gray-900">{label}</span>
-      <span className="shrink-0 text-xs text-gray-500">{meta}</span>
-      <button
-        type="button"
-        onPointerDown={onHandlePointerDown}
-        className="inline-flex h-7 w-7 shrink-0 cursor-grab touch-none items-center justify-center rounded border border-gray-200 bg-white text-gray-500 active:cursor-grabbing"
-        aria-label={zh('拖动排序', 'Drag to reorder')}
-        title={zh('拖动排序', 'Drag to reorder')}
-      >
-        <MenuRoundedIcon sx={{ fontSize: 17 }} />
-      </button>
-    </div>
-  )
-}
-
-function calculateDropIndex(items, refs, draggingId, pointerY) {
-  let nextIndex = 0
-  for (const item of items) {
-    const id = String(item.id)
-    if (id === draggingId) continue
-    const row = refs.get(id)
-    if (!row) continue
-    const rect = row.getBoundingClientRect()
-    if (pointerY > rect.top + rect.height / 2) {
-      nextIndex += 1
-    }
-  }
-  return Math.min(nextIndex, items.length - 1)
-}
-
-function moveItemToIndex(items, sourceId, targetIndex) {
-  const next = [...items]
-  const from = next.findIndex((item) => String(item.id) === String(sourceId))
-  if (from < 0) return next
-  const [item] = next.splice(from, 1)
-  const safeIndex = Math.max(0, Math.min(targetIndex, next.length))
-  next.splice(safeIndex, 0, item)
-  return next
 }
 
 function normalizeGroups(groups) {
