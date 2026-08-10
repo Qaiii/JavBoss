@@ -14,6 +14,12 @@ import {
   fetchVideoJavScrapePossibleCodes,
   lookupVideoJavScrape,
   manualVideoJavScrape,
+  fetchTagCategories,
+  createTagCategory,
+  reorderTagCategories,
+  renameTagCategory,
+  deleteTagCategory,
+  assignTagsCategory,
   createJavTag,
   organizeJavTags,
   fetchJavTagCategories,
@@ -306,6 +312,7 @@ export default function App() {
 
   const [tagModalOpen, setTagModalOpen] = useState(false)
   const [tagModalApplyMode, setTagModalApplyMode] = useState('replace')
+  const [tagCategories, setTagCategories] = useState([])
   const [videoSettingsOpen, setVideoSettingsOpen] = useState(false)
   const [javSettingsOpen, setJavSettingsOpen] = useState(false)
   const [globalSettingsOpen, setGlobalSettingsOpen] = useState(false)
@@ -532,6 +539,11 @@ export default function App() {
   }, [])
   const closeCenterToast = useCallback(() => {
     setCenterToastMessage('')
+  }, [])
+  const loadTagCategories = useCallback(async () => {
+    const categories = await fetchTagCategories()
+    setTagCategories(Array.isArray(categories) ? categories : [])
+    return categories
   }, [])
   const handleOpenTagModal = useCallback(() => {
     loadTags()
@@ -3475,10 +3487,14 @@ export default function App() {
   }, [])
 
   const handleOpenJavTagModal = useCallback(() => {
-    setJavTagModalOpen(true)
     loadJavTags()
+    setJavTagModalOpen(true)
+  }, [loadJavTags])
+
+  useEffect(() => {
+    loadTagCategories().catch(() => setTagCategories([]))
     loadJavTagCategories().catch(() => setJavTagCategories([]))
-  }, [loadJavTagCategories, loadJavTags])
+  }, [loadJavTagCategories, loadTagCategories])
 
   const handleApplyJavQuery = useCallback(
     (query) => {
@@ -4271,10 +4287,34 @@ export default function App() {
         open={tagModalOpen}
         onClose={() => setTagModalOpen(false)}
         tags={tags}
+        categories={tagCategories}
         onToggleFilter={(name) => toggleTagFilter(name)}
-        onCreateTag={async (name) => {
-          await createTag(name)
+        onCreateTag={async (name, categoryId) => {
+          const tag = await createTag(name)
+          await assignTagsCategory([tag.id], categoryId)
           await loadTags()
+          return tag
+        }}
+        onCreateCategory={async (name) => {
+          const category = await createTagCategory(name)
+          await loadTagCategories()
+          return category
+        }}
+        onReorderCategories={async (categoryIds) => {
+          await reorderTagCategories(categoryIds)
+          await loadTagCategories()
+        }}
+        onRenameCategory={async (id, name) => {
+          await renameTagCategory(id, name)
+          await Promise.all([loadTags(), loadTagCategories()])
+        }}
+        onDeleteCategory={async (id) => {
+          await deleteTagCategory(id)
+          await Promise.all([loadTags(), loadTagCategories()])
+        }}
+        onAssignCategory={async (tagIds, categoryId) => {
+          await assignTagsCategory(tagIds, categoryId)
+          await Promise.all([loadTags(), loadTagCategories()])
         }}
         onRenameTag={async (id, name) => {
           const oldName = tags.find((t) => t.id === id)?.name || ''
