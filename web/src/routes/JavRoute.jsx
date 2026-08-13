@@ -243,7 +243,8 @@ function JavListRoute({
   externalTotal,
   externalTracked,
   hasMore,
-  javGlobalSort,
+  javResolvedSort,
+  javSortSource,
   javGridColumns,
   javHasNext,
   javHasPrev,
@@ -253,7 +254,6 @@ function JavListRoute({
   javPage,
   javRandomMode,
   javTagMaxRows,
-  javTempSort,
   javTitleMaxRows,
   javTotal,
   loadingMore,
@@ -299,8 +299,8 @@ function JavListRoute({
       javHasNext={javHasNext}
       javLoading={activeJavLoading}
       javRandomMode={javRandomMode}
-      javTempSort={javTempSort}
-      javGlobalSort={javGlobalSort}
+      javResolvedSort={javResolvedSort}
+      javSortSource={javSortSource}
       buildJavUrl={buildJavUrl}
       setJavPage={setJavPage}
       setJavTempSort={setJavTempSort}
