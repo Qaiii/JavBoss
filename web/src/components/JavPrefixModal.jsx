@@ -3,6 +3,13 @@ import CloseRoundedIcon from '@mui/icons-material/CloseRounded'
 import { Button } from '@mui/material'
 import AppModal from '@/components/AppModal'
 import { isChineseLocale, zh } from '@/utils/i18n'
+import {
+  getAvailableJavPrefixInitials,
+  JAV_PREFIX_INITIAL_OPTIONS,
+  matchesJavPrefixInitial,
+  readJavPrefixPreferences,
+  writeJavPrefixPreferences,
+} from '@/utils/javPrefix'
 
 const isModifiedClick = (event) =>
   event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0
@@ -16,6 +23,14 @@ function censorLabel(value) {
 
 const unknownStudioLabel = () => zh('未知片商', 'Unknown studio')
 const studioListSeparator = () => (isChineseLocale() ? '、' : ', ')
+const getBrowserStorage = () => {
+  if (typeof window === 'undefined') return null
+  try {
+    return window.localStorage
+  } catch {
+    return null
+  }
+}
 
 export default function JavPrefixModal({
   open,
@@ -28,22 +43,29 @@ export default function JavPrefixModal({
   onSelectPrefix,
 }) {
   const [search, setSearch] = useState('')
-  const [sortMode, setSortMode] = useState('count')
-  const [censorMode, setCensorMode] = useState('all')
+  const [preferences, setPreferences] = useState(() =>
+    readJavPrefixPreferences(getBrowserStorage())
+  )
+  const [selectedInitial, setSelectedInitial] = useState('')
+  const { censorMode, sortMode } = preferences
+  const setCensorMode = (censorMode) => setPreferences((current) => ({ ...current, censorMode }))
+  const setSortMode = (sortMode) => setPreferences((current) => ({ ...current, sortMode }))
   const normalizedSearch = search.trim().toLowerCase()
+  const availableInitials = useMemo(() => new Set(getAvailableJavPrefixInitials(items)), [items])
   const filteredItems = useMemo(() => {
     const merged = new Map()
     ;(items || []).forEach((item) => {
       if (censorMode === 'censored' && item?.is_uncensored !== false) return
       if (censorMode === 'uncensored' && item?.is_uncensored !== true) return
+      const prefix = String(item?.prefix || '').trim()
+      if (!prefix || !matchesJavPrefixInitial(prefix, selectedInitial)) return
       if (normalizedSearch) {
-        const prefix = String(item?.prefix || '').toLowerCase()
+        const normalizedPrefix = prefix.toLowerCase()
         const studio = String(item?.studio_name || unknownStudioLabel()).toLowerCase()
-        if (!prefix.includes(normalizedSearch) && !studio.includes(normalizedSearch)) return
+        if (!normalizedPrefix.includes(normalizedSearch) && !studio.includes(normalizedSearch))
+          return
       }
 
-      const prefix = String(item?.prefix || '').trim()
-      if (!prefix) return
       const key = prefix.toUpperCase()
       const existing = merged.get(key) || {
         ...item,
@@ -103,14 +125,17 @@ export default function JavPrefixModal({
         String(a?.studio_name || '').localeCompare(String(b?.studio_name || ''))
       )
     })
-  }, [censorMode, items, normalizedSearch, sortMode])
+  }, [censorMode, items, normalizedSearch, selectedInitial, sortMode])
 
   useEffect(() => {
     if (!open) return
     setSearch('')
-    setSortMode('count')
-    setCensorMode('all')
+    setSelectedInitial('')
   }, [open])
+
+  useEffect(() => {
+    writeJavPrefixPreferences(getBrowserStorage(), preferences)
+  }, [preferences])
 
   if (!open) return null
 
@@ -118,7 +143,7 @@ export default function JavPrefixModal({
     <AppModal
       ariaLabelledby="jav-prefix-modal-title"
       className="p-4"
-      contentClassName="flex max-h-[86vh] w-full max-w-4xl flex-col rounded-lg bg-white shadow-xl"
+      contentClassName="flex h-[86vh] w-full max-w-4xl flex-col rounded-lg bg-white shadow-xl"
       onClose={onClose}
     >
       <div className="flex items-center justify-between border-b px-5 py-4">
@@ -140,72 +165,114 @@ export default function JavPrefixModal({
         </button>
       </div>
 
-      <div className="flex items-center gap-3 border-b px-5 py-3">
-        <input
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          className="h-9 min-w-0 flex-1 rounded border border-gray-200 px-3 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
-          placeholder={zh('搜索番号或片商', 'Search code or studio')}
-          aria-label={zh('搜索番号', 'Search JAV codes')}
-        />
-        <div className="inline-flex shrink-0 overflow-hidden rounded border border-gray-200 bg-white text-xs">
-          <button
-            type="button"
-            className={`px-3 py-2 font-medium ${
-              censorMode === 'all'
-                ? 'bg-blue-50 text-blue-700'
-                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-            }`}
-            onClick={() => setCensorMode('all')}
-          >
-            {zh('全部', 'All')}
-          </button>
-          <button
-            type="button"
-            className={`border-l border-gray-200 px-3 py-2 font-medium ${
-              censorMode === 'censored'
-                ? 'bg-blue-50 text-blue-700'
-                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-            }`}
-            onClick={() => setCensorMode('censored')}
-          >
-            {zh('有码', 'Censored')}
-          </button>
-          <button
-            type="button"
-            className={`border-l border-gray-200 px-3 py-2 font-medium ${
-              censorMode === 'uncensored'
-                ? 'bg-blue-50 text-blue-700'
-                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-            }`}
-            onClick={() => setCensorMode('uncensored')}
-          >
-            {zh('无码', 'Uncensored')}
-          </button>
+      <div className="border-b">
+        <div className="flex items-center gap-3 px-5 py-3">
+          <input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            className="h-9 min-w-0 flex-1 rounded border border-gray-200 px-3 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+            placeholder={zh('搜索番号或片商', 'Search code or studio')}
+            aria-label={zh('搜索番号', 'Search JAV codes')}
+          />
+          <div className="flex shrink-0 items-center gap-1.5">
+            <span className="text-xs font-semibold text-gray-900">{zh('类型', 'Type')}</span>
+            <div className="inline-flex overflow-hidden rounded border border-gray-200 bg-white text-xs">
+              <button
+                type="button"
+                className={`px-3 py-2 font-medium ${
+                  censorMode === 'all'
+                    ? 'bg-blue-50 text-blue-700'
+                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                }`}
+                onClick={() => setCensorMode('all')}
+              >
+                {zh('全部', 'All')}
+              </button>
+              <button
+                type="button"
+                className={`border-l border-gray-200 px-3 py-2 font-medium ${
+                  censorMode === 'censored'
+                    ? 'bg-blue-50 text-blue-700'
+                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                }`}
+                onClick={() => setCensorMode('censored')}
+              >
+                {zh('有码', 'Censored')}
+              </button>
+              <button
+                type="button"
+                className={`border-l border-gray-200 px-3 py-2 font-medium ${
+                  censorMode === 'uncensored'
+                    ? 'bg-blue-50 text-blue-700'
+                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                }`}
+                onClick={() => setCensorMode('uncensored')}
+              >
+                {zh('无码', 'Uncensored')}
+              </button>
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <span className="text-xs font-semibold text-gray-900">{zh('排序', 'Sort')}</span>
+            <div className="inline-flex overflow-hidden rounded border border-gray-200 bg-white text-xs">
+              <button
+                type="button"
+                className={`px-3 py-2 font-medium ${
+                  sortMode === 'count'
+                    ? 'bg-blue-50 text-blue-700'
+                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                }`}
+                onClick={() => setSortMode('count')}
+              >
+                {zh('作品数', 'Works')}
+              </button>
+              <button
+                type="button"
+                className={`border-l border-gray-200 px-3 py-2 font-medium ${
+                  sortMode === 'az'
+                    ? 'bg-blue-50 text-blue-700'
+                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                }`}
+                onClick={() => setSortMode('az')}
+              >
+                A-Z
+              </button>
+            </div>
+          </div>
         </div>
-        <div className="inline-flex shrink-0 overflow-hidden rounded border border-gray-200 bg-white text-xs">
-          <button
-            type="button"
-            className={`px-3 py-2 font-medium ${
-              sortMode === 'count'
-                ? 'bg-blue-50 text-blue-700'
-                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-            }`}
-            onClick={() => setSortMode('count')}
+        <div className="px-5 pb-3">
+          <div
+            className="flex gap-0.5"
+            role="group"
+            aria-label={zh('按番号首字符筛选', 'Filter by first code character')}
           >
-            {zh('作品数', 'Works')}
-          </button>
-          <button
-            type="button"
-            className={`border-l border-gray-200 px-3 py-2 font-medium ${
-              sortMode === 'az'
-                ? 'bg-blue-50 text-blue-700'
-                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-            }`}
-            onClick={() => setSortMode('az')}
-          >
-            A-Z
-          </button>
+            {JAV_PREFIX_INITIAL_OPTIONS.map((initial) => {
+              const active = selectedInitial === initial
+              const available = availableInitials.has(initial)
+              return (
+                <button
+                  key={initial}
+                  type="button"
+                  className={`inline-flex h-6 min-w-0 flex-1 items-center justify-center rounded border text-[10px] font-semibold transition-colors ${
+                    active
+                      ? 'border-blue-600 bg-blue-600 text-white'
+                      : !available
+                        ? 'border-gray-100 bg-gray-50 text-gray-300'
+                        : 'border-gray-200 bg-white text-gray-600 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700'
+                  }`}
+                  disabled={!available}
+                  aria-pressed={active}
+                  aria-label={zh(
+                    `显示以 ${initial} 开头的番号`,
+                    `Show codes starting with ${initial}`
+                  )}
+                  onClick={() => setSelectedInitial(active ? '' : initial)}
+                >
+                  {initial}
+                </button>
+              )
+            })}
+          </div>
         </div>
       </div>
 
