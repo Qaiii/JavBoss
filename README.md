@@ -20,9 +20,9 @@
 
 - 视频扫描、刮削、管理、播放等全链路完全自研，不被第三方软件卡脖子。
 
-- 针对 JAV 场景进行深度定制，体验远超 `JAV刮削器`+`通用媒体库` 的常规组合。
+- 针对 JAV 场景进行深度定制，体验远超 `JAV刮削器` + `通用媒体库` 的常规组合。
 
-- 可在`视频`和`JAV`两种运行模式之间自由切换，既是一个专业的 JAV 管理软件，也可作为通用视频管理软件使用。
+- 可在 `视频` 和 `JAV` 两种运行模式之间自由切换，既是一个专业的 JAV 管理软件，也可作为通用视频管理软件使用。
 
 - 深度集成 MPV 播放器，支持播放进度条预览，视频截图书签等高级功能。
 
@@ -70,10 +70,10 @@ curl -fsSL https://raw.githubusercontent.com/Solr159/JavBoss/main/scripts/instal
 
 点击下载对应系统的最新版发布包并解压：
 
-- [Windows](https://github.com/Solr159/JavBoss/releases/download/v2.0.1/javboss-v2.0.1-windows-x86_64.zip)
-- [Linux](https://github.com/Solr159/JavBoss/releases/download/v2.0.1/javboss-v2.0.1-linux-x86_64.zip)
-- [macOS-x86_64](https://github.com/Solr159/JavBoss/releases/download/v2.0.1/javboss-v2.0.1-macos-x86_64.zip)（适用于 Intel 芯片的 macOS）
-- [macOS-arm64](https://github.com/Solr159/JavBoss/releases/download/v2.0.1/javboss-v2.0.1-macos-arm64.zip)（适用于 M 芯片的 macOS）
+- [Windows](https://github.com/Solr159/JavBoss/releases/download/v2.0.2/javboss-v2.0.2-windows-x86_64.zip)
+- [Linux](https://github.com/Solr159/JavBoss/releases/download/v2.0.2/javboss-v2.0.2-linux-x86_64.zip)
+- [macOS-x86_64](https://github.com/Solr159/JavBoss/releases/download/v2.0.2/javboss-v2.0.2-macos-x86_64.zip)（适用于 Intel 芯片的 macOS）
+- [macOS-arm64](https://github.com/Solr159/JavBoss/releases/download/v2.0.2/javboss-v2.0.2-macos-arm64.zip)（适用于 M 芯片的 macOS）
 
 也可以前往 [Releases](https://github.com/Solr159/JavBoss/releases) 页面查看所有版本。
 
@@ -91,7 +91,7 @@ curl -fsSL https://raw.githubusercontent.com/Solr159/JavBoss/main/scripts/instal
 <dl>
 <dd>
 
-docker-compose.yaml：
+docker-compose.yaml（建议放在单独的目录里）：
 
 ```yaml
 services:
@@ -129,7 +129,7 @@ Docker 部署下使用浏览器播放视频，不会调用本机 mpv。添加目
 
 点击左下角“设置” -> “目录管理”，添加存放视频的本地文件夹。
 
-视频扫描入库、封面截图生成、JAV 刮削会在后台持续运行，刷新页面或点击侧边栏视频、作品等按钮查看当前进度。
+视频扫描入库、封面截图生成、JAV 刮削会在后台持续运行，刷新页面或点击侧边栏视频、JAV 等选项查看当前进度。
 
 **注意事项：**
   - 能够正常访问外网是获取 JAV 数据的前提。
@@ -141,13 +141,22 @@ Docker 部署下使用浏览器播放视频，不会调用本机 mpv。添加目
 
 程序默认会自动持续对目录进行扫描，扫描过程中同步进行 JAV 刮削，相邻两次扫描间隔为1分钟。
 
-可以在`全局设置`->`目录管理`->`扫描设置`中修改相邻扫描间隔或关闭自动扫描。也可点击`手动扫描`立刻触发一次目录扫描和 JAV 刮削。
+可以在 `全局设置` -> `目录管理` -> `扫描设置` 中修改相邻扫描间隔或关闭自动扫描。也可点击 `手动扫描` 立刻触发一次目录扫描和 JAV 刮削。
 
 一旦目录内容发生任何变化（比如有新视频入库、旧视频被删除、视频移动等），需要再进行一次目录扫描和 JAV 刮削完成内容的更新同步，请根据个人的扫描设置自行把握扫描时机。
 
-对于通过 docker 部署在 NAS 中长期运行的用户，建议调大扫描间隔或者关闭自动扫描，避免影响硬盘寿命。
+对于通过 Docker 部署在 NAS 中长期运行的用户，建议调大扫描间隔或者关闭自动扫描，避免影响硬盘寿命。
 
 **请注意一次扫描并不能保证所有可刮削的视频都被成功刮削，原因是每次扫描过程中每个视频只会尝试一次刮削，可能会因为网络抖动或者网站风控等原因导致部分请求失败，个人实测每次扫描约1%左右的视频会刮削失败，需要再扫描一次。**
+
+## Chrome 扩展说明
+
+JavBoss 现在还有一个随程序包一起发布的 Chrome 扩展：`JavBoss 助手`，目前扩展支持以下功能：
+  - **手动刮削辅助回填**：点击视频卡片底部刮削按钮，选择手动刮削，点击跳转到某个 JAV 网站，进入某个影片详情页面后，点击页面右下角按钮可自动提取当前影片信息并回填。
+  - **JavDb 辅助跳转**：在 JAV、女优、片商、系列卡片里点击 JavDb 图标都可直接跳转到对应的 JavDb 详情页面，未启用则还是跳转搜索页。
+
+扩展不是必须的，有以上需要的可[点击此处](https://github.com/Solr159/JavBoss/releases/download/v2.0.2/javboss-browser-extension-v0.10.3.zip)下载。
+
 
 ## 如何升级版本
 
@@ -159,8 +168,6 @@ Docker 部署下使用浏览器播放视频，不会调用本机 mpv。添加目
 
 下载并解压新版本后，将旧版本目录中的 `data/` 文件夹复制到新版本目录，然后启动新版本。
 
-（注意要先复制再启动。如果直接启动，程序会自动生成 `data/` 目录，你需要先退出程序，手动删除掉 `data/` 目录再复制）。
-
 #### Docker 用户
 
 进入 `docker-compose.yaml` 所在目录，拉取新镜像并重启：
@@ -170,19 +177,11 @@ docker compose pull
 docker compose up -d
 ```
 
-升级时请保留 `./data` 目录，它保存了数据库、封面、截图等运行数据。
-
-## 手动下载老用户迁移一键安装
-
-先执行一键安装命令，然后将手动下载目录中的 `data/` 文件夹复制到一键安装目录中（复制前请先手动删除一键安装目录中的 `data/` 文件夹）。
-
-一键安装默认目录：
+## 命令行一键安装默认位置
 
 - Windows：`C:\Users\你的用户名\AppData\Local\JavBoss` （右键点击桌面快捷方式 -> 属性 -> 打开文件所在位置 即可快速定位）
 - Linux：`~/.local/share/javboss`
 - macOS：`~/Applications/JavBoss`
-
-之后升级只需要重新执行一键安装命令。
 
 
 ## 部分截图
@@ -301,18 +300,8 @@ server_url = "http://192.168.1.100:8655"
 
 ## Q&A
 
-- Q: 为什么要做本地web应用而不做桌面端应用？
-- A: 这不是技术问题，纯粹是从用户体验角度出发。比如说以下场景都是浏览器的独有优势：
-  1. 想同时查看 女优A、女优B的jav，并检索包含关键词C的视频，只要打开多个浏览器标签即可。
-  2. 在当前页面想点击查看一个新页面内容，又不想丢失当前页，直接ctrl+鼠标左键或者右键点击选择在新页面中打开。
-  3. 不小心点错了，想回到上一页的内容，直接点击浏览器回退按钮。
-  4. 看到一个Jav或者女优，想检索一下相关信息，直接鼠标拖动选中文本，右键选择在Google中检索。
-
-
-<br>
-
 - Q: 使用时要一直确保外网访问通畅吗？
-- A: JavBoss 所有的信息读取来源于`\data`目录，已经看到的信息都是永远离线可用的。无法访问外网意味着 JavBoss 无法做后续的 JAV 信息的抓取和更新，已入库的信息不受影响。
+- A: JavBoss 所有的信息读取来源于 `\data` 目录，已经看到的信息都是永远离线可用的。无法访问外网意味着 JavBoss 无法做后续的 JAV 信息的抓取和更新，已入库的信息不受影响。
 
 <br>
 
