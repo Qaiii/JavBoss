@@ -4,6 +4,14 @@ import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
 
 import DirectoryManager from '@/components/DirectoryManager'
+import {
+  DEFAULT_DARK_THEME_ID,
+  getTheme,
+  isDarkThemeId,
+  setTheme as setAppTheme,
+  THEMES,
+  useThemeId,
+} from '@/theme/themes'
 import AppModal from '@/components/AppModal'
 import PlayerSettingsModal from '@/components/PlayerSettingsModal'
 import WebHotkeySettings from '@/components/WebHotkeySettings'
@@ -22,6 +30,11 @@ const SETTINGS_SECTIONS = [
     id: 'display',
     title: { zh: '显示与交互', en: 'Display & Interaction' },
     summary: { zh: '界面提示与交互行为', en: 'Interface hints and interactions' },
+  },
+  {
+    id: 'appearance',
+    title: { zh: '外观', en: 'Appearance' },
+    summary: { zh: '浅色 / 深色主题与色调', en: 'Light / dark theme and tint' },
   },
   {
     id: 'shortcuts',
@@ -352,6 +365,7 @@ export default function GlobalSettingsModal({
   const proxyUnchanged = desiredHostText === currentHostText && desiredPortText === currentPortText
   const proxyHostMissing = proxyEnabledInput && proxyHostInputTrimmed === ''
   const proxyInputMissing = proxyEnabledInput && proxyInputTrimmed === ''
+  const themeId = useThemeId()
   const visibleSections = SETTINGS_SECTIONS
   const currentSection = visibleSections.some((section) => section.id === activeSection)
     ? activeSection
@@ -655,6 +669,104 @@ export default function GlobalSettingsModal({
       {renderProxyPanel()}
     </div>
   )
+
+  const renderAppearancePanel = () => {
+    const currentTheme = getTheme(themeId) || THEMES[0]
+    const darkThemes = THEMES.filter((theme) => theme.dark)
+
+    return (
+      <div className="space-y-5">
+        <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <h4 className="text-sm font-semibold text-zinc-800">
+                {zh('模式', 'Mode')}
+              </h4>
+              <div className="flex overflow-hidden rounded-xl border border-zinc-200">
+                <button
+                  type="button"
+                  onClick={() => setAppTheme('light')}
+                  className={`px-4 py-1.5 text-sm ${
+                    !currentTheme.dark
+                      ? 'bg-zinc-900 text-white'
+                      : 'bg-white text-zinc-700 hover:bg-zinc-50'
+                  }`}
+                >
+                  {zh('浅色', 'Light')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setAppTheme(isDarkThemeId(themeId) ? themeId : DEFAULT_DARK_THEME_ID)
+                  }
+                  className={`px-4 py-1.5 text-sm ${
+                    currentTheme.dark
+                      ? 'bg-zinc-900 text-white'
+                      : 'bg-white text-zinc-700 hover:bg-zinc-50'
+                  }`}
+                >
+                  {zh('深色', 'Dark')}
+                </button>
+              </div>
+            </div>
+            <p className="text-sm text-zinc-500">
+              {zh(
+                '深色模式采用带色调的暗色面板，可在下方选择色调。',
+                'Dark mode uses tinted dark surfaces; pick a tint below.'
+              )}
+            </p>
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+          <div className="space-y-4">
+            <h4 className="text-sm font-semibold text-zinc-800">
+              {zh('深色色调', 'Dark tint')}
+            </h4>
+            <div className="flex flex-wrap gap-3">
+              {darkThemes.map((theme) => {
+                const selected = themeId === theme.id
+                return (
+                  <button
+                    key={theme.id}
+                    type="button"
+                    onClick={() => setAppTheme(theme.id)}
+                    className={`w-40 rounded-2xl border p-3 text-left transition ${
+                      selected
+                        ? 'border-blue-500 ring-2 ring-blue-100'
+                        : 'border-zinc-200 hover:border-zinc-300'
+                    }`}
+                  >
+                    <div className="flex gap-1.5">
+                      {theme.preview.map((color) => (
+                        <span
+                          key={color}
+                          className="h-6 w-6 rounded-lg border border-black/10"
+                          style={{ backgroundColor: color }}
+                        />
+                      ))}
+                    </div>
+                    <div className="mt-2 text-sm font-medium text-zinc-800">
+                      {zh(theme.label.zh, theme.label.en)}
+                    </div>
+                    <div className="text-xs text-zinc-500">
+                      {selected ? zh('使用中', 'In use') : zh('点击应用', 'Click to apply')}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+            <p className="text-sm text-zinc-500">
+              {zh(
+                '选择立即生效并保存在本机浏览器中。',
+                'Changes apply immediately and are saved in this browser.'
+              )}
+            </p>
+          </div>
+        </section>
+      </div>
+    )
+  }
 
   const renderDisplayPanel = () => {
     const currentInitialViewMode = initialViewMode === 'jav' ? 'jav' : 'video'
@@ -1506,6 +1618,7 @@ export default function GlobalSettingsModal({
             currentSection === 'directories' ? 'md:pt-3' : 'md:pt-6'
           }`}
         >
+          {currentSection === 'appearance' && renderAppearancePanel()}
           {currentSection === 'display' && renderDisplayPanel()}
           {currentSection === 'shortcuts' && renderShortcutsPanel()}
           {currentSection === 'network' && renderNetworkPanel()}

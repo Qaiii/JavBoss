@@ -3,13 +3,33 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#090909" />
+    <meta name="theme-color" content="#f9fafb" />
     <link rel="icon" href="/favicon.ico?v=1" sizes="any" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png?v=1" />
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png?v=1" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=1" />
     <link rel="manifest" href="/site.webmanifest?v=1" />
     <title>JavBoss</title>
+    <script>
+      // 首屏防闪烁：在样式应用前恢复上次选择的主题。
+      // 暗色主题 id / theme-color 需与 src/theme/themes.js 的 THEMES 保持一致。
+      ;(function () {
+        var darkThemes = { navy: '#0f131c', coffee: '#161008', teal: '#0d1513' }
+        try {
+          var raw = window.localStorage.getItem('javboss.theme')
+          var id = raw ? (JSON.parse(raw) || {}).id : null
+          if (id && darkThemes[id]) {
+            var root = document.documentElement
+            root.classList.add('theme-dark')
+            root.dataset.theme = id
+            var meta = document.querySelector('meta[name="theme-color"]')
+            if (meta) meta.setAttribute('content', darkThemes[id])
+          }
+        } catch (e) {
+          /* 忽略存储读取失败 */
+        }
+      })()
+    </script>
   </head>
   <body class="bg-gray-50 text-gray-900">
     <div id="root"></div>

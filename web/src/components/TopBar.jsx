@@ -274,7 +274,7 @@ function IdolProfileFilter({ definition, value, onChange }) {
               }
               sx={{
                 width: '100%',
-                color: draftEnabled ? 'primary.main' : '#94a3b8',
+                color: draftEnabled ? 'primary.main' : 'var(--c-ink-faint)',
                 p: 0,
                 height: 4,
                 '& .MuiSlider-rail, & .MuiSlider-track': { height: 4 },

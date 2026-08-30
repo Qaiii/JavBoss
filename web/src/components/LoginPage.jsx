@@ -27,7 +27,7 @@ export default function LoginPage({ onLogin, checkError = '', onRetry }) {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-zinc-100 via-white to-zinc-200 px-4">
+    <main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-zinc-100 via-zinc-50 to-zinc-200 px-4">
       <section className="w-full max-w-md rounded-[28px] border border-white/80 bg-white/90 p-8 shadow-2xl shadow-zinc-300/50 backdrop-blur">
         <div className="mb-8 text-center">
           <div className="text-3xl font-bold tracking-tight text-zinc-900">JavBoss</div>

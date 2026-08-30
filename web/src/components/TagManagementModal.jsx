@@ -25,13 +25,13 @@ const compactButtonSx = {
 
 const footerButtonSx = {
   ...compactButtonSx,
-  color: '#475569',
-  backgroundColor: '#fff',
-  borderColor: '#cbd5e1',
+  color: 'var(--c-ink-3)',
+  backgroundColor: 'var(--c-surface)',
+  borderColor: 'var(--c-border-strong)',
   '&:hover': {
-    color: '#1e293b',
-    backgroundColor: '#f8fafc',
-    borderColor: '#94a3b8',
+    color: 'var(--c-ink-strong)',
+    backgroundColor: 'rgb(var(--c-slate-50))',
+    borderColor: 'rgb(var(--c-slate-400))',
   },
 }
 

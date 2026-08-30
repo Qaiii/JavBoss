@@ -8,12 +8,15 @@ import LocalOfferOutlinedIcon from '@mui/icons-material/LocalOfferOutlined'
 import MovieCreationOutlinedIcon from '@mui/icons-material/MovieCreationOutlined'
 import NumbersRoundedIcon from '@mui/icons-material/NumbersRounded'
 import PeopleAltOutlinedIcon from '@mui/icons-material/PeopleAltOutlined'
+import DarkModeOutlinedIcon from '@mui/icons-material/DarkModeOutlined'
+import LightModeOutlinedIcon from '@mui/icons-material/LightModeOutlined'
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined'
 import VideocamOutlinedIcon from '@mui/icons-material/VideocamOutlined'
 import VideoLibraryOutlinedIcon from '@mui/icons-material/VideoLibraryOutlined'
 import { fetchJavPrefixes } from '@/api'
 import JavPrefixModal from '@/components/JavPrefixModal'
 import { getErrorMessage } from '@/utils/errors'
+import { getTheme, toggleDarkTheme, useThemeId } from '@/theme/themes'
 import { displayHostPath } from '@/utils/hostPath'
 import { zh } from '@/utils/i18n'
 
@@ -78,6 +81,8 @@ export default function SideTabs({
 }) {
   const directoryMenuRef = useRef(null)
   const [directoryMenuOpen, setDirectoryMenuOpen] = useState(false)
+  const themeId = useThemeId()
+  const currentTheme = getTheme(themeId)
   const [prefixModalOpen, setPrefixModalOpen] = useState(false)
   const [prefixItems, setPrefixItems] = useState([])
   const [prefixLoading, setPrefixLoading] = useState(false)
@@ -307,6 +312,16 @@ export default function SideTabs({
               </span>
             </div>
           ) : null}
+          <RailButton
+            className="w-full"
+            icon={currentTheme?.dark ? LightModeOutlinedIcon : DarkModeOutlinedIcon}
+            label={
+              currentTheme?.dark
+                ? zh('浅色模式', 'Light mode')
+                : zh('深色模式', 'Dark mode')
+            }
+            onClick={toggleDarkTheme}
+          />
           <RailButton
             className="w-full"
             icon={SettingsOutlinedIcon}
