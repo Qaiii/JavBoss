@@ -431,17 +431,6 @@ export async function updateVideoJavScrapeSettings(videoId, { mode = 'auto', cod
   return res.json()
 }
 
-export async function lookupVideoJavScrape(videoId, code, provider = 'javdb') {
-  const params = new URLSearchParams()
-  params.set('code', String(code || '').trim())
-  params.set('provider', String(provider || '').trim())
-  const res = await apiFetch(`/videos/${videoId}/jav-scrape/lookup?${params.toString()}`)
-  if (!res.ok) {
-    throw await apiError(res)
-  }
-  return res.json()
-}
-
 export async function fetchVideoJavScrapePossibleCodes(videoId) {
   const res = await apiFetch(`/videos/${videoId}/jav-scrape/possible-codes`)
   if (!res.ok) {
@@ -455,6 +444,18 @@ export async function manualVideoJavScrape(videoId, locationId, info) {
     method: 'POST',
     headers: jsonHeaders,
     body: JSON.stringify({ ...(info || {}), location_id: locationId }),
+  })
+  if (!res.ok) {
+    throw await apiError(res)
+  }
+  return res.json()
+}
+
+export async function linkVideoToExistingJav(videoId, locationId, code) {
+  const res = await apiFetch(`/videos/${videoId}/jav-scrape/link`, {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify({ location_id: locationId, code }),
   })
   if (!res.ok) {
     throw await apiError(res)
@@ -800,6 +801,18 @@ export async function createJavTag(name) {
   return res.json()
 }
 
+export async function createJavScrapedTag(name) {
+  const res = await apiFetch('/jav/tags/scraped', {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify({ name }),
+  })
+  if (!res.ok) {
+    throw await apiError(res)
+  }
+  return res.json()
+}
+
 export async function organizeJavTags() {
   const res = await apiFetch('/jav/tags/organize', { method: 'POST' })
   if (!res.ok) {
@@ -931,6 +944,7 @@ export async function fetchJavIdols({
   closedSubdirs = [],
   directorySubpaths = [],
   favoriteGroupId = null,
+  profileFilters = {},
 } = {}) {
   const params = new URLSearchParams()
   params.set('limit', String(limit))
@@ -943,6 +957,12 @@ export async function fetchJavIdols({
   const subpaths = directorySubpathsParam(directorySubpaths)
   if (subpaths) params.set('directory_subpaths', subpaths)
   if (favoriteGroupId) params.set('favorite_group_id', String(favoriteGroupId))
+  for (const key of ['height', 'age', 'cup', 'bust', 'waist', 'hips']) {
+    const value = profileFilters?.[key]
+    if (!value?.enabled) continue
+    params.set(`idol_${key}_min`, String(value.min))
+    params.set(`idol_${key}_max`, String(value.max))
+  }
   const res = await apiFetch(`/jav/idols?${params.toString()}`)
   if (!res.ok) {
     throw await apiError(res)
@@ -950,11 +970,29 @@ export async function fetchJavIdols({
   return res.json()
 }
 
-export async function fetchJavIdolOptions({ limit = 25, offset = 0, search = '' } = {}) {
+export async function createJavIdol(name) {
+  const res = await apiFetch('/jav/idols', {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify({ name }),
+  })
+  if (!res.ok) {
+    throw await apiError(res)
+  }
+  return res.json()
+}
+
+export async function fetchJavIdolOptions({
+  limit = 25,
+  offset = 0,
+  search = '',
+  directoryIds = [],
+} = {}) {
   const params = new URLSearchParams()
   params.set('limit', String(limit))
   params.set('offset', String(offset))
   if (search) params.set('search', search)
+  if (directoryIds.length) params.set('directory_ids', directoryIds.join(','))
   const res = await apiFetch(`/jav/idols/options?${params.toString()}`)
   if (!res.ok) {
     throw await apiError(res)

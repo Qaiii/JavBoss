@@ -1,0 +1,265 @@
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+const vm = require("node:vm");
+
+const source = fs.readFileSync(
+  path.join(__dirname, "..", "service-worker.js"),
+  "utf8",
+);
+
+const RELAY_PREFIX = "javboss:browser-relay:";
+const SESSION_PREFIX = "javboss:browser-session:";
+const JAVDB_ASSIST_PREFIX = "javboss:javdb-assist:";
+const SESSION_ID = "test-session-1234";
+
+function plain(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function createHarness() {
+  const data = new Map([
+    [`${RELAY_PREFIX}1`, { sessionId: SESSION_ID }],
+    [`${SESSION_PREFIX}${SESSION_ID}`, { sessionId: SESSION_ID }],
+  ]);
+  const listeners = {};
+  const sentMessages = [];
+  const createdTabs = [];
+  const updatedTabs = [];
+
+  const sessionStorage = {
+    async get(keys) {
+      if (keys === null) return Object.fromEntries(data);
+      const requested = Array.isArray(keys) ? keys : [keys];
+      return Object.fromEntries(
+        requested
+          .filter((key) => data.has(key))
+          .map((key) => [key, data.get(key)]),
+      );
+    },
+    async set(values) {
+      for (const [key, value] of Object.entries(values)) data.set(key, value);
+    },
+    async remove(keys) {
+      for (const key of Array.isArray(keys) ? keys : [keys]) data.delete(key);
+    },
+  };
+
+  const chrome = {
+    runtime: {
+      onMessage: { addListener: (listener) => (listeners.message = listener) },
+      onInstalled: {
+        addListener: (listener) => (listeners.installed = listener),
+      },
+      getURL: (resourcePath) =>
+        `chrome-extension://iikdjhkpjihfkehccfmkpkdmenmbaacn/${resourcePath}`,
+      sendMessage: async () => ({ ok: true }),
+    },
+    storage: { session: sessionStorage },
+    tabs: {
+      create: async (properties) => {
+        createdTabs.push(properties);
+        return { id: 10 };
+      },
+      update: async (tabId, properties) => {
+        updatedTabs.push({ tabId, properties });
+      },
+      remove: async () => {},
+      sendMessage: async (tabId, message) => {
+        sentMessages.push({ tabId, message });
+        return { ok: true };
+      },
+      onRemoved: { addListener: (listener) => (listeners.removed = listener) },
+    },
+  };
+
+  vm.runInNewContext(source, { chrome, URL });
+
+  async function send(message, tab) {
+    return new Promise((resolve) => {
+      const keepChannelOpen = listeners.message(
+        message,
+        { tab, url: tab.url },
+        resolve,
+      );
+      assert.equal(keepChannelOpen, true);
+    });
+  }
+
+  return {
+    createdTabs,
+    data,
+    listeners,
+    send,
+    sentMessages,
+    updatedTabs,
+  };
+}
+
+test("a manually created tab cannot inherit from its opener", async () => {
+  const harness = createHarness();
+  const response = await harness.send(
+    { type: "JAVBOSS_SCRAPE_IS_RELAY", sessionId: "" },
+    { id: 2, openerTabId: 1, url: "https://www.javbus.com/ABC-123" },
+  );
+
+  assert.deepEqual(plain(response), { ok: true, relay: false });
+  assert.equal(harness.data.has(`${RELAY_PREFIX}2`), false);
+});
+
+test("the bridge can open an allowed JavLibrary URL", async () => {
+  const harness = createHarness();
+  const response = await harness.send(
+    {
+      type: "JAVBOSS_SCRAPE_OPEN_RELAY",
+      sessionId: SESSION_ID,
+      url: "https://www.javlibrary.com/tw/vl_searchbyid.php?keyword=OFJE-282",
+    },
+    {
+      id: 1,
+      windowId: 5,
+      url: "chrome-extension://iikdjhkpjihfkehccfmkpkdmenmbaacn/bridge.html",
+    },
+  );
+
+  assert.deepEqual(plain(response), { ok: true });
+  assert.deepEqual(plain(harness.data.get(`${RELAY_PREFIX}10`)), {
+    sessionId: SESSION_ID,
+  });
+});
+
+test("the bridge can open an allowed JavDB search URL", async () => {
+  const harness = createHarness();
+  const response = await harness.send(
+    {
+      type: "JAVBOSS_SCRAPE_OPEN_RELAY",
+      sessionId: SESSION_ID,
+      url: "https://javdb.com/search?q=OFJE-282&f=all",
+    },
+    {
+      id: 1,
+      windowId: 5,
+      url: "chrome-extension://iikdjhkpjihfkehccfmkpkdmenmbaacn/bridge.html",
+    },
+  );
+
+  assert.deepEqual(plain(response), { ok: true });
+  assert.deepEqual(plain(harness.data.get(`${RELAY_PREFIX}10`)), {
+    sessionId: SESSION_ID,
+  });
+});
+
+test("the bridge opens JavDB assistance with clean URLs and temporary state", async () => {
+  const harness = createHarness();
+  const request = {
+    target: "idol",
+    code: "ADN-429",
+    name: "岬ななみ",
+  };
+  const response = await harness.send(
+    {
+      type: "JAVBOSS_JAVDB_OPEN_ASSIST",
+      sessionId: SESSION_ID,
+      url: "https://javdb.com/search?q=ADN-429&f=all#legacy-marker",
+      request,
+    },
+    {
+      id: 1,
+      windowId: 5,
+      url: "chrome-extension://iikdjhkpjihfkehccfmkpkdmenmbaacn/bridge.html",
+    },
+  );
+
+  assert.deepEqual(plain(response), { ok: true });
+  assert.deepEqual(
+    plain(harness.data.get(`${JAVDB_ASSIST_PREFIX}10`)),
+    request,
+  );
+  assert.deepEqual(plain(harness.createdTabs), [
+    {
+      url: "chrome-extension://iikdjhkpjihfkehccfmkpkdmenmbaacn/assist-loading.html",
+      active: true,
+      windowId: 5,
+    },
+  ]);
+  assert.deepEqual(plain(harness.updatedTabs), [
+    {
+      tabId: 10,
+      properties: { url: "https://javdb.com/search?q=ADN-429&f=all" },
+    },
+  ]);
+
+  const stored = await harness.send(
+    { type: "JAVBOSS_JAVDB_GET_ASSIST" },
+    { id: 10, url: "https://javdb.com/search?q=ADN-429&f=all" },
+  );
+  assert.deepEqual(plain(stored), { ok: true, request });
+
+  assert.deepEqual(
+    plain(
+      await harness.send(
+        { type: "JAVBOSS_JAVDB_COMPLETE_ASSIST" },
+        { id: 10, url: "https://javdb.com/actors/QNen" },
+      ),
+    ),
+    { ok: true },
+  );
+  assert.equal(harness.data.has(`${JAVDB_ASSIST_PREFIX}10`), false);
+  assert.deepEqual(plain(harness.updatedTabs.at(-1)), {
+    tabId: 10,
+    properties: { active: true },
+  });
+});
+
+test("an ordinary JavDB tab cannot activate itself through assistance", async () => {
+  const harness = createHarness();
+  const response = await harness.send(
+    { type: "JAVBOSS_JAVDB_COMPLETE_ASSIST" },
+    { id: 25, url: "https://javdb.com/v/kKdRm" },
+  );
+
+  assert.deepEqual(plain(response), {
+    ok: false,
+    error: "JavDB assistance has expired",
+  });
+  assert.deepEqual(plain(harness.updatedTabs), []);
+});
+
+test("the bridge can open an allowed AVSOX search URL", async () => {
+  const harness = createHarness();
+  const response = await harness.send(
+    {
+      type: "JAVBOSS_SCRAPE_OPEN_RELAY",
+      sessionId: SESSION_ID,
+      url: "https://avsox.click/tw/search/030919_047",
+    },
+    {
+      id: 1,
+      windowId: 5,
+      url: "chrome-extension://iikdjhkpjihfkehccfmkpkdmenmbaacn/bridge.html",
+    },
+  );
+
+  assert.deepEqual(plain(response), { ok: true });
+  assert.deepEqual(plain(harness.data.get(`${RELAY_PREFIX}10`)), {
+    sessionId: SESSION_ID,
+  });
+});
+
+test("a tab with the temporary marker can claim the scrape session", async () => {
+  const harness = createHarness();
+  const response = await harness.send(
+    { type: "JAVBOSS_SCRAPE_IS_RELAY", sessionId: SESSION_ID },
+    { id: 2, url: "https://www.javbus.com/search/ABC-123" },
+  );
+
+  assert.deepEqual(plain(response), {
+    ok: true,
+    relay: true,
+    sessionId: SESSION_ID,
+  });
+  assert.deepEqual(plain(harness.data.get(`${RELAY_PREFIX}2`)), {
+    sessionId: SESSION_ID,
+  });
+});

@@ -21,7 +21,10 @@ import {
   fetchConfig,
 } from '@/api'
 import {
+  createDefaultIdolProfileFilters,
+  IDOL_PROFILE_FILTER_DEFINITIONS,
   normalizeIdolSort,
+  normalizeIdolProfileFilters,
   normalizeJavSort,
   normalizeJavSortRules,
   resolveJavSort,
@@ -261,6 +264,7 @@ const javListRequestKey = (state, directoryIds = directoryQueryIds(state)) => {
 
 const idolListRequestKey = (state, directoryIds = directoryQueryIds(state)) => {
   const effectiveSort = effectiveIdolSort(state)
+  const profileFilters = normalizeIdolProfileFilters(state.idolProfileFilters)
   return [
     'idol',
     state.idolPage,
@@ -268,6 +272,10 @@ const idolListRequestKey = (state, directoryIds = directoryQueryIds(state)) => {
     state.javSearchTerm || '',
     effectiveSort,
     state.idolFavoriteGroupId || '',
+    IDOL_PROFILE_FILTER_DEFINITIONS.map((definition) => {
+      const value = profileFilters[definition.key]
+      return value.enabled ? `${definition.key}:${value.min}-${value.max}` : ''
+    }).join(','),
     directoryIds.join(','),
     closedSubdirsKey(state),
     directorySubpathsKey(state),
@@ -384,6 +392,7 @@ export const useStore = create((set, get) => ({
   idolSort: 'work',
   idolTempSort: '',
   idolFavoriteGroupId: null,
+  idolProfileFilters: createDefaultIdolProfileFilters(),
   idolItems: [],
   idolTotal: 0,
   idolLoading: false,
@@ -437,6 +446,9 @@ export const useStore = create((set, get) => ({
     const parsed = Number(id)
     const next = Number.isFinite(parsed) && parsed > 0 ? parsed : null
     set({ idolFavoriteGroupId: next, idolTempSort: '', idolPage: 1 })
+  },
+  setIdolProfileFilters: (value) => {
+    set({ idolProfileFilters: normalizeIdolProfileFilters(value), idolPage: 1 })
   },
   setJavFavoriteGroupId: (id) => {
     const parsed = Number(id)
@@ -522,7 +534,13 @@ export const useStore = create((set, get) => ({
       delete meta[key]
     } else {
       setIds.add(key)
-      meta[key] = { label, video_id: video.id, location_id: video.location_id || null }
+      meta[key] = {
+        label,
+        video_id: video.id,
+        location_id: video.location_id || null,
+        jav_id: video.jav_id || null,
+        jav_code: video.jav?.code || video.locations?.[0]?.jav?.code || '',
+      }
     }
     set({ selectedVideoIds: setIds, selectedVideoMeta: meta })
   },
@@ -718,7 +736,16 @@ export const useStore = create((set, get) => ({
     const closedSubdirs = closedSubdirectoryPairs(get())
     const key = `jav-tags|${directoryIds.join(',')}|${directorySubpathsKey(get())}|${closedSubdirsKey(get())}`
     if (javTagFetchInFlight && javTagFetchInFlightKey === key) {
-      return javTagFetchInFlight
+      const pending = javTagFetchInFlight
+      if (!options.force) return pending
+
+      // A forced refresh must observe mutations completed before this call. The
+      // existing request may already contain a pre-mutation snapshot, so wait
+      // for it and then ensure a newer request is used.
+      await pending
+      if (javTagFetchInFlight && javTagFetchInFlightKey === key) {
+        return javTagFetchInFlight
+      }
     }
     if (!options.force && options.skipUnchanged && key === lastJavTagFetchKey) {
       return null
@@ -1155,7 +1182,7 @@ export const useStore = create((set, get) => ({
     }
   },
   loadJavIdols: async (options = {}) => {
-    const { idolPage, idolPageSize, javSearchTerm, idolFavoriteGroupId } = get()
+    const { idolPage, idolPageSize, javSearchTerm, idolFavoriteGroupId, idolProfileFilters } = get()
     const directoryIds = directoryQueryIds(get())
     const directorySubpaths = directoryQuerySubpaths(get())
     const closedSubdirs = closedSubdirectoryPairs(get())
@@ -1177,6 +1204,7 @@ export const useStore = create((set, get) => ({
         directorySubpaths,
         closedSubdirs,
         favoriteGroupId: idolFavoriteGroupId,
+        profileFilters: idolProfileFilters,
       })
       if (reqId !== idolLoadSeq || key !== idolListRequestKey(get())) return
       set({
@@ -1218,6 +1246,7 @@ export const useStore = create((set, get) => ({
         directorySubpaths,
         closedSubdirs,
         favoriteGroupId: state.idolFavoriteGroupId,
+        profileFilters: state.idolProfileFilters,
       })
       if (
         loadReqId !== idolLoadSeq ||

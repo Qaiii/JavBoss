@@ -23,15 +23,15 @@ export default function JavTagModal(props) {
       tagClassName={(tag) => (isUserJavTag(tag) ? 'skeuo-tag--user' : 'skeuo-tag--scraped')}
       tagLegend={[
         {
-          label: zh('我创建的标签', 'My tags'),
-          className: 'border-orange-300 bg-orange-50',
+          label: zh('自定义标签', 'Custom tags'),
+          className: 'border-emerald-200 bg-emerald-100',
         },
         {
-          label: zh('抓取标签', 'Scraped tags'),
-          className: 'border-blue-300 bg-blue-50',
+          label: zh('刮削标签', 'Scraped tags'),
+          className: 'border-orange-200 bg-orange-100',
         },
       ]}
-      editModeMessage={zh('只可编辑我创建的标签', 'Only my tags can be edited')}
+      editModeMessage={zh('只可编辑自定义标签', 'Only custom tags can be edited')}
       categoryEnglishLabels={categoryEnglishLabels}
       formatOrganizeResult={(result) =>
         zh(
@@ -42,6 +42,10 @@ export default function JavTagModal(props) {
       organizeButtonTitle={zh(
         '从 JavBus 读取标签分类进行整理',
         'Read tag categories from JavBus and organize them'
+      )}
+      organizeConfirmMessage={zh(
+        '自动整理将从 JavBus 读取标签分类，并更新所有匹配标签的现有分类。未匹配的标签不受影响。确认继续吗？',
+        'Auto organize will read tag categories from JavBus and update the existing category of every matched tag. Unmatched tags will not be changed. Continue?'
       )}
     />
   )

@@ -114,27 +114,6 @@ func (javDB) LookupStudioURLByCode(code string) (string, error) {
 	return studioURL, nil
 }
 
-// LookupCoverURLByCode resolves a cover image URL for a movie code.
-func (javDB) LookupCoverURLByCode(code string) (string, error) {
-	code = strings.TrimSpace(code)
-	if code == "" {
-		return "", ResourceNotFonud
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-
-	doc, detailURL, err := fetchJavDBDetailByCode(ctx, code)
-	if err != nil {
-		return "", err
-	}
-	coverURL := parseJavDBCoverURL(doc, detailURL)
-	if coverURL == "" {
-		return "", ResourceNotFonud
-	}
-	return coverURL, nil
-}
-
 // LookupJavByCode fetches metadata for a given code.
 func (javDB) LookupJavByCode(code string) (*JavInfo, error) {
 	code = strings.TrimSpace(code)
@@ -437,7 +416,7 @@ func extractJavDBMovieFields(root *html.Node) javDBMovieFields {
 		return out
 	}
 
-	if title := findJavDBCurrentTitle(root); title != "" {
+	if title := findJavDBMovieTitle(root); title != "" {
 		out.Title = title
 	}
 
@@ -460,7 +439,10 @@ func findJavDBMovieInfoPanel(root *html.Node) *html.Node {
 	return firstSelectionNode(documentSelection(root).Find("nav.panel.movie-panel-info").First())
 }
 
-func findJavDBCurrentTitle(root *html.Node) string {
+func findJavDBMovieTitle(root *html.Node) string {
+	if title := cleanSelectionText(documentSelection(root).Find("span.origin-title").First()); title != "" {
+		return title
+	}
 	return cleanSelectionText(documentSelection(root).Find("strong.current-title").First())
 }
 

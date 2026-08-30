@@ -6,6 +6,7 @@ import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
 import DirectoryManager from '@/components/DirectoryManager'
 import AppModal from '@/components/AppModal'
 import PlayerSettingsModal from '@/components/PlayerSettingsModal'
+import WebHotkeySettings from '@/components/WebHotkeySettings'
 import { downloadFFmpeg, fetchTools } from '@/api'
 import { parsePlayerHotkeys } from '@/utils/playerHotkeys'
 import { zh } from '@/utils/i18n'
@@ -21,6 +22,11 @@ const SETTINGS_SECTIONS = [
     id: 'display',
     title: { zh: '显示与交互', en: 'Display & Interaction' },
     summary: { zh: '界面提示与交互行为', en: 'Interface hints and interactions' },
+  },
+  {
+    id: 'shortcuts',
+    title: { zh: '快捷键', en: 'Shortcuts' },
+    summary: { zh: '自定义网页操作快捷键', en: 'Customize web shortcuts' },
   },
   {
     id: 'network',
@@ -51,6 +57,10 @@ const PLAYER_BASIC_DEFAULTS = {
   reuseWindow: true,
   resumePlayback: true,
   volume: 70,
+  showHotkeyHint: true,
+}
+
+const BROWSER_PLAYER_DEFAULTS = {
   showHotkeyHint: true,
 }
 
@@ -90,8 +100,12 @@ export default function GlobalSettingsModal({
   playerVolume,
   playerShowHotkeyHint,
   onSavePlayerBasicSettings,
+  browserPlayerShowHotkeyHint,
+  onSaveBrowserPlayerSettings,
   playerHotkeys,
   onSavePlayerHotkeys,
+  webHotkeys,
+  onSaveWebHotkeys,
   onChangePassword,
   onLogout,
 }) {
@@ -122,6 +136,10 @@ export default function GlobalSettingsModal({
   const [playerResumePlaybackInput, setPlayerResumePlaybackInput] = useState(true)
   const [playerVolumeInput, setPlayerVolumeInput] = useState('')
   const [playerShowHotkeyHintInput, setPlayerShowHotkeyHintInput] = useState(true)
+  const [browserPlayerShowHotkeyHintInput, setBrowserPlayerShowHotkeyHintInput] = useState(true)
+  const [browserPlayerError, setBrowserPlayerError] = useState('')
+  const [browserPlayerSuccess, setBrowserPlayerSuccess] = useState('')
+  const [savingBrowserPlayer, setSavingBrowserPlayer] = useState(false)
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false)
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
@@ -163,6 +181,8 @@ export default function GlobalSettingsModal({
       setPlayerTab('basic')
       setPlayerBasicError('')
       setPlayerBasicSuccess('')
+      setBrowserPlayerError('')
+      setBrowserPlayerSuccess('')
     }
   }, [open])
 
@@ -192,6 +212,9 @@ export default function GlobalSettingsModal({
       setPlayerResumePlaybackInput(playerResumePlayback ?? PLAYER_BASIC_DEFAULTS.resumePlayback)
       setPlayerVolumeInput(String(playerVolume ?? PLAYER_BASIC_DEFAULTS.volume))
       setPlayerShowHotkeyHintInput(playerShowHotkeyHint ?? PLAYER_BASIC_DEFAULTS.showHotkeyHint)
+      setBrowserPlayerShowHotkeyHintInput(
+        browserPlayerShowHotkeyHint ?? BROWSER_PLAYER_DEFAULTS.showHotkeyHint
+      )
       setPasswordDialogOpen(false)
       setCurrentPassword('')
       setNewPassword('')
@@ -213,6 +236,7 @@ export default function GlobalSettingsModal({
     playerResumePlayback,
     playerVolume,
     playerShowHotkeyHint,
+    browserPlayerShowHotkeyHint,
     mpvEnabled,
     browserPlaybackOnly,
     desktopIntegrationEnabled,
@@ -692,7 +716,13 @@ export default function GlobalSettingsModal({
   const renderPlayerPanel = () => {
     const showMPVSettings = mpvEnabled && !browserPlaybackOnly
     const currentPlayerTab =
-      playerTab === 'hotkeys' ? 'hotkeys' : showMPVSettings && playerTab === 'mpv' ? 'mpv' : 'basic'
+      playerTab === 'hotkeys'
+        ? 'hotkeys'
+        : playerTab === 'browser'
+          ? 'browser'
+          : showMPVSettings && playerTab === 'mpv'
+            ? 'mpv'
+            : 'basic'
 
     return (
       <div className="space-y-5">
@@ -707,6 +737,17 @@ export default function GlobalSettingsModal({
             }`}
           >
             {zh('基础设置', 'Basic Settings')}
+          </button>
+          <button
+            type="button"
+            onClick={() => setPlayerTab('browser')}
+            className={`rounded-xl px-3 py-1.5 text-sm ${
+              currentPlayerTab === 'browser'
+                ? 'bg-zinc-900 text-white'
+                : 'border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50'
+            }`}
+          >
+            {zh('浏览器播放器', 'Browser Player')}
           </button>
           {showMPVSettings ? (
             <button
@@ -736,6 +777,76 @@ export default function GlobalSettingsModal({
         <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
           {currentPlayerTab === 'basic' ? (
             renderDefaultPlayerSettings()
+          ) : currentPlayerTab === 'browser' ? (
+            <div>
+              <section className="space-y-3">
+                <label className="flex items-center gap-3 text-sm font-semibold text-zinc-800">
+                  <input
+                    type="checkbox"
+                    checked={browserPlayerShowHotkeyHintInput}
+                    onChange={(e) => {
+                      setBrowserPlayerShowHotkeyHintInput(e.target.checked)
+                      setBrowserPlayerError('')
+                      setBrowserPlayerSuccess('')
+                    }}
+                    className="h-4 w-4 rounded"
+                  />
+                  <span>{zh('启动时显示快捷键配置', 'Show Shortcuts on Startup')}</span>
+                </label>
+                <p className="text-xs text-zinc-500">
+                  {zh(
+                    '在浏览器播放器打开视频时显示当前快捷键说明。',
+                    'Show the current shortcut guide when the browser player opens a video.'
+                  )}
+                </p>
+              </section>
+
+              {browserPlayerError && (
+                <div className="mt-3 text-sm text-red-600">{browserPlayerError}</div>
+              )}
+              {browserPlayerSuccess && (
+                <div className="mt-3 text-sm text-emerald-600">{browserPlayerSuccess}</div>
+              )}
+
+              <div className="mt-4 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBrowserPlayerShowHotkeyHintInput(BROWSER_PLAYER_DEFAULTS.showHotkeyHint)
+                    setBrowserPlayerError('')
+                    setBrowserPlayerSuccess('')
+                  }}
+                  disabled={savingBrowserPlayer}
+                  className="rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50 disabled:opacity-60"
+                >
+                  {zh('恢复默认', 'Restore Defaults')}
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setBrowserPlayerError('')
+                    setBrowserPlayerSuccess('')
+                    setSavingBrowserPlayer(true)
+                    try {
+                      await onSaveBrowserPlayerSettings?.({
+                        browser_player_show_hotkey_hint: browserPlayerShowHotkeyHintInput,
+                      })
+                      setBrowserPlayerSuccess(
+                        zh('浏览器播放器设置保存成功', 'Browser player settings saved')
+                      )
+                    } catch (err) {
+                      setBrowserPlayerError(getErrorMessage(err))
+                    } finally {
+                      setSavingBrowserPlayer(false)
+                    }
+                  }}
+                  disabled={savingBrowserPlayer}
+                  className="rounded-xl bg-blue-600 px-3 py-1.5 text-sm text-white disabled:opacity-60"
+                >
+                  {savingBrowserPlayer ? zh('保存中…', 'Saving...') : zh('保存', 'Save')}
+                </button>
+              </div>
+            </div>
           ) : currentPlayerTab === 'mpv' ? (
             <div>
               <div className="space-y-6">
@@ -998,6 +1109,12 @@ export default function GlobalSettingsModal({
       </div>
     )
   }
+
+  const renderShortcutsPanel = () => (
+    <div className="space-y-5">
+      <WebHotkeySettings hotkeys={webHotkeys} onSave={onSaveWebHotkeys} />
+    </div>
+  )
 
   const renderDirectoriesPanel = () => (
     <div className="space-y-2">
@@ -1390,6 +1507,7 @@ export default function GlobalSettingsModal({
           }`}
         >
           {currentSection === 'display' && renderDisplayPanel()}
+          {currentSection === 'shortcuts' && renderShortcutsPanel()}
           {currentSection === 'network' && renderNetworkPanel()}
           {currentSection === 'tools' && renderToolsPanel()}
           {currentSection === 'player' && renderPlayerPanel()}

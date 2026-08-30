@@ -12,8 +12,8 @@ import {
   revealVideoLocation,
   updateVideoJavScrapeSettings,
   fetchVideoJavScrapePossibleCodes,
-  lookupVideoJavScrape,
   manualVideoJavScrape,
+  linkVideoToExistingJav,
   fetchTagCategories,
   createTagCategory,
   reorderTagCategories,
@@ -28,6 +28,7 @@ import {
   renameJavTagCategory,
   deleteJavTagCategory,
   assignJavTagsCategory,
+  addJavTagToJavs,
   renameJavTag,
   deleteJavTag,
   resolveJavIdols,
@@ -51,6 +52,7 @@ import JavSettingsModal from '@/components/JavSettingsModal'
 import JavTagModal from '@/components/JavTagModal'
 import JavVideoPickerModal from '@/components/JavVideoPickerModal'
 import SelectionOpsModal from '@/components/SelectionOpsModal'
+import SelectionJavTagsModal from '@/components/SelectionJavTagsModal'
 import SelectionTagsModal from '@/components/SelectionTagsModal'
 import TagPickerModal from '@/components/TagPickerModal'
 import Toast from '@/components/Toast'
@@ -63,12 +65,16 @@ import VideoScrapeSettingsModal from '@/components/VideoScrapeSettingsModal'
 import VideoScreenshotsModal from '@/components/VideoScreenshotsModal'
 import VideoTagModal from '@/components/VideoTagModal'
 import {
+  createDefaultIdolProfileFilters,
   IDOL_FAVORITE_ORDER_SORT,
+  IDOL_PROFILE_FILTER_DEFINITIONS,
   javSortRulesConfig,
+  normalizeIdolProfileFilters,
   normalizeIdolSort,
   normalizeJavSort,
   normalizeJavSortRules,
   resolveJavSort,
+  isUserJavTag,
 } from '@/constants/jav'
 import { normalizeVideoSort } from '@/constants/video'
 import useScrollRestoration from '@/hooks/useScrollRestoration'
@@ -77,9 +83,16 @@ import JavRoute from '@/routes/JavRoute'
 import VideoRoute from '@/routes/VideoRoute'
 import { isChineseLocale, zh } from '@/utils/i18n'
 import { getErrorMessage } from '@/utils/errors'
+import { buildVideoFullPath } from '@/utils/display'
 import { getIdolDisplayName } from '@/utils/javIdol'
 import { withJavTagDisplayName } from '@/utils/javTag'
 import { displayHostPath } from '@/utils/hostPath'
+import {
+  isWebHotkeyEditingTarget,
+  parseWebHotkeys,
+  webHotkeyFromKeyboardEvent,
+  webHotkeyKeyId,
+} from '@/utils/webHotkeys'
 import { directoryQueryIds, directoryQuerySubpaths, useStore, videoSelectionKey } from '@/store'
 import { useAuth } from '@/auth'
 
@@ -268,6 +281,7 @@ export default function App() {
     setIdolPage,
     idolPageSize,
     idolFavoriteGroupId,
+    idolProfileFilters,
     setIdolFavoriteGroupId,
     idolItems,
     idolTotal,
@@ -428,10 +442,16 @@ export default function App() {
   const [selectionTagsOpen, setSelectionTagsOpen] = useState(false)
   const [selectionTagAction, setSelectionTagAction] = useState('add')
   const [selectionTagChoices, setSelectionTagChoices] = useState([])
+  const [selectionJavTagsOpen, setSelectionJavTagsOpen] = useState(false)
+  const [selectionJavTagChoices, setSelectionJavTagChoices] = useState([])
+  const [selectionJavTagSaving, setSelectionJavTagSaving] = useState(false)
   const [selectionDeleting, setSelectionDeleting] = useState(false)
   const [videoPageSizeInput, setVideoPageSizeInput] = useState(pageSize)
   const [videoSortInput, setVideoSortInput] = useState(sortOrder)
   const [videoHideJavInput, setVideoHideJavInput] = useState(videoHideJav)
+  const [videoWaterfallDefaultInput, setVideoWaterfallDefaultInput] = useState(
+    configFlag(config?.video_waterfall_default)
+  )
   const [javPageSizeInput, setJavPageSizeInput] = useState(javPageSize)
   const [javGridColumnsInput, setJavGridColumnsInput] = useState(javGridColumns)
   const [javTitleMaxRowsInput, setJavTitleMaxRowsInput] = useState(javTitleMaxRows)
@@ -517,6 +537,7 @@ export default function App() {
       }
     : null
   const browserPlaybackOnly = configFlag(config?.browser_playback_only)
+  const remoteAccess = configFlag(config?.runtime_remote_request)
   const clientMode = configFlag(config?.runtime_client)
   const containerMode = configFlag(config?.runtime_container)
   const hostPathPrefixEnabled = configFlag(config?.host_path_prefix_enabled, containerMode)
@@ -564,6 +585,16 @@ export default function App() {
   const closeCenterToast = useCallback(() => {
     setCenterToastMessage('')
   }, [])
+  const ensureRevealAvailable = useCallback(() => {
+    if (!remoteAccess) return true
+    showCenterToast(
+      zh(
+        '通过局域网访问时无法打开文件所在位置',
+        'Cannot reveal file locations when accessing over the local network'
+      )
+    )
+    return false
+  }, [remoteAccess, showCenterToast])
   const loadTagCategories = useCallback(async () => {
     const categories = await fetchTagCategories()
     setTagCategories(Array.isArray(categories) ? categories : [])
@@ -588,20 +619,6 @@ export default function App() {
     },
     [tags]
   )
-
-  const buildVideoFullPath = useCallback((video) => {
-    if (!video) return ''
-    const rawPath = String(video.path || '').trim()
-    const dirPath = String(video.directory?.path || video.directory_path || '').trim()
-    if (!dirPath) return rawPath
-    if (!rawPath) return dirPath
-    const isAbs = rawPath.startsWith('/') || /^[A-Za-z]:[\\/]/.test(rawPath)
-    if (isAbs) return rawPath
-    const separator = dirPath.includes('\\') ? '\\' : '/'
-    const cleanedDir = dirPath.replace(/[\\/]+$/, '')
-    const cleanedRel = rawPath.replace(/^[\\/]+/, '')
-    return `${cleanedDir}${separator}${cleanedRel}`
-  }, [])
 
   const getVideoDirPath = useCallback(
     (video) => String(video?.directory?.path || video?.directory_path || '').trim(),
@@ -687,13 +704,14 @@ export default function App() {
 
   const revealVideoFile = useCallback(
     (video) => {
+      if (!ensureRevealAvailable()) return Promise.resolve()
       if (!video || !isVideoOpenable(video)) return Promise.resolve()
       return revealVideoLocation({
         path: getVideoRelPath(video),
         dirPath: getVideoDirPath(video),
       })
     },
-    [getVideoDirPath, getVideoRelPath, isVideoOpenable]
+    [ensureRevealAvailable, getVideoDirPath, getVideoRelPath, isVideoOpenable]
   )
 
   const handleViewLocation = useCallback(
@@ -779,6 +797,7 @@ export default function App() {
 
   const handleRevealVideoFile = useCallback(
     (video) => {
+      if (!ensureRevealAvailable()) return
       const choices = getVideoLocationChoices(video)
       if (choices.length > 1) {
         openLocationPicker(video, 'reveal', choices)
@@ -789,7 +808,13 @@ export default function App() {
         showCenterToast(getErrorMessage(err))
       })
     },
-    [getVideoLocationChoices, openLocationPicker, revealVideoFile, showCenterToast]
+    [
+      ensureRevealAvailable,
+      getVideoLocationChoices,
+      openLocationPicker,
+      revealVideoFile,
+      showCenterToast,
+    ]
   )
 
   const handleRenameVideo = useCallback(
@@ -829,13 +854,12 @@ export default function App() {
           }
           return { videos: nextVideos, selectedVideoMeta: nextMeta }
         })
-        await loadVideos({ force: true })
       } catch (err) {
         console.error(zh('重命名视频失败', 'Failed to rename video'), err)
         showCenterToast(getErrorMessage(err))
       }
     },
-    [loadVideos, showCenterToast]
+    [showCenterToast]
   )
 
   const handleDeleteVideo = useCallback(
@@ -907,7 +931,6 @@ export default function App() {
             : state.videos,
         }))
         setScrapeSettingsVideo(null)
-        await loadVideos({ force: true })
         showToast(zh('刮削设置已保存', 'Scrape settings saved'))
       } catch (err) {
         console.error(zh('保存刮削设置失败', 'Failed to save scrape settings'), err)
@@ -916,16 +939,7 @@ export default function App() {
         setScrapeSettingsSaving(false)
       }
     },
-    [loadVideos, scrapeSettingsVideo, showCenterToast, showToast]
-  )
-
-  const handleLookupScrapeMetadata = useCallback(
-    async (code, provider) => {
-      const video = scrapeSettingsVideo
-      if (!video?.id) throw new Error(zh('缺少视频 ID', 'Missing video ID'))
-      return lookupVideoJavScrape(video.id, code, provider)
-    },
-    [scrapeSettingsVideo]
+    [scrapeSettingsVideo, showCenterToast, showToast]
   )
 
   const handleFetchScrapePossibleCodes = useCallback(async () => {
@@ -960,7 +974,6 @@ export default function App() {
             : state.videos,
         }))
         setScrapeSettingsVideo(null)
-        await loadVideos({ force: true })
         showToast(zh('手动刮削已保存', 'Manual scrape saved'))
       } catch (err) {
         console.error(zh('手动刮削失败', 'Manual scrape failed'), err)
@@ -969,7 +982,40 @@ export default function App() {
         setScrapeSettingsSaving(false)
       }
     },
-    [loadVideos, scrapeSettingsVideo, showCenterToast, showToast]
+    [scrapeSettingsVideo, showCenterToast, showToast]
+  )
+
+  const handleLinkExistingJav = useCallback(
+    async (code) => {
+      const video = scrapeSettingsVideo
+      if (!video?.id) return
+      const locationId = Number(video?.location_id || video?.locations?.[0]?.id || 0)
+      if (!Number.isFinite(locationId) || locationId <= 0) {
+        throw new Error(zh('缺少视频位置 ID', 'Missing video location ID'))
+      }
+      setScrapeSettingsSaving(true)
+      try {
+        const updated = await linkVideoToExistingJav(video.id, locationId, code)
+        const override = String(updated?.jav_scrape_override || `:manual:${code}`)
+          .trim()
+          .toUpperCase()
+        const targetKey = videoSelectionKey(video)
+        useStore.setState((state) => ({
+          videos: Array.isArray(state.videos)
+            ? state.videos.map((item) =>
+                videoSelectionKey(item) === targetKey && updated
+                  ? { ...updated, jav_scrape_override: override }
+                  : item
+              )
+            : state.videos,
+        }))
+        setScrapeSettingsVideo(null)
+        showToast(zh('已关联已有番号', 'Linked to existing JAV'))
+      } finally {
+        setScrapeSettingsSaving(false)
+      }
+    },
+    [scrapeSettingsVideo, showToast]
   )
 
   const closeJavVideoPicker = useCallback(() => {
@@ -1013,6 +1059,7 @@ export default function App() {
 
   const handleJavRevealFile = useCallback(
     (video, item) => {
+      if (!ensureRevealAvailable()) return
       const videos = item?.videos || (video ? [video] : [])
       if (videos.length > 1) {
         setJavVideoPickerAction('reveal')
@@ -1024,7 +1071,7 @@ export default function App() {
       if (!target) return
       handleRevealVideoFile(target)
     },
-    [handleRevealVideoFile, isVideoOpenable]
+    [ensureRevealAvailable, handleRevealVideoFile, isVideoOpenable]
   )
 
   const openVideoScreenshots = useCallback((video) => {
@@ -1151,6 +1198,7 @@ export default function App() {
       const saved = loadSavedWaterfallModes()
       const next = { ...current }
       const configDefaults = {
+        video: configFlag(config?.video_waterfall_default),
         jav: configFlag(config?.jav_waterfall_default),
         idol: configFlag(config?.idol_waterfall_default),
         studio: configFlag(config?.studio_waterfall_default),
@@ -1164,6 +1212,7 @@ export default function App() {
     })
   }, [
     configLoaded,
+    config?.video_waterfall_default,
     config?.jav_waterfall_default,
     config?.idol_waterfall_default,
     config?.studio_waterfall_default,
@@ -1213,6 +1262,10 @@ export default function App() {
           javPage: jav.random ? 1 : jav.page,
           idolPage: jav.tab === 'idol' ? jav.page : 1,
           idolFavoriteGroupId: jav.tab === 'idol' ? jav.favoriteGroupId : null,
+          idolProfileFilters:
+            jav.tab === 'idol'
+              ? normalizeIdolProfileFilters(jav.idolProfileFilters)
+              : createDefaultIdolProfileFilters(),
           studioPage: jav.tab === 'studio' ? jav.page : 1,
           studioFavoriteGroupId: jav.tab === 'studio' ? jav.favoriteGroupId : null,
           seriesPage: jav.tab === 'series' ? jav.page : 1,
@@ -1289,6 +1342,7 @@ export default function App() {
           javRandomSeed,
           idolPage,
           idolFavoriteGroupId,
+          idolProfileFilters,
           studioFavoriteGroupId,
           seriesFavoriteGroupId,
           studioPage,
@@ -1308,6 +1362,7 @@ export default function App() {
       directorySubpaths,
       closedSubdirectories,
       idolFavoriteGroupId,
+      idolProfileFilters,
       idolTempSort,
       javFavoriteGroupId,
       idolPage,
@@ -1437,6 +1492,7 @@ export default function App() {
         favoriteRatingMin: favoriteRatingMinOverride,
         favoriteRatingMax: favoriteRatingMaxOverride,
         favoriteGroupId: favoriteGroupIdOverride,
+        idolProfileFilters: idolProfileFiltersOverride,
         tagIds: tagIdsOverride,
         random: randomOverride,
         seed: seedOverride,
@@ -1524,6 +1580,17 @@ export default function App() {
       ) {
         sp.set('favorite_group_id', String(favoriteGroupId))
       }
+      if (tab === 'idol') {
+        const profileFilters = normalizeIdolProfileFilters(
+          idolProfileFiltersOverride ?? idolProfileFilters
+        )
+        for (const definition of IDOL_PROFILE_FILTER_DEFINITIONS) {
+          const value = profileFilters[definition.key]
+          if (!value.enabled) continue
+          sp.set(`idol_${definition.key}_min`, String(value.min))
+          sp.set(`idol_${definition.key}_max`, String(value.max))
+        }
+      }
       const hasTempSortOverride = Object.prototype.hasOwnProperty.call(options, 'tempSort')
       const tempSortVal = hasTempSortOverride
         ? tab === 'idol'
@@ -1562,6 +1629,7 @@ export default function App() {
     [
       idolPage,
       idolFavoriteGroupId,
+      idolProfileFilters,
       idolTempSort,
       javFavoriteGroupId,
       pathname,
@@ -1717,6 +1785,7 @@ export default function App() {
     idolPage,
     idolPageSize,
     idolFavoriteGroupId,
+    idolProfileFilters,
     studioFavoriteGroupId,
     seriesFavoriteGroupId,
     studioPage,
@@ -1881,10 +1950,9 @@ export default function App() {
   const navigateVideoPage = useCallback(
     (targetPage) => {
       if (!targetPage || targetPage === page) return
-      saveScrollBeforeUrlStateChange()
       setPage(targetPage)
     },
-    [page, saveScrollBeforeUrlStateChange, setPage]
+    [page, setPage]
   )
   const selectedCount = useMemo(() => selectedVideoIds.size, [selectedVideoIds])
   const selectedList = useMemo(() => {
@@ -1897,15 +1965,41 @@ export default function App() {
       const locationId = Number(
         meta && typeof meta === 'object' ? meta.location_id : v?.location_id
       )
+      const javId = Number(
+        meta && typeof meta === 'object' ? (meta.jav_id ?? v?.jav_id) : v?.jav_id
+      )
+      const javCode = String(
+        (meta && typeof meta === 'object' ? meta.jav_code : '') ||
+          v?.jav?.code ||
+          v?.locations?.[0]?.jav?.code ||
+          ''
+      ).trim()
       return {
         id: key,
         label: labelFromMeta || v?.filename || v?.path || `#${key}`,
         video: v,
         video_id: Number.isFinite(videoId) && videoId > 0 ? videoId : null,
         location_id: Number.isFinite(locationId) && locationId > 0 ? locationId : null,
+        jav_id: Number.isFinite(javId) && javId > 0 ? javId : null,
+        jav_code: javCode,
       }
     })
   }, [selectedVideoIds, videos, selectedVideoMeta])
+  const selectedJavIds = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          selectedList
+            .map((item) => Number(item?.jav_id || item?.video?.jav_id))
+            .filter((id) => Number.isFinite(id) && id > 0)
+        )
+      ),
+    [selectedList]
+  )
+  const selectedJavVideoCount = useMemo(
+    () => selectedList.filter((item) => Number(item?.jav_id) > 0).length,
+    [selectedList]
+  )
   const javLastPage = Math.max(1, Math.ceil((javTotal || 0) / javPageSize))
   const javHasPrev = javPage > 1
   const javHasNext = javPage < javLastPage
@@ -1918,6 +2012,226 @@ export default function App() {
   const seriesLastPage = Math.max(1, Math.ceil((seriesTotal || 0) / seriesPageSize))
   const seriesHasPrev = seriesPage > 1
   const seriesHasNext = seriesPage < seriesLastPage
+  const webHotkeys = useMemo(() => parseWebHotkeys(config?.web_hotkeys), [config?.web_hotkeys])
+  const navigateActivePageBy = useCallback(
+    (direction) => {
+      if (!isJavMode) {
+        if (randomMode || waterfallModes.video || loading) return
+        if (direction < 0 && canPrev) {
+          navigateVideoPage(page - 1)
+        } else if (direction > 0 && canNext) {
+          navigateVideoPage(page + 1)
+        }
+        return
+      }
+
+      const waterfallKey = javTab === 'list' ? 'jav' : javTab
+      const activeWaterfallMode = Boolean(waterfallModes[waterfallKey])
+      if (activeWaterfallMode) return
+      if (javTab === 'idol') {
+        if (idolLoading) return
+        if (direction < 0 && idolHasPrev) setIdolPage(idolPage - 1)
+        else if (direction > 0 && idolHasNext) setIdolPage(idolPage + 1)
+      } else if (javTab === 'studio') {
+        if (studioLoading) return
+        if (direction < 0 && studioHasPrev) setStudioPage(studioPage - 1)
+        else if (direction > 0 && studioHasNext) setStudioPage(studioPage + 1)
+      } else if (javTab === 'series') {
+        if (seriesLoading) return
+        if (direction < 0 && seriesHasPrev) setSeriesPage(seriesPage - 1)
+        else if (direction > 0 && seriesHasNext) setSeriesPage(seriesPage + 1)
+      } else {
+        if (javRandomMode || javLoading) return
+        if (direction < 0 && javHasPrev) setJavPage(javPage - 1)
+        else if (direction > 0 && javHasNext) setJavPage(javPage + 1)
+      }
+    },
+    [
+      canNext,
+      canPrev,
+      idolHasNext,
+      idolHasPrev,
+      idolLoading,
+      idolPage,
+      isJavMode,
+      javHasNext,
+      javHasPrev,
+      javLoading,
+      javPage,
+      javRandomMode,
+      javTab,
+      loading,
+      navigateVideoPage,
+      page,
+      randomMode,
+      seriesHasNext,
+      seriesHasPrev,
+      seriesLoading,
+      seriesPage,
+      setIdolPage,
+      setJavPage,
+      setSeriesPage,
+      setStudioPage,
+      studioHasNext,
+      studioHasPrev,
+      studioLoading,
+      studioPage,
+      waterfallModes,
+    ]
+  )
+
+  useEffect(() => {
+    const actionByKey = new Map(webHotkeys.map((item) => [webHotkeyKeyId(item.key), item.action]))
+    const modifierKeys = new Set(['Alt', 'AltGraph', 'Control', 'Meta', 'OS', 'Shift'])
+    let continuousAction = ''
+    let continuousBaseKeyId = ''
+    let continuousFrameId = null
+    let previousFrameTime = 0
+
+    const hasShortcutBlockingOverlay = (action = '') => {
+      if (document.documentElement.classList.contains('app-modal-open')) {
+        const dialogs = Array.from(document.querySelectorAll('[role="dialog"][aria-modal="true"]'))
+        const topDialog = dialogs[dialogs.length - 1]
+        const imageNavigationAllowed =
+          (action === 'previous_page' || action === 'next_page') &&
+          topDialog?.classList.contains('image-preview-modal')
+        const onlyJavQueryEditorOpen =
+          action === 'edit_jav_query' &&
+          dialogs.length === 1 &&
+          dialogs[0].classList.contains('jav-query-editor-modal')
+        if (!onlyJavQueryEditorOpen && !imageNavigationAllowed) return true
+      }
+      return Array.from(document.querySelectorAll('.MuiPopover-root, .MuiMenu-root')).some(
+        (overlay) =>
+          action !== 'open_page_jump' || !overlay.querySelector('.pagination-jump-popover')
+      )
+    }
+
+    const blurActiveControl = () => {
+      if (document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur()
+      }
+    }
+
+    const stopContinuousScroll = () => {
+      if (continuousFrameId != null) window.cancelAnimationFrame(continuousFrameId)
+      continuousAction = ''
+      continuousBaseKeyId = ''
+      continuousFrameId = null
+      previousFrameTime = 0
+    }
+
+    const runContinuousScroll = (frameTime) => {
+      if (!continuousAction || hasShortcutBlockingOverlay()) {
+        stopContinuousScroll()
+        return
+      }
+      if (previousFrameTime > 0) {
+        const elapsed = Math.min(50, frameTime - previousFrameTime)
+        const direction = continuousAction === 'continuous_scroll_up' ? -1 : 1
+        window.scrollBy({ top: direction * elapsed * 0.4, left: 0, behavior: 'auto' })
+      }
+      previousFrameTime = frameTime
+      continuousFrameId = window.requestAnimationFrame(runContinuousScroll)
+    }
+
+    const startContinuousScroll = (action, baseKey) => {
+      if (continuousAction === action && continuousFrameId != null) return
+      stopContinuousScroll()
+      continuousAction = action
+      continuousBaseKeyId = webHotkeyKeyId(baseKey)
+      continuousFrameId = window.requestAnimationFrame(runContinuousScroll)
+    }
+
+    const handleKeyDown = (event) => {
+      if (continuousAction && modifierKeys.has(event.key)) stopContinuousScroll()
+      if (
+        event.defaultPrevented ||
+        event.isComposing ||
+        event.altKey ||
+        event.ctrlKey ||
+        event.metaKey ||
+        isWebHotkeyEditingTarget(event.target)
+      ) {
+        return
+      }
+
+      const pressedKey = webHotkeyFromKeyboardEvent(event)
+      const action = actionByKey.get(webHotkeyKeyId(pressedKey))
+      if (!action) return
+      if (hasShortcutBlockingOverlay(action)) return
+      if (action === 'edit_jav_query' && (!isJavMode || javTab !== 'list')) return
+      const pageJumpTrigger =
+        action === 'open_page_jump'
+          ? document.querySelector('[data-page-jump-trigger="true"]:not(:disabled)')
+          : null
+      if (action === 'open_page_jump' && !pageJumpTrigger) return
+      const imagePreviewOpen = Boolean(document.querySelector('.image-preview-modal'))
+      const imageNavigationTrigger =
+        imagePreviewOpen && (action === 'previous_page' || action === 'next_page')
+          ? document.querySelector(
+              `[data-image-navigation="${action === 'previous_page' ? 'previous' : 'next'}"]`
+            )
+          : null
+      event.preventDefault()
+      blurActiveControl()
+
+      if (imagePreviewOpen && (action === 'previous_page' || action === 'next_page')) {
+        imageNavigationTrigger?.click()
+      } else if (action === 'edit_jav_query') {
+        stopContinuousScroll()
+        if (!event.repeat) {
+          setJavQueryEditorOpen((current) => {
+            if (!current) loadJavTags()
+            return !current
+          })
+        }
+      } else if (action === 'open_page_jump') {
+        if (!event.repeat) pageJumpTrigger.click()
+      } else if (action === 'continuous_scroll_up' || action === 'continuous_scroll_down') {
+        startContinuousScroll(action, event.key)
+      } else if (action === 'content_page_up' || action === 'content_page_down') {
+        const viewportHeight = document.scrollingElement?.clientHeight || window.innerHeight || 1
+        window.scrollBy({
+          top: (action === 'content_page_up' ? -1 : 1) * Math.max(1, viewportHeight * 0.9),
+          left: 0,
+          behavior: 'smooth',
+        })
+      } else if (action === 'previous_page') {
+        navigateActivePageBy(-1)
+      } else if (action === 'next_page') {
+        navigateActivePageBy(1)
+      } else if (action === 'browser_back') {
+        window.history.back()
+      } else if (action === 'browser_forward') {
+        window.history.forward()
+      }
+    }
+
+    const handleKeyUp = (event) => {
+      if (!continuousAction) return
+      if (modifierKeys.has(event.key) || webHotkeyKeyId(event.key) === continuousBaseKeyId) {
+        stopContinuousScroll()
+      }
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) stopContinuousScroll()
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    window.addEventListener('keyup', handleKeyUp)
+    window.addEventListener('blur', stopContinuousScroll)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => {
+      stopContinuousScroll()
+      window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('keyup', handleKeyUp)
+      window.removeEventListener('blur', stopContinuousScroll)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [isJavMode, javTab, loadJavTags, navigateActivePageBy, webHotkeys])
+
   const videoWaterfallHasMore =
     !randomMode && (page - 1) * pageSize + (videos?.length || 0) < (total || 0)
   const javWaterfallHasMore =
@@ -2160,6 +2474,19 @@ export default function App() {
     [updateJavFilters]
   )
 
+  const handleIdolProfileFilterChange = useCallback(
+    (key, updates) => {
+      if (!IDOL_PROFILE_FILTER_DEFINITIONS.some((definition) => definition.key === key)) return
+      const current = normalizeIdolProfileFilters(useStore.getState().idolProfileFilters)
+      const next = normalizeIdolProfileFilters({
+        ...current,
+        [key]: { ...current[key], ...(updates || {}) },
+      })
+      updateJavFilters({ idolProfileFilters: next, idolPage: 1 })
+    },
+    [updateJavFilters]
+  )
+
   const activeFilterItems = useMemo(() => {
     if (!isJavMode) {
       const items = []
@@ -2192,6 +2519,7 @@ export default function App() {
       return items
     }
     const items = []
+    if (javTab === 'idol') return items
     const activeSearch = String(javSearchTerm || '').trim()
     if (activeSearch) {
       items.push({
@@ -2344,7 +2672,10 @@ export default function App() {
         javRandomSeed: null,
       })
     } else if (javTab === 'idol') {
-      Object.assign(updates, { idolPage: 1 })
+      Object.assign(updates, {
+        idolPage: 1,
+        idolProfileFilters: createDefaultIdolProfileFilters(),
+      })
     } else if (javTab === 'studio') {
       Object.assign(updates, { studioPage: 1 })
     } else {
@@ -2357,8 +2688,9 @@ export default function App() {
     setVideoPageSizeInput(pageSize)
     setVideoSortInput(sortOrder)
     setVideoHideJavInput(videoHideJav)
+    setVideoWaterfallDefaultInput(configFlag(config?.video_waterfall_default))
     setVideoSettingsOpen(true)
-  }, [pageSize, sortOrder, videoHideJav])
+  }, [config?.video_waterfall_default, pageSize, sortOrder, videoHideJav])
 
   const openJavSettings = useCallback(() => {
     setJavPageSizeInput(javPageSize)
@@ -2434,17 +2766,23 @@ export default function App() {
   const handleSaveVideoSettings = async () => {
     const size = Math.max(1, parseInt(videoPageSizeInput, 10) || pageSize)
     const normalizedSort = normalizeVideoSort(videoSortInput)
+    const waterfallDefault = Boolean(videoWaterfallDefaultInput)
     try {
-      await updateConfig({
+      const cfg = await updateConfig({
         video_page_size: size,
         video_sort: normalizedSort,
         video_hide_jav: videoHideJavInput,
+        video_waterfall_default: waterfallDefault,
       })
       const prevPage = page
       // ensure current page does not exceed last page after page size change
       const lastPage = Math.max(1, Math.ceil((total || 0) / size))
       const filterChanged = videoHideJavInput !== videoHideJav
       const nextPage = filterChanged ? 1 : prevPage > lastPage ? lastPage : prevPage
+
+      if (waterfallModes.video !== waterfallDefault) {
+        setWaterfallMode('video', waterfallDefault)
+      }
 
       useStore.setState({
         pageSize: size,
@@ -2454,6 +2792,7 @@ export default function App() {
         page: nextPage,
         randomMode: false,
         randomSeed: null,
+        config: cfg,
       })
       setVideoSettingsOpen(false)
     } catch (err) {
@@ -2565,8 +2904,9 @@ export default function App() {
       setVideoPageSizeInput(pageSize)
       setVideoSortInput(sortOrder)
       setVideoHideJavInput(videoHideJav)
+      setVideoWaterfallDefaultInput(configFlag(config?.video_waterfall_default))
     }
-  }, [videoSettingsOpen, pageSize, sortOrder, videoHideJav])
+  }, [videoSettingsOpen, config?.video_waterfall_default, pageSize, sortOrder, videoHideJav])
 
   useEffect(() => {
     if (javSettingsOpen) {
@@ -2623,8 +2963,11 @@ export default function App() {
     if (selectedCount !== 0) return
     setSelectionOpsOpen(false)
     setSelectionTagsOpen(false)
+    setSelectionJavTagsOpen(false)
     setSelectionTagAction('add')
     setSelectionTagChoices([])
+    setSelectionJavTagChoices([])
+    setSelectionJavTagSaving(false)
   }, [selectedCount])
 
   const handleRemoveSelectedVideo = useCallback((key) => {
@@ -2881,6 +3224,55 @@ export default function App() {
     }
   }
 
+  const handleSelectionJavTagsClose = () => {
+    if (selectionJavTagSaving) return
+    setSelectionJavTagsOpen(false)
+    setSelectionJavTagChoices([])
+  }
+
+  const handleSelectionJavTagChoiceToggle = (tagId, checked) => {
+    setSelectionJavTagChoices((current) => {
+      const next = new Set(current)
+      if (checked) next.add(String(tagId))
+      else next.delete(String(tagId))
+      return Array.from(next)
+    })
+  }
+
+  const handleApplySelectionJavTags = async () => {
+    const tagIds = selectionJavTagChoices
+      .map((tagId) => Number(tagId))
+      .filter((tagId) => Number.isFinite(tagId) && tagId > 0)
+    if (tagIds.length === 0 || selectedJavIds.length === 0) return
+
+    setSelectionJavTagSaving(true)
+    try {
+      await Promise.all(tagIds.map((tagId) => addJavTagToJavs(tagId, selectedJavIds)))
+      await loadJavTags({ force: true })
+      const skipped = Math.max(0, selectedCount - selectedJavVideoCount)
+      showToast(
+        skipped > 0
+          ? zh(
+              `已给 ${selectedJavIds.length} 个 JAV 添加标签，跳过 ${skipped} 个未关联 JAV 的视频`,
+              `Added tags to ${selectedJavIds.length} JAV items; skipped ${skipped} videos without JAV links`
+            )
+          : zh(
+              `已给 ${selectedJavIds.length} 个 JAV 添加标签`,
+              `Added tags to ${selectedJavIds.length} JAV items`
+            )
+      )
+      setSelectionJavTagsOpen(false)
+      setSelectionJavTagChoices([])
+      setSelectionOpsOpen(false)
+      clearSelection()
+    } catch (err) {
+      console.error('add JAV tags for selection failed', err)
+      showCenterToast(getErrorMessage(err))
+    } finally {
+      setSelectionJavTagSaving(false)
+    }
+  }
+
   const handleHomeClick = () => {
     setTagModalOpen(false)
     setVideoSettingsOpen(false)
@@ -2906,6 +3298,7 @@ export default function App() {
         javFavoriteRatingEnabled: false,
         javFavoriteRatingMin: 0.5,
         javFavoriteRatingMax: 5,
+        idolProfileFilters: createDefaultIdolProfileFilters(),
         javSearchTerm: '',
         javPage: 1,
         idolPage: 1,
@@ -2960,6 +3353,7 @@ export default function App() {
       javFavoriteRatingMin: 0.5,
       javFavoriteRatingMax: 5,
       idolFavoriteGroupId: null,
+      idolProfileFilters: createDefaultIdolProfileFilters(),
       javRandomMode: nextRandomMode,
       javRandomSeed: nextRandomSeed,
       javPage: 1,
@@ -3029,6 +3423,7 @@ export default function App() {
       javFavoriteRatingMin: 0.5,
       javFavoriteRatingMax: 5,
       idolFavoriteGroupId: null,
+      idolProfileFilters: createDefaultIdolProfileFilters(),
       javSearchTerm: '',
       javPage: 1,
       idolPage: 1,
@@ -3178,6 +3573,7 @@ export default function App() {
         javFavoriteRatingEnabled: false,
         javFavoriteRatingMin: 0.5,
         javFavoriteRatingMax: 5,
+        idolProfileFilters: createDefaultIdolProfileFilters(),
         javRandomMode: false,
         javRandomSeed: null,
       })
@@ -3618,6 +4014,8 @@ export default function App() {
             label: video.filename || video.path || `#${video.id}`,
             video_id: video.id,
             location_id: video.location_id || null,
+            jav_id: video.jav_id || null,
+            jav_code: video.jav?.code || video.locations?.[0]?.jav?.code || '',
           }
         })
       }
@@ -3797,6 +4195,7 @@ export default function App() {
             prefix: '',
             soloOnly: false,
             favoriteRatingEnabled: false,
+            idolProfileFilters: createDefaultIdolProfileFilters(),
             favoriteGroupId: targetGroupId,
             random: false,
             tempSort: '',
@@ -3810,8 +4209,17 @@ export default function App() {
         favoriteRatingEnabled={javFavoriteRatingEnabled}
         favoriteRatingMin={javFavoriteRatingMin}
         favoriteRatingMax={javFavoriteRatingMax}
+        idolProfileFilters={idolProfileFilters}
         filterItems={activeFilterItems}
-        hasActiveControlFilter={isJavMode && javTab === 'list' && javFavoriteRatingEnabled}
+        hasActiveControlFilter={
+          isJavMode &&
+          ((javTab === 'list' && javFavoriteRatingEnabled) ||
+            (javTab === 'idol' &&
+              (Boolean(String(javSearchTerm || '').trim()) ||
+                Object.values(normalizeIdolProfileFilters(idolProfileFilters)).some(
+                  (value) => value.enabled
+                ))))
+        }
         isJavMode={isJavMode}
         javSearchHref={javSearchHref}
         javSearchInput={javSearchInput}
@@ -3822,6 +4230,7 @@ export default function App() {
         }
         onFavoriteRatingEnabledChange={handleFavoriteRatingEnabledChange}
         onFavoriteRatingRangeChange={handleFavoriteRatingRangeChange}
+        onIdolProfileFilterChange={handleIdolProfileFilterChange}
         onHome={handleHomeClick}
         onOpenFavoriteGroups={() =>
           loadJavFavoriteGroups(activeFavoriteEntityType, { force: true })
@@ -4101,6 +4510,8 @@ export default function App() {
         onSortChange={setVideoSortInput}
         hideJavInput={videoHideJavInput}
         onHideJavChange={setVideoHideJavInput}
+        waterfallDefaultInput={videoWaterfallDefaultInput}
+        onWaterfallDefaultChange={setVideoWaterfallDefaultInput}
         onSave={handleSaveVideoSettings}
       />
 
@@ -4117,6 +4528,7 @@ export default function App() {
         video={playerVideo}
         startTime={playerStartTime}
         hotkeys={config?.player_hotkeys}
+        showHotkeyHint={configFlag(config?.browser_player_show_hotkey_hint, true)}
         onPlaybackError={showCenterToast}
         onClose={() => {
           setPlayerVideo(null)
@@ -4133,8 +4545,8 @@ export default function App() {
         }}
         onSave={handleSaveScrapeSettings}
         onFetchPossibleCodes={handleFetchScrapePossibleCodes}
-        onLookupMetadata={handleLookupScrapeMetadata}
         onManualScrape={handleManualScrape}
+        onLinkExistingJav={handleLinkExistingJav}
       />
 
       <JavSettingsModal
@@ -4275,20 +4687,24 @@ export default function App() {
         onClose={() => setSelectionOpsOpen(false)}
         selectedList={selectedList}
         selectedCount={selectedCount}
+        selectedJavCount={selectedJavIds.length}
         deleting={selectionDeleting}
         onRemoveSelected={handleRemoveSelectedVideo}
         onOpenTags={() => {
           loadTags()
           setSelectionTagAction('add')
           setSelectionTagChoices([])
-          setSelectionOpsOpen(false)
           setSelectionTagsOpen(true)
+        }}
+        onOpenJavTags={() => {
+          loadJavTags()
+          setSelectionJavTagChoices([])
+          setSelectionJavTagsOpen(true)
         }}
         onOpenRemoveTags={() => {
           loadTags()
           setSelectionTagAction('remove')
           setSelectionTagChoices([])
-          setSelectionOpsOpen(false)
           setSelectionTagsOpen(true)
         }}
         onDeleteSelected={handleDeleteSelection}
@@ -4303,6 +4719,22 @@ export default function App() {
         onToggleChoice={handleSelectionTagChoiceToggle}
         onConfirm={handleApplySelectionTags}
         confirmDisabled={!selectionTagChoices.length || selectedVideoIds.size === 0}
+      />
+
+      <SelectionJavTagsModal
+        open={selectionJavTagsOpen}
+        items={selectedList}
+        tags={displayJavTagOptions.filter((tag) => isUserJavTag(tag))}
+        selectedIds={selectionJavTagChoices}
+        onToggleChoice={handleSelectionJavTagChoiceToggle}
+        onCreateTag={async (name) => {
+          const tag = await createJavTag(name)
+          await loadJavTags({ force: true })
+          return tag
+        }}
+        onClose={handleSelectionJavTagsClose}
+        onConfirm={handleApplySelectionJavTags}
+        saving={selectionJavTagSaving}
       />
 
       <TagPickerModal
@@ -4582,9 +5014,19 @@ export default function App() {
           const cfg = await updateConfig(payload)
           useStore.setState({ config: cfg })
         }}
+        browserPlayerShowHotkeyHint={configFlag(config?.browser_player_show_hotkey_hint, true)}
+        onSaveBrowserPlayerSettings={async (payload) => {
+          const cfg = await updateConfig(payload)
+          useStore.setState({ config: cfg })
+        }}
         playerHotkeys={config?.player_hotkeys}
         onSavePlayerHotkeys={async (hotkeys) => {
           const cfg = await updateConfig({ player_hotkeys: hotkeys })
+          useStore.setState({ config: cfg })
+        }}
+        webHotkeys={config?.web_hotkeys}
+        onSaveWebHotkeys={async (hotkeys) => {
+          const cfg = await updateConfig({ web_hotkeys: hotkeys })
           useStore.setState({ config: cfg })
         }}
         onChangePassword={changePassword}

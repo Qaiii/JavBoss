@@ -35,8 +35,12 @@ func listJavIdols(c *gin.Context) {
 		}
 		favoriteGroupID = parsed
 	}
+	filters, ok := parseJavIdolFilters(c)
+	if !ok {
+		return
+	}
 
-	items, total, err := dbpkg.ListJavIdols(c.Request.Context(), search, sort, limit, offset, directoryIDs, parseClosedSubdirectories(c.Query("closed_subdirs")), parseDirectorySubpaths(c.Query("directory_subpaths")), favoriteGroupID)
+	items, total, err := dbpkg.ListJavIdols(c.Request.Context(), search, sort, limit, offset, directoryIDs, parseClosedSubdirectories(c.Query("closed_subdirs")), parseDirectorySubpaths(c.Query("directory_subpaths")), favoriteGroupID, filters)
 	if err != nil {
 		logging.Error("list jav idols: %v", err)
 		respondLocalizedError(c, http.StatusInternalServerError, "加载女优列表失败", "Failed to load idols")
@@ -51,12 +55,91 @@ func listJavIdols(c *gin.Context) {
 	})
 }
 
+func createJavIdol(c *gin.Context) {
+	var req struct {
+		Name string `json:"name"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondLocalizedError(c, http.StatusBadRequest, "创建女优请求无效", "Invalid idol creation request")
+		return
+	}
+
+	idol, err := dbpkg.CreateJavIdol(c.Request.Context(), req.Name)
+	if err != nil {
+		logging.Error("create jav idol error: %v", err)
+		respondLocalizedError(c, http.StatusBadRequest, "创建女优失败，名称可能为空", "Failed to create idol; the name may be empty")
+		return
+	}
+	c.JSON(http.StatusCreated, dbpkg.JavIdolSummary{
+		ID:           idol.ID,
+		Name:         idol.Name,
+		RomanName:    idol.RomanName,
+		JapaneseName: idol.JapaneseName,
+		ChineseName:  idol.ChineseName,
+	})
+}
+
+func parseJavIdolFilters(c *gin.Context) (dbpkg.JavIdolFilters, bool) {
+	filters := dbpkg.JavIdolFilters{}
+	ranges := []struct {
+		key     string
+		labelCN string
+		labelEN string
+		minimum int
+		maximum int
+		target  *dbpkg.JavIdolIntRange
+	}{
+		{key: "height", labelCN: "身高", labelEN: "height", minimum: 130, maximum: 190, target: &filters.Height},
+		{key: "age", labelCN: "年龄", labelEN: "age", minimum: 18, maximum: 60, target: &filters.Age},
+		{key: "cup", labelCN: "罩杯", labelEN: "cup", minimum: 1, maximum: 11, target: &filters.Cup},
+		{key: "bust", labelCN: "胸围", labelEN: "bust", minimum: 60, maximum: 130, target: &filters.Bust},
+		{key: "waist", labelCN: "腰围", labelEN: "waist", minimum: 45, maximum: 100, target: &filters.Waist},
+		{key: "hips", labelCN: "臀围", labelEN: "hips", minimum: 65, maximum: 130, target: &filters.Hips},
+	}
+	for _, item := range ranges {
+		parsed, ok := parseJavIdolIntRange(c, item.key, item.labelCN, item.labelEN, item.minimum, item.maximum)
+		if !ok {
+			return filters, false
+		}
+		*item.target = parsed
+	}
+	return filters, true
+}
+
+func parseJavIdolIntRange(c *gin.Context, key, labelCN, labelEN string, minimum, maximum int) (dbpkg.JavIdolIntRange, bool) {
+	result := dbpkg.JavIdolIntRange{}
+	minParam := strings.TrimSpace(c.Query("idol_" + key + "_min"))
+	maxParam := strings.TrimSpace(c.Query("idol_" + key + "_max"))
+	if minParam == "" && maxParam == "" {
+		return result, true
+	}
+	if minParam == "" || maxParam == "" {
+		respondLocalizedError(c, http.StatusBadRequest, labelCN+"范围无效", "Invalid idol "+labelEN+" range")
+		return result, false
+	}
+	parsedMin, minErr := strconv.Atoi(minParam)
+	parsedMax, maxErr := strconv.Atoi(maxParam)
+	if minErr != nil || maxErr != nil || parsedMin < minimum || parsedMax > maximum || parsedMin > parsedMax {
+		respondLocalizedError(c, http.StatusBadRequest, labelCN+"范围无效", "Invalid idol "+labelEN+" range")
+		return result, false
+	}
+	result.Min = &parsedMin
+	result.Max = &parsedMax
+	return result, true
+}
+
 func listJavIdolOptions(c *gin.Context) {
 	limit := queryInt(c, "limit", 100)
 	offset := queryInt(c, "offset", 0)
 	search := strings.TrimSpace(c.Query("search"))
 
-	items, total, err := dbpkg.ListJavIdolOptions(c.Request.Context(), search, limit, offset)
+	items, total, err := dbpkg.ListJavIdolOptions(
+		c.Request.Context(),
+		search,
+		limit,
+		offset,
+		parseDirectoryIDs(c.Query("directory_ids")),
+	)
 	if err != nil {
 		logging.Error("list jav idol options: %v", err)
 		respondLocalizedError(c, http.StatusInternalServerError, "加载女优选项失败", "Failed to load idol options")

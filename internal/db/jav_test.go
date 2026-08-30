@@ -422,13 +422,37 @@ func TestListJavIdolOptionsIncludesIdolsWithoutWorks(t *testing.T) {
 	if err := db.Create(&idols).Error; err != nil {
 		t.Fatalf("create idols: %v", err)
 	}
+	directory := models.Directory{Path: "/media/idol-options"}
+	if err := db.Create(&directory).Error; err != nil {
+		t.Fatalf("create directory: %v", err)
+	}
+	javRec := models.Jav{Code: "IDOL-OPTION-001"}
+	if err := db.Create(&javRec).Error; err != nil {
+		t.Fatalf("create JAV: %v", err)
+	}
+	if err := db.Create(&models.JavIdolMap{JavID: javRec.ID, JavIdolID: idols[0].ID}).Error; err != nil {
+		t.Fatalf("create idol map: %v", err)
+	}
+	video := models.Video{
+		Fingerprint: "idol-option-work",
+		DirectoryID: directory.ID,
+		Path:        "idol-option-work.mp4",
+		JavID:       &javRec.ID,
+	}
+	if err := db.Create(&video).Error; err != nil {
+		t.Fatalf("create video: %v", err)
+	}
+	createVideoLocationsForVideos(t, db, video)
 
-	items, total, err := ListJavIdolOptions(ctx, "", 20, 0)
+	items, total, err := ListJavIdolOptions(ctx, "", 20, 0, []int64{directory.ID})
 	if err != nil {
 		t.Fatalf("ListJavIdolOptions: %v", err)
 	}
 
 	assertJavIdolSummaries(t, items, total, []string{"Has Work Idol", "No Work Idol"})
+	if items[0].WorkCount != 1 || items[1].WorkCount != 0 {
+		t.Fatalf("work counts = %d, %d, want 1, 0", items[0].WorkCount, items[1].WorkCount)
+	}
 }
 
 func TestListJavPrefixesAndSearchByPrefix(t *testing.T) {
@@ -825,7 +849,6 @@ func TestSearchJavFiltersSoloOnlyByIdolCount(t *testing.T) {
 	for _, idol := range idols {
 		idolByName[idol.Name] = idol
 	}
-
 	javs := []models.Jav{
 		{Code: "SOLO-001", Title: "One idol", FetchedAt: now},
 		{Code: "GROUP-001", Title: "Two idols", FetchedAt: now},
@@ -919,6 +942,12 @@ func TestUpdateJavReplacesEditableMetadata(t *testing.T) {
 	for _, idol := range idols {
 		idolByName[idol.Name] = idol
 	}
+	if err := db.Create(&models.JavIdolAlias{
+		JavIdolID: idolByName["New Idol B"].ID,
+		Alias:     "New Idol B Alias",
+	}).Error; err != nil {
+		t.Fatalf("create idol alias: %v", err)
+	}
 	if err := db.Create(&[]models.JavTag{userTagA, userTagB, scrapedTag}).Error; err != nil {
 		t.Fatalf("create tags: %v", err)
 	}
@@ -969,17 +998,31 @@ func TestUpdateJavReplacesEditableMetadata(t *testing.T) {
 
 	studioID := studioByName["New Studio"].ID
 	seriesID := seriesByName["New Series"].ID
-	idolIDs := []int64{idolByName["New Idol A"].ID, idolByName["New Idol B"].ID}
+	aliasIdol, err := CreateJavIdol(ctx, "New Idol B Alias")
+	if err != nil {
+		t.Fatalf("CreateJavIdol alias: %v", err)
+	}
+	typedIdol, err := CreateJavIdol(ctx, "Typed Idol")
+	if err != nil {
+		t.Fatalf("CreateJavIdol typed: %v", err)
+	}
+	replacementTag, err := CreateJavScrapedTag(ctx, "Scraped Replacement")
+	if err != nil {
+		t.Fatalf("CreateJavScrapedTag: %v", err)
+	}
+	idolIDs := []int64{idolByName["New Idol A"].ID, aliasIdol.ID, typedIdol.ID}
 	tagIDs := []int64{tagByName["User B"].ID}
+	scrapedTagIDs := []int64{replacementTag.ID, replacementTag.ID}
 	releaseUnix := time.Date(2024, 1, 2, 0, 0, 0, 0, time.UTC).Unix()
 	durationMin := 123
 	updated, err := UpdateJav(ctx, javRec.ID, JavUpdateInput{
-		StudioID:    &studioID,
-		SeriesID:    &seriesID,
-		IdolIDs:     &idolIDs,
-		UserTagIDs:  &tagIDs,
-		ReleaseUnix: &releaseUnix,
-		DurationMin: &durationMin,
+		StudioID:      &studioID,
+		SeriesID:      &seriesID,
+		IdolIDs:       &idolIDs,
+		UserTagIDs:    &tagIDs,
+		ScrapedTagIDs: &scrapedTagIDs,
+		ReleaseUnix:   &releaseUnix,
+		DurationMin:   &durationMin,
 	}, nil)
 	if err != nil {
 		t.Fatalf("UpdateJav: %v", err)
@@ -1001,8 +1044,15 @@ func TestUpdateJavReplacesEditableMetadata(t *testing.T) {
 	for _, idol := range updated.Idols {
 		updatedIdolNames[idol.Name] = true
 	}
-	if len(updatedIdolNames) != 2 || !updatedIdolNames["New Idol A"] || !updatedIdolNames["New Idol B"] {
+	if len(updatedIdolNames) != 3 || !updatedIdolNames["New Idol A"] || !updatedIdolNames["New Idol B"] || !updatedIdolNames["Typed Idol"] {
 		t.Fatalf("updated idols = %#v", updated.Idols)
+	}
+	var aliasNamedIdolCount int64
+	if err := db.Model(&models.JavIdol{}).Where("name = ?", "New Idol B Alias").Count(&aliasNamedIdolCount).Error; err != nil {
+		t.Fatalf("count alias-named idol: %v", err)
+	}
+	if aliasNamedIdolCount != 0 {
+		t.Fatalf("manual alias input created %d duplicate idol rows", aliasNamedIdolCount)
 	}
 
 	var oldIdolMapCount int64
@@ -1030,8 +1080,26 @@ func TestUpdateJavReplacesEditableMetadata(t *testing.T) {
 		Count(&scrapedMapCount).Error; err != nil {
 		t.Fatalf("count scraped tag map: %v", err)
 	}
-	if scrapedMapCount != 1 {
-		t.Fatalf("scraped tag map count = %d, want 1", scrapedMapCount)
+	if scrapedMapCount != 0 {
+		t.Fatalf("old scraped tag map count = %d, want 0", scrapedMapCount)
+	}
+	var replacementMap models.JavTagMap
+	if err := db.
+		Table("jav_tag_map jtm").
+		Select("jtm.*").
+		Joins("JOIN jav_tag jt ON jt.id = jtm.jav_tag_id").
+		Where("jtm.jav_id = ? AND jt.name = ? AND jtm.provider = ?", javRec.ID, "Scraped Replacement", int(jav.ProviderManualScrape)).
+		First(&replacementMap).Error; err != nil {
+		t.Fatalf("load replacement scraped tag map: %v", err)
+	}
+	updatedTagProviders := map[string]int{}
+	for _, tag := range updated.Tags {
+		updatedTagProviders[tag.Name] = tag.Provider
+	}
+	if len(updatedTagProviders) != 2 ||
+		updatedTagProviders["User B"] != int(jav.ProviderUser) ||
+		updatedTagProviders["Scraped Replacement"] != int(jav.ProviderManualScrape) {
+		t.Fatalf("updated tags = %#v", updated.Tags)
 	}
 }
 
@@ -1401,7 +1469,7 @@ func TestAppendJavIdolsIfMissingForProvider(t *testing.T) {
 	})
 }
 
-func TestSaveJavInfoAndLinkVideoLocationsLinksAllLocations(t *testing.T) {
+func TestSaveManualJavInfoAndLinkVideoLocationsLinksAllLocations(t *testing.T) {
 	gdb := openTestDB(t)
 	ctx := context.Background()
 	now := time.Unix(1710000000, 0).UTC()
@@ -1428,16 +1496,27 @@ func TestSaveJavInfoAndLinkVideoLocationsLinksAllLocations(t *testing.T) {
 		t.Fatalf("upsert loc b: %v", err)
 	}
 
-	rec, err := SaveJavInfoAndLinkVideoLocations(ctx, &jav.JavInfo{
+	rec, err := SaveManualJavInfoAndLinkVideoLocations(ctx, &jav.JavInfo{
 		Code:     "MAN-001",
 		Title:    "Manual Title",
-		Provider: jav.ProviderJavDB,
+		Tags:     []string{"Manual Tag"},
+		Provider: jav.ProviderManualScrape,
 	}, video.ID)
 	if err != nil {
-		t.Fatalf("SaveJavInfoAndLinkVideoLocations: %v", err)
+		t.Fatalf("SaveManualJavInfoAndLinkVideoLocations: %v", err)
 	}
 	if rec == nil || rec.ID == 0 {
 		t.Fatalf("missing jav record: %#v", rec)
+	}
+	var manualTagMapCount int64
+	if err := gdb.Model(&models.JavTagMap{}).
+		Joins("JOIN jav_tag ON jav_tag.id = jav_tag_map.jav_tag_id").
+		Where("jav_tag_map.jav_id = ? AND jav_tag.name = ? AND jav_tag_map.provider = ?", rec.ID, "Manual Tag", int(jav.ProviderManualScrape)).
+		Count(&manualTagMapCount).Error; err != nil {
+		t.Fatalf("count manual scrape tag map: %v", err)
+	}
+	if manualTagMapCount != 1 {
+		t.Fatalf("manual scrape tag map count = %d, want 1", manualTagMapCount)
 	}
 
 	var locations []models.VideoLocation
@@ -1459,6 +1538,67 @@ func TestSaveJavInfoAndLinkVideoLocationsLinksAllLocations(t *testing.T) {
 	}
 	if videoForLocation == nil || videoForLocation.Jav == nil || videoForLocation.Jav.Code != "MAN-001" {
 		t.Fatalf("expected hydrated jav on video location, got %#v", videoForLocation)
+	}
+	if videoForLocation.JavScrapeOverride != models.JavScrapeOverrideManualPrefix+"MAN-001" {
+		t.Fatalf("jav scrape override = %q", videoForLocation.JavScrapeOverride)
+	}
+}
+
+func TestLinkVideoLocationsToExistingJavRollsBackWhenOverrideUpdateFails(t *testing.T) {
+	gdb := openTestDB(t)
+	ctx := context.Background()
+	now := time.Unix(1710000000, 0).UTC()
+
+	dir := models.Directory{Path: "/tmp/atomic-existing-link"}
+	if err := gdb.Create(&dir).Error; err != nil {
+		t.Fatalf("create directory: %v", err)
+	}
+	javRecords := []models.Jav{{Code: "OLD-001", Title: "Old"}, {Code: "NEW-001", Title: "New"}}
+	if err := gdb.Create(&javRecords).Error; err != nil {
+		t.Fatalf("create JAV records: %v", err)
+	}
+	oldJav, newJav := javRecords[0], javRecords[1]
+	video := models.Video{
+		Fingerprint:       "atomic-existing-link",
+		JavScrapeOverride: models.JavScrapeOverrideManualPrefix + oldJav.Code,
+	}
+	if err := gdb.Create(&video).Error; err != nil {
+		t.Fatalf("create video: %v", err)
+	}
+	loc, err := UpsertVideoLocation(ctx, video.ID, dir.ID, "movie.mp4", now)
+	if err != nil {
+		t.Fatalf("create video location: %v", err)
+	}
+	if err := gdb.Model(&models.VideoLocation{}).Where("id = ?", loc.ID).Update("jav_id", oldJav.ID).Error; err != nil {
+		t.Fatalf("link old JAV: %v", err)
+	}
+	if err := gdb.Exec(`
+		CREATE TRIGGER fail_existing_link_override
+		BEFORE UPDATE OF jav_scrape_override ON video
+		BEGIN
+			SELECT RAISE(ABORT, 'forced override failure');
+		END
+	`).Error; err != nil {
+		t.Fatalf("create failure trigger: %v", err)
+	}
+
+	if _, err := LinkVideoLocationsToExistingJav(ctx, newJav.Code, video.ID); err == nil {
+		t.Fatal("expected override update failure")
+	}
+
+	var storedVideo models.Video
+	if err := gdb.First(&storedVideo, video.ID).Error; err != nil {
+		t.Fatalf("reload video: %v", err)
+	}
+	if storedVideo.JavScrapeOverride != video.JavScrapeOverride {
+		t.Fatalf("override changed after rollback: got %q want %q", storedVideo.JavScrapeOverride, video.JavScrapeOverride)
+	}
+	var storedLocation models.VideoLocation
+	if err := gdb.First(&storedLocation, loc.ID).Error; err != nil {
+		t.Fatalf("reload video location: %v", err)
+	}
+	if storedLocation.JavID == nil || *storedLocation.JavID != oldJav.ID {
+		t.Fatalf("JAV link changed after rollback: got %#v want %d", storedLocation.JavID, oldJav.ID)
 	}
 }
 
@@ -1646,6 +1786,47 @@ func TestUserJavTagNameDoesNotModifyScrapedTag(t *testing.T) {
 	}
 	if userAfter.Name != "Renamed User" || !userAfter.IsUser || userAfter.CategoryID != nil {
 		t.Fatalf("user tag was not renamed correctly: %#v", userAfter)
+	}
+}
+
+func TestEnsureJavTagsTraditionalizesAndDeduplicatesScrapedNames(t *testing.T) {
+	gdb := openTestDB(t)
+	ctx := context.Background()
+
+	tags, err := ensureJavTagsTx(
+		gdb,
+		[]string{" 无码 ", "無碼", "女优", "女優"},
+		jav.ProviderJavBus,
+	)
+	if err != nil {
+		t.Fatalf("ensure scraped JAV tags: %v", err)
+	}
+	if len(tags) != 2 || tags[0].Name != "無碼" || tags[1].Name != "女優" {
+		t.Fatalf("canonical scraped tags = %#v, want 無碼 and 女優", tags)
+	}
+
+	repeated, err := ensureJavTagsTx(gdb, []string{"无码", "女优"}, jav.ProviderManualScrape)
+	if err != nil {
+		t.Fatalf("ensure repeated scraped JAV tags: %v", err)
+	}
+	if len(repeated) != 2 || repeated[0].ID != tags[0].ID || repeated[1].ID != tags[1].ID {
+		t.Fatalf("repeated scraped tags = %#v, want existing IDs %#v", repeated, tags)
+	}
+
+	userTag, err := CreateJavTag(ctx, "女优")
+	if err != nil {
+		t.Fatalf("create simplified user JAV tag: %v", err)
+	}
+	if userTag.Name != "女优" || !userTag.IsUser {
+		t.Fatalf("user JAV tag was canonicalized: %#v", userTag)
+	}
+
+	var scrapedCount int64
+	if err := gdb.Model(&models.JavTag{}).Where("is_user = ?", false).Count(&scrapedCount).Error; err != nil {
+		t.Fatalf("count scraped JAV tags: %v", err)
+	}
+	if scrapedCount != 2 {
+		t.Fatalf("scraped JAV tag count = %d, want 2", scrapedCount)
 	}
 }
 
@@ -1911,6 +2092,7 @@ func TestJavTagsFilterOutEnglishProviders(t *testing.T) {
 		{Name: "Avmoo Only"},
 		{Name: "Avsox Only"},
 		{Name: "JavMenu Only"},
+		{Name: "Manual Only"},
 		{Name: "English Only"},
 		{Name: "TPDB Only"},
 		{Name: "User Only", IsUser: true},
@@ -1929,6 +2111,7 @@ func TestJavTagsFilterOutEnglishProviders(t *testing.T) {
 		{JavID: javRec.ID, JavTagID: byName["Avmoo Only"].ID, Provider: int(jav.ProviderAvmoo), CreatedAt: now},
 		{JavID: javRec.ID, JavTagID: byName["Avsox Only"].ID, Provider: int(jav.ProviderAvsox), CreatedAt: now},
 		{JavID: javRec.ID, JavTagID: byName["JavMenu Only"].ID, Provider: int(jav.ProviderJavMenu), CreatedAt: now},
+		{JavID: javRec.ID, JavTagID: byName["Manual Only"].ID, Provider: int(jav.ProviderManualScrape), CreatedAt: now},
 		{JavID: javRec.ID, JavTagID: byName["English Only"].ID, Provider: int(jav.ProviderJavDatabase), CreatedAt: now},
 		{JavID: javRec.ID, JavTagID: byName["TPDB Only"].ID, Provider: int(jav.ProviderThePornDB), CreatedAt: now},
 		{JavID: javRec.ID, JavTagID: byName["User Only"].ID, Provider: int(jav.ProviderUser), CreatedAt: now},
@@ -1942,7 +2125,7 @@ func TestJavTagsFilterOutEnglishProviders(t *testing.T) {
 		t.Fatalf("ListJavTags zh: %v", err)
 	}
 	assertJavTagProviderNames(t, zhTags, map[int][]string{
-		int(jav.ProviderJavBus): {"Avmoo Only", "Avsox Only", "JavDB Only", "JavMenu Only", "Shared"},
+		int(jav.ProviderJavBus): {"Avmoo Only", "Avsox Only", "JavDB Only", "JavMenu Only", "Manual Only", "Shared"},
 		int(jav.ProviderUser):   {"User Only"},
 	})
 	assertJavTagCounts(t, zhTags, map[string]int64{
@@ -1951,13 +2134,14 @@ func TestJavTagsFilterOutEnglishProviders(t *testing.T) {
 		"Avmoo Only":   1,
 		"Avsox Only":   1,
 		"JavMenu Only": 1,
+		"Manual Only":  1,
 		"User Only":    1,
 	})
 	items, total, err := SearchJav(ctx, nil, []int64{byName["JavDB Only"].ID}, "", "code", 20, 0, nil, nil)
 	if err != nil {
 		t.Fatalf("SearchJav zh tag: %v", err)
 	}
-	if total != 1 || len(items) != 1 || len(items[0].Tags) != 6 {
+	if total != 1 || len(items) != 1 || len(items[0].Tags) != 7 {
 		t.Fatalf("unexpected zh search result: total=%d items=%#v", total, items)
 	}
 
@@ -2135,6 +2319,7 @@ func TestListJavsMissingStudioAndInternalEnglishSeries(t *testing.T) {
 	studio := models.JavStudio{Name: "Studio"}
 	localSeries := models.JavSeries{Name: "中文系列"}
 	englishSeries := models.JavSeries{Name: "English Series", IsEnglish: true}
+	uncensored := true
 	if err := gdb.Create(&studio).Error; err != nil {
 		t.Fatalf("create studio: %v", err)
 	}
@@ -2149,6 +2334,7 @@ func TestListJavsMissingStudioAndInternalEnglishSeries(t *testing.T) {
 		{Code: "MISS-ENGLISH", StudioID: &studio.ID, FetchedAt: now.Add(time.Second), CreatedAt: now.Add(time.Second)},
 		{Code: "MISS-LOCAL", StudioID: &studio.ID, SeriesEnID: &englishSeries.ID, FetchedAt: now.Add(2 * time.Second), CreatedAt: now.Add(2 * time.Second)},
 		{Code: "HAVE-BOTH", StudioID: &studio.ID, SeriesID: &localSeries.ID, SeriesEnID: &englishSeries.ID, FetchedAt: now.Add(3 * time.Second), CreatedAt: now.Add(3 * time.Second)},
+		{Code: "UNCENSORED", IsUncensored: &uncensored, FetchedAt: now.Add(4 * time.Second), CreatedAt: now.Add(4 * time.Second)},
 	}
 	if err := gdb.Create(&rows).Error; err != nil {
 		t.Fatalf("create jav rows: %v", err)
@@ -2162,6 +2348,17 @@ func TestListJavsMissingStudioAndInternalEnglishSeries(t *testing.T) {
 		fastCandidates[0].Code != "MISS-STUDIO" ||
 		fastCandidates[1].Code != "MISS-ENGLISH" {
 		t.Fatalf("unexpected JavDatabase candidates: %#v", fastCandidates)
+	}
+
+	allMissingLocal, err := ListJavsMissingLocalSeries(ctx)
+	if err != nil {
+		t.Fatalf("ListJavsMissingLocalSeries: %v", err)
+	}
+	if len(allMissingLocal) != 3 ||
+		allMissingLocal[0].Code != "MISS-STUDIO" ||
+		allMissingLocal[1].Code != "MISS-ENGLISH" ||
+		allMissingLocal[2].Code != "MISS-LOCAL" {
+		t.Fatalf("unexpected JavMenu candidates: %#v", allMissingLocal)
 	}
 
 	slowCandidates, err := ListJavsMissingLocalSeriesWithEnglishSeries(ctx)
@@ -2904,6 +3101,84 @@ func TestListJavIdolsSortByAgeDirections(t *testing.T) {
 	}
 	if items[0].ID != oldIdol.ID {
 		t.Fatalf("unexpected birth_asc first idol: got %d want %d", items[0].ID, oldIdol.ID)
+	}
+}
+
+func TestListJavIdolsFiltersProfileRanges(t *testing.T) {
+	database := openTestDB(t)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	targetBirth := now.AddDate(-30, -1, 0)
+	outsideBirth := now.AddDate(-22, 0, 0)
+
+	directory := models.Directory{Path: "/tmp/idol-profile-filters"}
+	if err := database.Create(&directory).Error; err != nil {
+		t.Fatalf("create directory: %v", err)
+	}
+	idols := []models.JavIdol{
+		{
+			Name:      "Matching Idol",
+			HeightCM:  intPtr(165),
+			BirthDate: &targetBirth,
+			Bust:      intPtr(88),
+			Waist:     intPtr(58),
+			Hips:      intPtr(90),
+			Cup:       intPtr(5),
+		},
+		{
+			Name:      "Outside Idol",
+			HeightCM:  intPtr(150),
+			BirthDate: &outsideBirth,
+			Bust:      intPtr(78),
+			Waist:     intPtr(68),
+			Hips:      intPtr(80),
+			Cup:       intPtr(2),
+		},
+		{Name: "Missing Profile Idol"},
+	}
+	if err := database.Create(&idols).Error; err != nil {
+		t.Fatalf("create idols: %v", err)
+	}
+
+	for index := range idols {
+		javItem := models.Jav{
+			Code:      fmt.Sprintf("FLT-%03d", index+1),
+			Title:     idols[index].Name,
+			FetchedAt: now,
+		}
+		if err := database.Create(&javItem).Error; err != nil {
+			t.Fatalf("create jav %d: %v", index, err)
+		}
+		if err := database.Create(&models.JavIdolMap{JavID: javItem.ID, JavIdolID: idols[index].ID}).Error; err != nil {
+			t.Fatalf("create idol map %d: %v", index, err)
+		}
+		video := models.Video{
+			DirectoryID: directory.ID,
+			Path:        fmt.Sprintf("idol-filter-%d.mp4", index),
+			Filename:    fmt.Sprintf("idol-filter-%d.mp4", index),
+			Fingerprint: fmt.Sprintf("idol-filter-fp-%d", index),
+			JavID:       int64Ptr(javItem.ID),
+			ModifiedAt:  now,
+		}
+		if err := database.Create(&video).Error; err != nil {
+			t.Fatalf("create video %d: %v", index, err)
+		}
+		createVideoLocationsForVideos(t, database, video)
+	}
+
+	items, total, err := ListJavIdols(ctx, "", "", 20, 0, nil, 0, JavIdolFilters{
+		Height: JavIdolIntRange{Min: intPtr(160), Max: intPtr(170)},
+		Age:    JavIdolIntRange{Min: intPtr(29), Max: intPtr(31)},
+		Cup:    JavIdolIntRange{Min: intPtr(4), Max: intPtr(6)},
+		Bust:   JavIdolIntRange{Min: intPtr(85), Max: intPtr(90)},
+		Waist:  JavIdolIntRange{Min: intPtr(55), Max: intPtr(60)},
+		Hips:   JavIdolIntRange{Min: intPtr(88), Max: intPtr(92)},
+	})
+	if err != nil {
+		t.Fatalf("ListJavIdols filters: %v", err)
+	}
+	if total != 1 || len(items) != 1 || items[0].ID != idols[0].ID {
+		t.Fatalf("filtered idols = %#v total=%d, want only %d", items, total, idols[0].ID)
 	}
 }
 

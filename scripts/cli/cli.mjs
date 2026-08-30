@@ -374,7 +374,7 @@ async function startBackendDevChild() {
   }
   if (!ffprobeOk) {
     console.error(
-      `[dev] internal/bin 缺少或版本不匹配 ${current.label} 的 ffprobe，请先选择 “download dependencies” 下载到 bin/${current.label}。`,
+      `[dev] internal/bin 缺少或版本不匹配 ${current.label} 的 ffprobe，请先选择 “download-dependencies” 下载到 bin/${current.label}。`,
     );
     process.exitCode = 1;
     return null;
@@ -393,7 +393,7 @@ async function startBackendDevChild() {
     }
     if (!ffmpegOk) {
       console.error(
-        `[dev] internal/bin 缺少 ${current.label} 的 ffmpeg，请先选择 “download dependencies” 下载到 bin/${current.label}。`,
+        `[dev] internal/bin 缺少 ${current.label} 的 ffmpeg，请先选择 “download-dependencies” 下载到 bin/${current.label}。`,
       );
       process.exitCode = 1;
       return null;
@@ -443,11 +443,36 @@ async function copyDir(src, dest) {
   await fsp.cp(src, dest, { recursive: true });
 }
 
+function linuxMpvWrapperContent() {
+  return [
+    "#!/bin/sh",
+    'HERE=$(CDPATH= cd "$(dirname "$0")" && pwd -P)',
+    'LIB="$HERE/lib"',
+    'MPV_LIBRARY_PATH="$LIB${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"',
+    'exec "$LIB/ld-linux-x86-64.so.2" --library-path "$MPV_LIBRARY_PATH" "$HERE/bin/mpv-bin" "$@"',
+    "",
+  ].join("\n");
+}
+
+async function writeLinuxMpvWrapper(baseDir) {
+  const bundledMpv = path.join(baseDir, "bin", "mpv-bin");
+  const bundledLoader = path.join(baseDir, "lib", "ld-linux-x86-64.so.2");
+  if (!(await exists(bundledMpv)) || !(await exists(bundledLoader))) return false;
+
+  const wrapperPath = path.join(baseDir, "mpv");
+  await fsp.writeFile(wrapperPath, linuxMpvWrapperContent());
+  await fsp.chmod(wrapperPath, 0o755);
+  return true;
+}
+
 async function syncBundledMpvToInternal(choice) {
   if (!(await isBundledMpvReady(choice))) return false;
   await fsp.mkdir(INTERNAL_BIN_DIR, { recursive: true });
   await fsp.rm(internalMpvDir(), { recursive: true, force: true });
   await copyDir(binMpvDir(choice), internalMpvDir());
+  if (choice.goos === "linux") {
+    await writeLinuxMpvWrapper(internalMpvDir());
+  }
   if (choice.goos !== "windows") {
     await fsp.chmod(internalMpvPath(choice), 0o755).catch(() => {});
   }
@@ -516,6 +541,9 @@ async function copyBundledFfmpeg(choice, outDir) {
 async function copyBundledMpv(choice, outDir) {
   const destDir = path.join(outDir, "internal", "bin", "mpv");
   await copyDir(binMpvDir(choice), destDir);
+  if (choice.goos === "linux") {
+    await writeLinuxMpvWrapper(destDir);
+  }
   if (choice.goos !== "windows") {
     await fsp.chmod(mpvExecutablePath(destDir, choice), 0o755).catch(() => {});
   }
@@ -584,7 +612,7 @@ async function runRelease(choice, version) {
   const ffprobeOk = await isBundledFfprobeReady(choice);
   if (!ffprobeOk) {
     console.error(
-      `[release] bin/${choice.label} 缺少或版本不匹配 ffprobe，请先选择 “download dependencies” 下载。`,
+      `[release] bin/${choice.label} 缺少或版本不匹配 ffprobe，请先选择 “download-dependencies” 下载。`,
     );
     process.exitCode = 1;
     return;
@@ -592,7 +620,7 @@ async function runRelease(choice, version) {
   const ffmpegOk = choice.goos !== "darwin" || (await isBundledFfmpegReady(choice));
   if (!ffmpegOk) {
     console.error(
-      `[release] bin/${choice.label} 缺少 ffmpeg，请先选择 “download dependencies” 下载。`,
+      `[release] bin/${choice.label} 缺少 ffmpeg，请先选择 “download-dependencies” 下载。`,
     );
     process.exitCode = 1;
     return;
@@ -601,7 +629,7 @@ async function runRelease(choice, version) {
   const requireBundledMpv = true;
   if (requireBundledMpv && !bundledMpvOk) {
     console.error(
-      `[release] bin/${choice.label} 缺少 mpv，请先选择 “download dependencies” 下载。`,
+      `[release] bin/${choice.label} 缺少 mpv，请先选择 “download-dependencies” 下载。`,
     );
     process.exitCode = 1;
     return;
@@ -642,6 +670,45 @@ async function runRelease(choice, version) {
   console.log("[release] 打包 zip");
   await createZip(outDir, zipPath);
   console.log(`[release] 完成：${zipPath}`);
+}
+
+async function runBrowserExtensionRelease() {
+  const sourceDir = path.join(ROOT_DIR, "browser-extension");
+  const manifestPath = path.join(sourceDir, "manifest.json");
+
+  if (!(await exists(manifestPath))) {
+    throw new Error("[extension release] browser-extension/manifest.json 不存在");
+  }
+  const manifest = JSON.parse(await fsp.readFile(manifestPath, "utf8"));
+  const version = String(manifest.version || "").trim();
+  if (!/^\d+(?:\.\d+){0,3}$/.test(version)) {
+    throw new Error("[extension release] manifest.json 中的版本号无效");
+  }
+
+  const releaseName = `javboss-browser-extension-v${version}`;
+  const outDir = path.join(ROOT_DIR, "release", releaseName);
+  const zipPath = path.join(ROOT_DIR, "release", `${releaseName}.zip`);
+
+  await fsp.rm(outDir, { recursive: true, force: true });
+  await fsp.rm(zipPath, { force: true });
+  await fsp.mkdir(outDir, { recursive: true });
+  console.log(`[extension release] 打包 Chrome 扩展 v${version}`);
+  for (const name of [
+    "manifest.json",
+    "bridge.html",
+    "bridge.js",
+    "assist-loading.html",
+    "assist-loading.css",
+    "service-worker.js",
+    "README.md",
+  ]) {
+    await fsp.copyFile(path.join(sourceDir, name), path.join(outDir, name));
+  }
+  await copyDir(path.join(sourceDir, "content"), path.join(outDir, "content"));
+  await copyDir(path.join(sourceDir, "icons"), path.join(outDir, "icons"));
+  console.log("[extension release] 生成 zip");
+  await createZip(outDir, zipPath);
+  console.log(`[extension release] 完成：${zipPath}`);
 }
 
 function ffprobeSources(choice) {
@@ -1047,16 +1114,7 @@ async function installLinuxMpvFromAppImage(archive, choice, tmpBase) {
     });
   }
 
-  const wrapper = [
-    "#!/bin/sh",
-    'HERE=$(CDPATH= cd "$(dirname "$0")" && pwd -P)',
-    'LIB="$HERE/lib"',
-    'export LD_LIBRARY_PATH="$LIB${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"',
-    'exec "$LIB/ld-linux-x86-64.so.2" --library-path "$LD_LIBRARY_PATH" "$HERE/bin/mpv-bin" "$@"',
-    "",
-  ].join("\n");
-  await fsp.writeFile(path.join(installDir, "mpv"), wrapper);
-  await fsp.chmod(path.join(installDir, "mpv"), 0o755);
+  await writeLinuxMpvWrapper(installDir);
 
   await fsp.rm(binMpvDir(choice), { recursive: true, force: true });
   await copyDir(installDir, binMpvDir(choice));
@@ -1215,6 +1273,13 @@ async function downloadFfmpeg(choice) {
 
 async function downloadMpv(choice) {
   if (await isBundledMpvReady(choice)) {
+    if (choice.goos === "linux") {
+      await writeLinuxMpvWrapper(binMpvDir(choice));
+      const current = currentPlatformChoice();
+      if (current?.label === choice.label) {
+        await writeLinuxMpvWrapper(internalMpvDir());
+      }
+    }
     console.log(`[mpv] 已存在：${binMpvDir(choice)}`);
     return;
   }
@@ -1438,7 +1503,11 @@ async function main() {
     await handleRelease(arg1, arg2);
     return;
   }
-  if (action === "download") {
+  if (action === "release-browser-extension") {
+    await runBrowserExtensionRelease();
+    return;
+  }
+  if (action === "download-dependencies") {
     await handleDownload(arg1);
     return;
   }
@@ -1451,7 +1520,8 @@ async function main() {
       choices: [
         { name: "dev", value: "dev" },
         { name: "release", value: "release" },
-        { name: "download dependencies", value: "download" },
+        { name: "release-browser-extension", value: "release-browser-extension" },
+        { name: "download-dependencies", value: "download-dependencies" },
       ],
     },
   ]);
@@ -1464,7 +1534,11 @@ async function main() {
     await handleRelease();
     return;
   }
-  if (mainAction === "download") {
+  if (mainAction === "release-browser-extension") {
+    await runBrowserExtensionRelease();
+    return;
+  }
+  if (mainAction === "download-dependencies") {
     await handleDownload();
   }
 }
