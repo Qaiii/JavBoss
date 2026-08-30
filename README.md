@@ -60,6 +60,15 @@ curl -fsSL https://raw.githubusercontent.com/Solr159/JavBoss/main/scripts/instal
 - Windows：双击桌面的 `JavBoss` 快捷方式，或在开始菜单中搜索 `JavBoss`。
 - Linux / macOS：打开终端运行 `javboss`。
 
+<details>
+<summary>点击查看默认安装位置</summary>
+
+- Windows：`C:\Users\你的用户名\AppData\Local\JavBoss` （右键点击桌面快捷方式 -> 属性 -> 打开文件所在位置 即可快速定位）
+- Linux：`~/.local/share/javboss`
+- macOS：`~/Applications/JavBoss`
+
+</details>
+
 </dd>
 </dl>
 
@@ -91,7 +100,7 @@ curl -fsSL https://raw.githubusercontent.com/Solr159/JavBoss/main/scripts/instal
 <dl>
 <dd>
 
-docker-compose.yaml（建议放在单独的目录里）：
+docker-compose.yaml（建议放在单独的目录中）：
 
 ```yaml
 services:
@@ -104,7 +113,7 @@ services:
       - "host.docker.internal:host-gateway"
     volumes:
       - ./data:/app/data
-      - /:/host:ro
+      - /:/host:ro # 默认只读挂载，如果需要使用目录整理、文件重命名、文件删除等功能，将末尾的':ro'移除
     restart: unless-stopped
 ```
 
@@ -114,7 +123,7 @@ services:
 docker compose up -d
 ```
 
-Docker 部署下使用浏览器播放视频，不会调用本机 mpv。添加目录时直接填写宿主机路径，例如 `/mnt/disk1/videos`，程序会自动映射到容器内可访问路径。
+Docker 部署下默认只能使用浏览器播放器（较为简陋且依赖服务端转码），如果需要使用 MPV，参考 [Client 模式说明](#client-模式说明)。添加目录时直接填写宿主机路径，例如 `/mnt/disk1/videos`，程序会自动映射到容器内可访问路径。
 
 </dd>
 </dl>
@@ -122,7 +131,8 @@ Docker 部署下使用浏览器播放视频，不会调用本机 mpv。添加目
 </br>
 
 **浏览器访问地址：`http://localhost:8655`，非 docker 方式启动后，程序会自动打开浏览器。</br>**
-**Docker 方式启动默认支持局域网设备访问，将 `localhost` 改为部署主机的局域网ip。非 docker 方式需要在全局设置中手动开启局域网访问，然后重启软件。</br>**
+**Docker 部署默认支持局域网设备访问，将 `localhost` 改为部署主机的局域网ip。</br>**
+**非 Docker 部署请在设置中手动开启局域网访问，然后重启软件。</br>**
 **默认登录密码为 `admin`，可在全局设置中修改。**
 
 ### 2. 添加本地目录
@@ -176,12 +186,6 @@ JavBoss 现在还有一个随程序包一起发布的 Chrome 扩展：`JavBoss �
 docker compose pull
 docker compose up -d
 ```
-
-## 命令行一键安装默认位置
-
-- Windows：`C:\Users\你的用户名\AppData\Local\JavBoss` （右键点击桌面快捷方式 -> 属性 -> 打开文件所在位置 即可快速定位）
-- Linux：`~/.local/share/javboss`
-- macOS：`~/Applications/JavBoss`
 
 ## 注意事项
 
