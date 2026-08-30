@@ -108,8 +108,141 @@ func TestDirectorySchemaIncludesLastScanSummary(t *testing.T) {
 	gdb := openTestDB(t)
 	assertTableColumns(t, gdb, "directory", []string{
 		"id", "path", "missing", "is_delete", "created_at", "updated_at", "last_scan_summary",
-		"auto_scan_enabled", "auto_scan_interval_minutes",
+		"auto_scan_enabled", "auto_scan_interval_minutes", "enabled",
 	})
+}
+
+func TestDirectoryEnabledDefaultsTrueAndCanBeUpdated(t *testing.T) {
+	gdb := openTestDB(t)
+	ctx := context.Background()
+	dir := models.Directory{Path: "/media/enabled-setting"}
+	if err := gdb.Create(&dir).Error; err != nil {
+		t.Fatalf("create directory: %v", err)
+	}
+	if !dir.Enabled {
+		t.Fatal("new directory should be enabled by default")
+	}
+
+	enabled := false
+	updated, err := UpdateDirectory(ctx, dir.ID, nil, nil, &enabled)
+	if err != nil {
+		t.Fatalf("disable directory: %v", err)
+	}
+	if updated == nil || updated.Enabled {
+		t.Fatalf("updated directory = %#v, want disabled", updated)
+	}
+}
+
+func TestDisabledDirectoryContentsAreNotVisible(t *testing.T) {
+	gdb := openTestDB(t)
+	ctx := context.Background()
+	dir := models.Directory{Path: "/media/disabled-contents"}
+	video := models.Video{Fingerprint: "disabled-directory-content"}
+	if err := gdb.Create(&dir).Error; err != nil {
+		t.Fatalf("create directory: %v", err)
+	}
+	if err := gdb.Create(&video).Error; err != nil {
+		t.Fatalf("create video: %v", err)
+	}
+	if _, err := UpsertVideoLocation(ctx, video.ID, dir.ID, "movie.mp4", time.Now()); err != nil {
+		t.Fatalf("create video location: %v", err)
+	}
+
+	items, err := ListVideos(ctx, 10, 0, nil, "", "recent", nil, nil)
+	if err != nil || len(items) != 1 {
+		t.Fatalf("enabled directory videos = %#v, err = %v", items, err)
+	}
+	enabled := false
+	if _, err := UpdateDirectory(ctx, dir.ID, nil, nil, &enabled); err != nil {
+		t.Fatalf("disable directory: %v", err)
+	}
+	items, err = ListVideos(ctx, 10, 0, nil, "", "recent", nil, nil)
+	if err != nil {
+		t.Fatalf("list videos after disabling directory: %v", err)
+	}
+	if len(items) != 0 {
+		t.Fatalf("disabled directory videos should be hidden: %#v", items)
+	}
+}
+
+func TestDisabledDirectoryLocationsAreExcludedFromActiveReads(t *testing.T) {
+	gdb := openTestDB(t)
+	ctx := context.Background()
+	now := time.Unix(1710000000, 0).UTC()
+
+	disabledDir := models.Directory{Path: "/media/disabled-location"}
+	enabledDir := models.Directory{Path: "/media/enabled-location"}
+	if err := gdb.Create(&disabledDir).Error; err != nil {
+		t.Fatalf("create disabled directory: %v", err)
+	}
+	if err := gdb.Create(&enabledDir).Error; err != nil {
+		t.Fatalf("create enabled directory: %v", err)
+	}
+	video := models.Video{Fingerprint: "mixed-directory-visibility"}
+	if err := gdb.Create(&video).Error; err != nil {
+		t.Fatalf("create video: %v", err)
+	}
+	disabledLoc, err := UpsertVideoLocation(ctx, video.ID, disabledDir.ID, "disabled.mp4", now)
+	if err != nil {
+		t.Fatalf("create disabled location: %v", err)
+	}
+	enabledLoc, err := UpsertVideoLocation(ctx, video.ID, enabledDir.ID, "enabled.mp4", now.Add(time.Minute))
+	if err != nil {
+		t.Fatalf("create enabled location: %v", err)
+	}
+
+	enabled := false
+	if _, err := UpdateDirectory(ctx, disabledDir.ID, nil, nil, &enabled); err != nil {
+		t.Fatalf("disable directory: %v", err)
+	}
+
+	got, err := GetVideo(ctx, video.ID)
+	if err != nil {
+		t.Fatalf("get video: %v", err)
+	}
+	if got == nil || got.LocationID != enabledLoc.ID {
+		t.Fatalf("primary location = %#v, want enabled location %d", got, enabledLoc.ID)
+	}
+	if len(got.Locations) != 1 || got.Locations[0].ID != enabledLoc.ID {
+		t.Fatalf("preloaded locations = %#v, want only enabled location", got.Locations)
+	}
+
+	primary, err := GetPrimaryVideoLocation(ctx, video.ID)
+	if err != nil {
+		t.Fatalf("get primary location: %v", err)
+	}
+	if primary == nil || primary.ID != enabledLoc.ID {
+		t.Fatalf("primary location = %#v, want enabled location %d", primary, enabledLoc.ID)
+	}
+	disabled, err := GetActiveVideoLocation(ctx, video.ID, disabledLoc.ID)
+	if err != nil {
+		t.Fatalf("get disabled location: %v", err)
+	}
+	if disabled != nil {
+		t.Fatalf("disabled location should not be active: %#v", disabled)
+	}
+	active, err := GetActiveVideoLocation(ctx, video.ID, enabledLoc.ID)
+	if err != nil {
+		t.Fatalf("get enabled location: %v", err)
+	}
+	if active == nil || active.ID != enabledLoc.ID {
+		t.Fatalf("enabled location = %#v, want %d", active, enabledLoc.ID)
+	}
+
+	disabledVideoID, err := GetVideoIDByPath(ctx, disabledDir.Path, disabledLoc.RelativePath)
+	if err != nil {
+		t.Fatalf("get video ID from disabled path: %v", err)
+	}
+	if disabledVideoID != 0 {
+		t.Fatalf("disabled path resolved video ID %d, want 0", disabledVideoID)
+	}
+	enabledVideoID, err := GetVideoIDByPath(ctx, enabledDir.Path, enabledLoc.RelativePath)
+	if err != nil {
+		t.Fatalf("get video ID from enabled path: %v", err)
+	}
+	if enabledVideoID != video.ID {
+		t.Fatalf("enabled path resolved video ID %d, want %d", enabledVideoID, video.ID)
+	}
 }
 
 func TestDirectoryAutoScanSettingsDefaultAndUpdate(t *testing.T) {
@@ -234,7 +367,7 @@ func TestUpdateDirectoryPathHidesExistingVideoLocations(t *testing.T) {
 		t.Fatalf("upsert video location: %v", err)
 	}
 
-	updated, err := UpdateDirectory(ctx, dir.ID, &newRoot, nil)
+	updated, err := UpdateDirectory(ctx, dir.ID, &newRoot, nil, nil)
 	if err != nil {
 		t.Fatalf("update directory path: %v", err)
 	}
