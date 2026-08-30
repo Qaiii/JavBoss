@@ -3166,7 +3166,7 @@ func TestListJavIdolsFiltersProfileRanges(t *testing.T) {
 		createVideoLocationsForVideos(t, database, video)
 	}
 
-	items, total, err := ListJavIdols(ctx, "", "", 20, 0, nil, 0, JavIdolFilters{
+	items, total, err := ListJavIdols(ctx, "", "", 20, 0, nil, nil, nil, 0, JavIdolFilters{
 		Height: JavIdolIntRange{Min: intPtr(160), Max: intPtr(170)},
 		Age:    JavIdolIntRange{Min: intPtr(29), Max: intPtr(31)},
 		Cup:    JavIdolIntRange{Min: intPtr(4), Max: intPtr(6)},
