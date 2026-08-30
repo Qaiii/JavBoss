@@ -10,6 +10,7 @@ const JAVDB_ASSIST_KEY_PREFIX = "javboss:javdb-assist:";
 const LEGACY_RELAY_KEY_PREFIX = "javboss:javbus-relay:";
 const LEGACY_RELAY_SESSION_KEY_PREFIX = "javboss:javbus-session:";
 const MAGNET_DOWNLOAD_SETTINGS_KEY = "javboss:magnet-download-settings";
+const JAVDB_SETTINGS_KEY = "javboss:javdb-settings";
 
 function relayKey(tabId) {
   return `${RELAY_KEY_PREFIX}${tabId}`;
@@ -27,6 +28,17 @@ function validScrapeURL(value) {
   try {
     const parsed = new URL(String(value || ""));
     return SCRAPE_ORIGINS.has(parsed.origin) ? parsed.href : "";
+  } catch {
+    return "";
+  }
+}
+
+function validJavDBURL(value) {
+  try {
+    const parsed = new URL(String(value || ""));
+    if (parsed.origin !== "https://javdb.com") return "";
+    parsed.hash = "";
+    return parsed.href;
   } catch {
     return "";
   }
@@ -83,6 +95,11 @@ async function magnetDownloadSettings() {
     enabled: settings?.enabled === true && Boolean(serverUrl),
     serverUrl,
   };
+}
+
+async function javDBAutoRedirectEnabled() {
+  const stored = await chrome.storage.local.get(JAVDB_SETTINGS_KEY);
+  return stored[JAVDB_SETTINGS_KEY]?.autoRedirect !== false;
 }
 
 async function submitMagnetDownload(message) {
@@ -149,6 +166,15 @@ function isExtensionBridgeSender(sender) {
   }
 }
 
+function placeTabAfterSender(createProperties, sender) {
+  if (Number.isInteger(sender.tab?.windowId)) {
+    createProperties.windowId = sender.tab.windowId;
+  }
+  if (Number.isInteger(sender.tab?.index) && sender.tab.index >= 0) {
+    createProperties.index = sender.tab.index + 1;
+  }
+}
+
 async function openRelayTab(message, sender) {
   const url = validScrapeURL(message?.url);
   const sessionId = validSessionID(message?.sessionId);
@@ -171,9 +197,7 @@ async function openRelayTab(message, sender) {
     url: "about:blank",
     active: true,
   };
-  if (Number.isInteger(sender.tab?.windowId)) {
-    createProperties.windowId = sender.tab.windowId;
-  }
+  placeTabAfterSender(createProperties, sender);
   const relayTab = await chrome.tabs.create(createProperties);
   const relayTabId = relayTab?.id;
   if (!Number.isInteger(relayTabId)) {
@@ -195,17 +219,17 @@ async function openRelayTab(message, sender) {
 async function openJavDBAssistTab(message, sender) {
   const request = validJavDBAssistRequest(message?.request);
   const sessionId = validSessionID(message?.sessionId);
-  let url;
-  try {
-    const parsed = new URL(String(message?.url || ""));
-    if (parsed.origin !== "https://javdb.com") throw new Error();
-    parsed.hash = "";
-    url = parsed.href;
-  } catch {
-    url = "";
-  }
+  const url = validJavDBURL(message?.url);
+  const fallbackUrl = validJavDBURL(message?.fallbackUrl) || url;
   if (!url || !request || !sessionId || !isExtensionBridgeSender(sender)) {
     return { ok: false, error: "invalid JavDB assist request" };
+  }
+
+  if (!(await javDBAutoRedirectEnabled())) {
+    const createProperties = { url: fallbackUrl, active: true };
+    placeTabAfterSender(createProperties, sender);
+    await chrome.tabs.create(createProperties);
+    return { ok: true };
   }
 
   // Activate a controlled white page immediately. The assist state is stored
@@ -215,9 +239,7 @@ async function openJavDBAssistTab(message, sender) {
     url: chrome.runtime.getURL("assist-loading.html"),
     active: true,
   };
-  if (Number.isInteger(sender.tab?.windowId)) {
-    createProperties.windowId = sender.tab.windowId;
-  }
+  placeTabAfterSender(createProperties, sender);
   const assistTab = await chrome.tabs.create(createProperties);
   const assistTabId = assistTab?.id;
   if (!Number.isInteger(assistTabId)) {
