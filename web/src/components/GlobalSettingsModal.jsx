@@ -82,6 +82,7 @@ const DEFAULT_PROXY_HOST = '127.0.0.1'
 export default function GlobalSettingsModal({
   open,
   onClose,
+  initialSection = '',
   directories,
   browserPlaybackOnly = false,
   desktopIntegrationEnabled = true,
@@ -191,13 +192,16 @@ export default function GlobalSettingsModal({
 
   useEffect(() => {
     if (open) {
+      if (SETTINGS_SECTIONS.some((section) => section.id === initialSection)) {
+        setActiveSection(initialSection)
+      }
       setPlayerTab('basic')
       setPlayerBasicError('')
       setPlayerBasicSuccess('')
       setBrowserPlayerError('')
       setBrowserPlayerSuccess('')
     }
-  }, [open])
+  }, [initialSection, open])
 
   useEffect(() => {
     if (open) {

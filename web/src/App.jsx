@@ -45,6 +45,7 @@ import {
   scanDirectory,
 } from '@/api'
 import GlobalSettingsModal from '@/components/GlobalSettingsModal'
+import DownloadView from '@/components/DownloadView'
 import JavFavoriteManageModal from '@/components/JavFavoriteManageModal'
 import JavFavoriteModal from '@/components/JavFavoriteModal'
 import JavQueryEditorModal from '@/components/JavQueryEditorModal'
@@ -93,7 +94,7 @@ import {
   webHotkeyFromKeyboardEvent,
   webHotkeyKeyId,
 } from '@/utils/webHotkeys'
-import { directoryQueryIds, directoryQuerySubpaths, useStore, videoSelectionKey } from '@/store'
+import { useStore, videoSelectionKey } from '@/store'
 import { useAuth } from '@/auth'
 
 const WATERFALL_STORAGE_KEY = 'javboss.waterfallModes'
@@ -323,13 +324,6 @@ export default function App() {
     createDirectory,
     updateDirectory,
     deleteDirectory,
-    enabledDirectoryIds,
-    setEnabledDirectoryIds,
-    setDirectorySubpathFilter,
-    directorySubpaths,
-    closedSubdirectories,
-    setClosedSubdirectories,
-    directoryFilterMode,
   } = useStore()
 
   const [tagModalOpen, setTagModalOpen] = useState(false)
@@ -338,6 +332,7 @@ export default function App() {
   const [videoSettingsOpen, setVideoSettingsOpen] = useState(false)
   const [javSettingsOpen, setJavSettingsOpen] = useState(false)
   const [globalSettingsOpen, setGlobalSettingsOpen] = useState(false)
+  const [downloadOpen, setDownloadOpen] = useState(false)
   const [javTagModalOpen, setJavTagModalOpen] = useState(false)
   const [javTagCategories, setJavTagCategories] = useState([])
   const [javQueryEditorOpen, setJavQueryEditorOpen] = useState(false)
@@ -378,6 +373,12 @@ export default function App() {
   const [hydrated, setHydrated] = useState(false)
   const [configLoaded, setConfigLoaded] = useState(false)
   const isJavMode = viewMode === 'jav'
+
+  useEffect(() => {
+    if (javTab !== 'download') return
+    setDownloadOpen(true)
+    useStore.setState({ javTab: 'list' })
+  }, [javTab])
   const selectedTagIds = useMemo(
     () =>
       tags
@@ -387,33 +388,13 @@ export default function App() {
     [tags, selectedTags]
   )
   const tagsByName = useMemo(() => new Map(tags.map((t) => [t.name, t.id])), [tags])
-  const directoryTagKey = useMemo(
+  const directoryStateKey = useMemo(
     () =>
-      [
-        directoryQueryIds({
-          directories,
-          enabledDirectoryIds,
-          directoryFilterMode,
-        }).join(','),
-        directoryQuerySubpaths({
-          directories,
-          enabledDirectoryIds,
-          directoryFilterMode,
-          directorySubpaths,
-        })
-          .map((item) => `${item.directoryId}:${item.path}`)
-          .join(','),
-      ].join('|'),
-    [directories, enabledDirectoryIds, directoryFilterMode, directorySubpaths]
-  )
-  const javQueryDirectoryIds = useMemo(
-    () =>
-      directoryQueryIds({
-        directories,
-        enabledDirectoryIds,
-        directoryFilterMode,
-      }),
-    [directories, enabledDirectoryIds, directoryFilterMode]
+      directories
+        .filter((directory) => !directory?.is_delete)
+        .map((directory) => `${directory.id}:${directory.enabled !== false ? '1' : '0'}`)
+        .join(','),
+    [directories]
   )
   // 当前正在浏览的目录（如通过“查看所在目录”进入时的单个目录过滤）
   const currentDirectoryPath = useMemo(() => {
@@ -1221,8 +1202,6 @@ export default function App() {
 
   const applyUrlState = useCallback(
     (parsed) => {
-      useStore.getState().setDirectoryFilterFromUrl(parsed.directoryIds, parsed.directorySubpaths)
-      useStore.getState().setClosedSubdirectoriesFromUrl(parsed.closedSubdirs)
       const mapTagIdsToNamesFromStore = (ids) => {
         if (!Array.isArray(ids) || ids.length === 0) return []
         const { tags: storeTags } = useStore.getState()
@@ -1347,20 +1326,10 @@ export default function App() {
           seriesFavoriteGroupId,
           studioPage,
           seriesPage,
-          directories,
-          enabledDirectoryIds,
-          directorySubpaths,
-          directoryFilterMode,
-          closedSubdirectories,
         },
         tagsByName
       ),
     [
-      directories,
-      directoryFilterMode,
-      enabledDirectoryIds,
-      directorySubpaths,
-      closedSubdirectories,
       idolFavoriteGroupId,
       idolProfileFilters,
       idolTempSort,
@@ -1501,7 +1470,7 @@ export default function App() {
       const sp = new URLSearchParams()
       sp.set('view', 'jav')
       const tab = tabOverride ?? javTab
-      if (tab === 'idol' || tab === 'studio' || tab === 'series') {
+      if (tab === 'idol' || tab === 'studio' || tab === 'series' || tab === 'download') {
         sp.set('tab', tab)
       }
       const searchVal = (searchOverride ?? javSearchTerm).trim()
@@ -1712,7 +1681,7 @@ export default function App() {
   useEffect(() => {
     loadTags({ skipUnchanged: true })
     loadJavTags({ skipUnchanged: true })
-  }, [loadTags, loadJavTags, directoryTagKey, videoHideJav])
+  }, [loadTags, loadJavTags, directoryStateKey, videoHideJav])
 
   useEffect(() => {
     if (!pendingVideoTagIdsRef.current || !tags.length) return
@@ -1736,8 +1705,7 @@ export default function App() {
     randomSeed,
     searchTerm,
     selectedTags,
-    enabledDirectoryIds,
-    directoryFilterMode,
+    directoryStateKey,
     sortOrder,
     videoTempSort,
     videoHideJav,
@@ -1745,7 +1713,9 @@ export default function App() {
 
   useEffect(() => {
     if (!hydrated || !configLoaded || !isJavMode) return
-    if (javTab === 'idol') {
+    if (javTab === 'download') {
+      return
+    } else if (javTab === 'idol') {
       loadJavIdols()
       loadJavFavoriteGroups('idol')
     } else if (javTab === 'studio') {
@@ -1792,8 +1762,7 @@ export default function App() {
     studioPageSize,
     seriesPage,
     seriesPageSize,
-    enabledDirectoryIds,
-    directoryFilterMode,
+    directoryStateKey,
     loadJavs,
     loadJavIdols,
     loadJavFavoriteGroups,
@@ -1882,7 +1851,9 @@ export default function App() {
   const forceReloadJavByTab = useCallback(
     (tab) => {
       if (!hydrated || !configLoaded) return
-      if (tab === 'idol') {
+      if (tab === 'download') {
+        return
+      } else if (tab === 'idol') {
         loadJavIdols({ force: true })
         loadJavFavoriteGroups('idol', { force: true })
       } else if (tab === 'studio') {
@@ -2253,7 +2224,6 @@ export default function App() {
     () => new Map(displayJavTagOptions.map((tag) => [tag.id, tag.name])),
     [displayJavTagOptions]
   )
-  const javDirectoryKey = javQueryDirectoryIds.join(',')
   const javIdolOptionMap = useMemo(() => {
     const map = new Map()
     const addIdol = (idol) => {
@@ -2274,7 +2244,7 @@ export default function App() {
   )
   useEffect(() => {
     setJavResolvedIdols({})
-  }, [javDirectoryKey])
+  }, [directoryStateKey])
 
   useEffect(() => {
     if (!isJavMode || javTab !== 'list' || javIdolIds.length === 0) return undefined
@@ -2303,7 +2273,7 @@ export default function App() {
     return () => {
       cancelled = true
     }
-  }, [isJavMode, javTab, javIdolIds, javIdolOptionMap, javQueryDirectoryIds])
+  }, [isJavMode, javTab, javIdolIds, javIdolOptionMap, directoryStateKey])
 
   const searchHref = buildVideoUrl({
     search: searchInput,
@@ -3330,7 +3300,15 @@ export default function App() {
 
   const handleSwitchJavTab = (tab) => {
     const nextTab =
-      tab === 'idol' ? 'idol' : tab === 'studio' ? 'studio' : tab === 'series' ? 'series' : 'list'
+      tab === 'idol'
+        ? 'idol'
+        : tab === 'studio'
+          ? 'studio'
+          : tab === 'series'
+            ? 'series'
+            : tab === 'download'
+              ? 'download'
+              : 'list'
     const shouldResetRandomList = nextTab === 'list' && javRandomMode
     const shouldClearSearch = nextTab === 'list' || nextTab !== javTab || shouldResetRandomList
     const nextRandomMode = nextTab === 'list' && !shouldResetRandomList ? javRandomMode : false
@@ -3379,7 +3357,15 @@ export default function App() {
       return
     }
     const nextTab =
-      tab === 'idol' ? 'idol' : tab === 'studio' ? 'studio' : tab === 'series' ? 'series' : 'list'
+      tab === 'idol'
+        ? 'idol'
+        : tab === 'studio'
+          ? 'studio'
+          : tab === 'series'
+            ? 'series'
+            : tab === 'download'
+              ? 'download'
+              : 'list'
     if (isJavMode && nextTab === javTab) return
     // 从视频页切换到 JAV 页时，清除“查看所在目录”聚焦的子目录过滤，仅保留
     // 启用的根目录，避免 JAV 各页因聚焦子目录内没有 JAV 作品而显示为空。
@@ -3737,9 +3723,9 @@ export default function App() {
   const handleLoadIdolFavoriteGroupIdols = useCallback(
     (groupId) => {
       const type = favoriteManageEntityType || 'idol'
-      return fetchJavFavoriteGroupItems(type, groupId, { directoryIds: javQueryDirectoryIds })
+      return fetchJavFavoriteGroupItems(type, groupId)
     },
-    [favoriteManageEntityType, javQueryDirectoryIds]
+    [favoriteManageEntityType]
   )
 
   const handleReorderIdolFavoriteGroupIdols = useCallback(
@@ -4024,13 +4010,15 @@ export default function App() {
   }, [videos])
 
   const activeError = isJavMode
-    ? javTab === 'idol'
-      ? idolError
-      : javTab === 'studio'
-        ? studioError
-        : javTab === 'series'
-          ? seriesError
-          : javError
+    ? javTab === 'download'
+      ? null
+      : javTab === 'idol'
+        ? idolError
+        : javTab === 'studio'
+          ? studioError
+          : javTab === 'series'
+            ? seriesError
+            : javError
     : error
   const showDirectorySetupHint =
     hydrated &&
@@ -4043,21 +4031,25 @@ export default function App() {
     videos.length === 0
 
   const activeJavLoading =
-    javTab === 'idol'
-      ? idolLoading
-      : javTab === 'studio'
-        ? studioLoading
-        : javTab === 'series'
-          ? seriesLoading
-          : javLoading
+    javTab === 'download'
+      ? false
+      : javTab === 'idol'
+        ? idolLoading
+        : javTab === 'studio'
+          ? studioLoading
+          : javTab === 'series'
+            ? seriesLoading
+            : javLoading
   const activeLoadingMore = isJavMode
-    ? javTab === 'idol'
-      ? idolLoadingMore
-      : javTab === 'studio'
-        ? studioLoadingMore
-        : javTab === 'series'
-          ? seriesLoadingMore
-          : javLoadingMore
+    ? javTab === 'download'
+      ? false
+      : javTab === 'idol'
+        ? idolLoadingMore
+        : javTab === 'studio'
+          ? studioLoadingMore
+          : javTab === 'series'
+            ? seriesLoadingMore
+            : javLoadingMore
     : videoLoadingMore
   useScrollRestoration({
     activeJavLoading,
@@ -4147,15 +4139,11 @@ export default function App() {
         }
         canGoBack={browserNavigation.canGoBack}
         canGoForward={browserNavigation.canGoForward}
-        directories={directories}
-        enabledDirectoryIds={enabledDirectoryIds}
-        hostPathPrefixEnabled={hostPathPrefixEnabled}
         isJavMode={isJavMode}
         javPrefix={javPrefix}
-        javPrefixDirectoryIds={javQueryDirectoryIds}
         onBrowserBack={handleBrowserBack}
         onBrowserForward={handleBrowserForward}
-        onEnabledDirectoryIdsChange={setEnabledDirectoryIds}
+        onOpenDownload={() => setDownloadOpen(true)}
         onOpenGlobalSettings={() => setGlobalSettingsOpen(true)}
         onOpenJavSettings={openJavSettings}
         onOpenJavTagModal={handleOpenJavTagModal}
@@ -4308,7 +4296,6 @@ export default function App() {
               onNext: () => idolHasNext && setIdolPage(idolPage + 1),
               onLast: () => setIdolPage(idolLastPage),
               items: idolItems,
-              directoryIds: javQueryDirectoryIds,
               config,
               onSelectIdol: handleSelectIdol,
               onOpenFavorites: handleOpenIdolFavoriteModal,
@@ -4323,7 +4310,6 @@ export default function App() {
               hasMore: idolWaterfallHasMore,
             }}
             studio={{
-              directoryIds: javQueryDirectoryIds,
               page: studioPage,
               lastPage: studioLastPage,
               totalItems: studioTotal,
@@ -4374,7 +4360,6 @@ export default function App() {
               hasMore: seriesWaterfallHasMore,
             }}
             list={{
-              directoryIds: javQueryDirectoryIds,
               javPage,
               javLastPage,
               javHasPrev,
@@ -4477,6 +4462,8 @@ export default function App() {
         )}
       </main>
 
+      <DownloadView open={downloadOpen} onClose={() => setDownloadOpen(false)} />
+
       <JavQueryEditorModal
         open={javQueryEditorOpen}
         onClose={() => setJavQueryEditorOpen(false)}
@@ -4492,7 +4479,6 @@ export default function App() {
         seriesName={javSeriesName}
         prefix={javPrefix}
         soloOnly={javSoloOnly}
-        directoryIds={javQueryDirectoryIds}
         preferChineseName={configFlag(config?.jav_idol_prefer_chinese_name)}
         favoriteGroupId={javFavoriteGroupId}
         favoriteRatingEnabled={javFavoriteRatingEnabled}

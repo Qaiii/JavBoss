@@ -518,6 +518,7 @@ export default function TopBar({
 
   const activeSearchInput = isJavMode ? javSearchInput : searchInput
   const activeSearchHref = isJavMode ? javSearchHref : searchHref
+  const isJavDownload = isJavMode && javTab === 'download'
   const selectedVideoCount = Number(selectedCount)
   const hasVideoSelection =
     !isJavMode && Number.isFinite(selectedVideoCount) && selectedVideoCount > 0
@@ -531,9 +532,10 @@ export default function TopBar({
           : zh('搜索番号或标题', 'Search code or title')
     : zh('搜索文件名', 'Search filename')
   const showFilterCluster =
-    filterItems.length > 0 ||
-    Boolean(onOpenFilterEditor) ||
-    ((!isJavMode || javTab !== 'idol') && hasActiveControlFilter)
+    !isJavDownload &&
+    (filterItems.length > 0 ||
+      Boolean(onOpenFilterEditor) ||
+      ((!isJavMode || javTab !== 'idol') && hasActiveControlFilter))
 
   const setDirectoryEnabled = (id, checked) => {
     const next = new Set(enabledDirectorySet)
@@ -835,30 +837,32 @@ export default function TopBar({
           JavBoss
         </button>
         <div className="filter-topbar__controls">
-          <form onSubmit={onSubmitSearch} className="filter-search">
-            <input
-              value={activeSearchInput}
-              onChange={(event) => onSearchInputChange?.(event.target.value)}
-              placeholder={placeholder}
-              aria-label={placeholder}
-            />
-            <Button
-              component="a"
-              href={activeSearchHref}
-              type="submit"
-              variant="contained"
-              size="small"
-              onClick={(event) => {
-                if (isModifiedClick(event)) return
-                event.preventDefault()
-                onSubmitSearch?.(event)
-              }}
-              sx={{ minWidth: 34, width: 34, height: 30, p: 0, borderRadius: '8px' }}
-              aria-label={zh('应用搜索', 'Apply search')}
-            >
-              <SearchIcon sx={{ fontSize: 17 }} />
-            </Button>
-          </form>
+          {!isJavDownload ? (
+            <form onSubmit={onSubmitSearch} className="filter-search">
+              <input
+                value={activeSearchInput}
+                onChange={(event) => onSearchInputChange?.(event.target.value)}
+                placeholder={placeholder}
+                aria-label={placeholder}
+              />
+              <Button
+                component="a"
+                href={activeSearchHref}
+                type="submit"
+                variant="contained"
+                size="small"
+                onClick={(event) => {
+                  if (isModifiedClick(event)) return
+                  event.preventDefault()
+                  onSubmitSearch?.(event)
+                }}
+                sx={{ minWidth: 34, width: 34, height: 30, p: 0, borderRadius: '8px' }}
+                aria-label={zh('应用搜索', 'Apply search')}
+              >
+                <SearchIcon sx={{ fontSize: 17 }} />
+              </Button>
+            </form>
+          ) : null}
 
           {isJavMode && javTab === 'list' ? (
             <FavoriteRatingFilter
@@ -944,209 +948,7 @@ export default function TopBar({
               </div>
             ) : null}
 
-            {focusedSubpath ? (
-              <span
-                className="filter-location-path"
-                title={zh(`当前目录：${focusedSubpath}`, `Current directory: ${focusedSubpath}`)}
-              >
-                <FolderRoundedIcon fontSize="small" className="shrink-0 text-gray-400" />
-                <span className="min-w-0 truncate">{focusedSubpath}</span>
-              </span>
-            ) : null}
-
-            <div ref={directoryMenuRef} className="relative">
-              <button
-                type="button"
-                className={`filter-action-button ${directoryMenuOpen ? 'filter-action-button--active' : ''}`}
-                onClick={() => setDirectoryMenuOpen((open) => !open)}
-                aria-label={zh('选择启用目录', 'Choose enabled directories')}
-                aria-haspopup="menu"
-                aria-expanded={directoryMenuOpen}
-              >
-                <FolderOpenOutlinedIcon fontSize="small" />
-                <span>{directorySummary}</span>
-                <KeyboardArrowDownRoundedIcon
-                  fontSize="small"
-                  className={
-                    directoryMenuOpen ? 'rotate-180 transition-transform' : 'transition-transform'
-                  }
-                />
-              </button>
-              {directoryMenuOpen ? (
-                <div
-                  role="menu"
-                  className="absolute right-0 top-full z-50 mt-2 w-80 overflow-hidden rounded border border-gray-200 bg-white text-left shadow-lg"
-                >
-                  <div className="flex items-center justify-between gap-2 border-b bg-gray-50 px-3 py-2">
-                    <div className="min-w-0">
-                      <div className="text-xs font-semibold text-gray-700">
-                        {zh('启用目录', 'Enabled directories')}
-                      </div>
-                      <div className="truncate text-xs text-gray-500">
-                        {directorySummary}
-                        {focusedSubpath ? ` · ${focusedSubpath}` : ''}
-                      </div>
-                    </div>
-                    {activeDirectories.length > 0 ? (
-                      <div className="flex shrink-0 items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            onEnabledDirectoryIdsChange?.(activeDirectoryIds)
-                            clearAllClosedSubdirectories()
-                          }}
-                          className="rounded border border-gray-200 bg-white px-2 py-1 text-xs text-gray-600 hover:bg-gray-100"
-                        >
-                          {zh('全选', 'All')}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            onEnabledDirectoryIdsChange?.([])
-                            clearAllClosedSubdirectories()
-                          }}
-                          className="rounded border border-gray-200 bg-white px-2 py-1 text-xs text-gray-600 hover:bg-gray-100"
-                        >
-                          {zh('清空', 'None')}
-                        </button>
-                      </div>
-                    ) : null}
-                  </div>
-                  <div className="max-h-[60vh] overflow-y-auto py-1">
-                    {activeDirectories.length === 0 ? (
-                      <div className="px-3 py-3 text-sm text-gray-500">
-                        {zh('还没有添加目录', 'No directories yet')}
-                      </div>
-                    ) : (
-                      activeDirectories.map((directory) => {
-                        const id = Number(directory.id)
-                        const checked = enabledDirectorySet.has(id)
-                        const directoryPath = displayHostPath(directory.path, hostPathPrefixEnabled)
-                        const closedNames = new Set(closedSubdirectories?.[id] || [])
-                        const directoryLayout = subdirsByDirectory[id] || {
-                          rootVideoCount: 0,
-                          subdirectories: [],
-                        }
-                        const subdirectories = directoryLayout.subdirectories || []
-                        const hasRootFiles = Number(directoryLayout.rootVideoCount) > 0
-                        const closedArray = Array.from(closedNames)
-                        const expanded = expandedDirectoryIds.has(`${id}:`)
-                        const hasSubdirectories = subdirectories.length > 0
-                        // A directory is partially enabled (special mark) when it
-                        // is enabled but any subdirectory at any level is hidden.
-                        const partiallyEnabled = checked && closedArray.length > 0
-                        return (
-                          <div key={directory.id}>
-                            <div className="flex items-start gap-2 px-3 py-2 text-sm hover:bg-gray-50">
-                              <label className="flex min-w-0 flex-1 cursor-pointer items-start gap-2">
-                                <TriStateCheckbox
-                                  checked={checked}
-                                  indeterminate={partiallyEnabled}
-                                  onChange={() => toggleDirectoryEnabled(id)}
-                                  className="mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300 text-blue-600"
-                                  aria-label={zh(
-                                    `启用目录 ${directoryPath}`,
-                                    `Enable directory ${directoryPath}`
-                                  )}
-                                />
-                                <span className="min-w-0 flex-1 text-gray-700">
-                                  <span className="break-all">{directoryPath}</span>
-                                  {closedArray.length > 0 ? (
-                                    <span className="ml-2 inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
-                                      {zh(`部分子目录已隐藏`, 'Some subdirectories hidden')}
-                                    </span>
-                                  ) : null}
-                                  {directory.missing ? (
-                                    <span className="ml-2 inline-flex rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">
-                                      {zh('目录缺失', 'Missing')}
-                                    </span>
-                                  ) : null}
-                                </span>
-                              </label>
-                              {hasSubdirectories ? (
-                                <div className="flex shrink-0 items-center gap-0.5">
-                                  <span
-                                    className="text-xs tabular-nums text-gray-400"
-                                    title={zh(
-                                      `目录内文件数 ${directory.scanned_video_count}`,
-                                      `Files in directory: ${directory.scanned_video_count}`
-                                    )}
-                                  >
-                                    {Number(directory.scanned_video_count) || 0}
-                                  </span>
-                                  <button
-                                    type="button"
-                                    onClick={(event) => {
-                                      event.preventDefault()
-                                      event.stopPropagation()
-                                      toggleDirectoryExpanded(id, '')
-                                    }}
-                                    aria-label={
-                                      expanded
-                                        ? zh(
-                                            `收起子目录 ${directoryPath}`,
-                                            `Collapse subdirectories of ${directoryPath}`
-                                          )
-                                        : zh(
-                                            `展开子目录 ${directoryPath}`,
-                                            `Expand subdirectories of ${directoryPath}`
-                                          )
-                                    }
-                                    aria-expanded={expanded}
-                                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-gray-500 hover:bg-gray-100 hover:text-gray-700"
-                                  >
-                                    <KeyboardArrowRightRoundedIcon
-                                      fontSize="small"
-                                      className={
-                                        expanded
-                                          ? 'rotate-90 transition-transform'
-                                          : 'transition-transform'
-                                      }
-                                    />
-                                  </button>
-                                </div>
-                              ) : null}
-                            </div>
-                            {expanded ? (
-                              <div className="border-l border-gray-100 pb-1 pl-4">
-                                {subdirsLoading && subdirectories.length === 0 ? (
-                                  <div className="px-3 py-1.5 text-xs text-gray-400">
-                                    {zh('加载子目录…', 'Loading subdirectories...')}
-                                  </div>
-                                ) : (
-                                  <>
-                                    {subdirectories.map((subdir) =>
-                                      renderDirectoryBranch(id, subdir, checked, false, closedArray)
-                                    )}
-                                    {hasRootFiles ? (
-                                      <div className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-500">
-                                        <span className="flex h-4 w-4 shrink-0 items-center justify-center">
-                                          <FolderRoundedIcon
-                                            fontSize="small"
-                                            className="text-gray-400"
-                                          />
-                                        </span>
-                                        <span className="min-w-0 flex-1 truncate">
-                                          {zh('(根目录)', '(Root)')}
-                                        </span>
-                                        <span className="shrink-0 text-xs tabular-nums text-gray-400">
-                                          {Number(directoryLayout.rootVideoCount) || 0}
-                                        </span>
-                                      </div>
-                                    ) : null}
-                                  </>
-                                )}
-                              </div>
-                            ) : null}
-                          </div>
-                        )
-                      })
-                    )}
-                  </div>
-                </div>
-              ) : null}
-            </div>
-            {isJavMode ? (
+            {isJavMode && !isJavDownload ? (
               <div ref={favoriteMenuRef} className="relative">
                 <button
                   type="button"

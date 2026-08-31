@@ -46,51 +46,6 @@ const parseFavoriteRating = (raw) => {
   return value
 }
 
-const parseDirectoryIds = (sp) => {
-  if (!sp.has('directory_ids')) return null
-  const raw = (sp.get('directory_ids') || '').trim()
-  if (raw === '0') return []
-  return parseIds(raw)
-}
-
-const parseClosedSubdirs = (sp) => {
-  const raw = (sp.get('closed_subdirs') || '').trim()
-  if (!raw) return []
-  return raw
-    .split(',')
-    .map((part) => {
-      const idx = part.indexOf(':')
-      if (idx <= 0) return null
-      const id = Number.parseInt(part.slice(0, idx).trim(), 10)
-      const name = part.slice(idx + 1).trim()
-      if (!Number.isFinite(id) || id <= 0 || !name) return null
-      return { directoryId: id, name }
-    })
-    .filter(Boolean)
-}
-
-// directory_subpaths: "<directoryId>:<relativePath>,..." — subtree focus inside root dirs.
-const parseDirectorySubpaths = (sp) => {
-  const raw = (sp.get('directory_subpaths') || '').trim()
-  if (!raw) return []
-  return raw
-    .split(',')
-    .map((part) => {
-      const idx = part.indexOf(':')
-      if (idx <= 0) return null
-      const id = Number.parseInt(part.slice(0, idx).trim(), 10)
-      const path = part.slice(idx + 1).trim()
-      if (!Number.isFinite(id) || id <= 0 || !path) return null
-      return { directoryId: id, path }
-    })
-    .filter(Boolean)
-}
-
-const serializeSubpathPairs = (pairs, field) =>
-  Array.isArray(pairs) && pairs.length
-    ? pairs.map((pair) => `${Number(pair.directoryId)}:${pair[field]}`).join(',')
-    : ''
-
 const parseIdolProfileFilters = (sp) => {
   const filters = createDefaultIdolProfileFilters()
   for (const definition of IDOL_PROFILE_FILTER_DEFINITIONS) {
@@ -123,10 +78,6 @@ export const parseUrlState = (searchString = window.location.search, options = {
   const defaultView = options.defaultView === 'jav' ? 'jav' : 'video'
   const rawView = sp.get('view')
   const view = rawView === 'jav' ? 'jav' : rawView === 'video' ? 'video' : defaultView
-  const directoryIds = parseDirectoryIds(sp)
-  const closedSubdirs = parseClosedSubdirs(sp)
-  const directorySubpaths = parseDirectorySubpaths(sp)
-
   const videoTempSort = normalizeVideoSort((sp.get('temp_sort') || '').trim(), '')
 
   const video = {
@@ -140,13 +91,15 @@ export const parseUrlState = (searchString = window.location.search, options = {
 
   const rawJavTab = sp.get('tab')
   const javTab =
-    rawJavTab === 'idol'
-      ? 'idol'
-      : rawJavTab === 'studio'
-        ? 'studio'
-        : rawJavTab === 'series'
-          ? 'series'
-          : 'list'
+    rawJavTab === 'download'
+      ? 'download'
+      : rawJavTab === 'idol'
+        ? 'idol'
+        : rawJavTab === 'studio'
+          ? 'studio'
+          : rawJavTab === 'series'
+            ? 'series'
+            : 'list'
   const rawJavTempSort = (sp.get('temp_sort') || '').trim()
   const javTempSort =
     javTab === 'idol' ? normalizeIdolSort(rawJavTempSort, '') : normalizeJavSort(rawJavTempSort, '')
@@ -181,27 +134,19 @@ export const parseUrlState = (searchString = window.location.search, options = {
     seed: clampSeed(sp.get('seed')),
   }
 
-  return { view, directoryIds, closedSubdirs, directorySubpaths, video, jav }
+  return { view, video, jav }
 }
 
 export const buildUrlFromState = (state, basePath = window.location.pathname) => {
   const sp = new URLSearchParams()
   if (state.view === 'jav') {
     sp.set('view', 'jav')
-    if (state.directoryIds?.length) {
-      sp.set('directory_ids', state.directoryIds.join(','))
-    } else if (Array.isArray(state.directoryIds) && state.directoryIds.length === 0) {
-      sp.set('directory_ids', '0')
-    }
-    if (state.closedSubdirs?.length) {
-      sp.set(
-        'closed_subdirs',
-        state.closedSubdirs.map((pair) => `${Number(pair.directoryId)}:${pair.name}`).join(',')
-      )
-    }
-    const subpaths = serializeSubpathPairs(state.directorySubpaths, 'path')
-    if (subpaths) sp.set('directory_subpaths', subpaths)
-    if (state.jav.tab === 'idol' || state.jav.tab === 'studio' || state.jav.tab === 'series') {
+    if (
+      state.jav.tab === 'idol' ||
+      state.jav.tab === 'studio' ||
+      state.jav.tab === 'series' ||
+      state.jav.tab === 'download'
+    ) {
       sp.set('tab', state.jav.tab)
     }
     if (state.jav.search) sp.set('search', state.jav.search)
@@ -269,19 +214,6 @@ export const buildUrlFromState = (state, basePath = window.location.pathname) =>
   }
 
   sp.set('view', 'video')
-  if (state.directoryIds?.length) {
-    sp.set('directory_ids', state.directoryIds.join(','))
-  } else if (Array.isArray(state.directoryIds) && state.directoryIds.length === 0) {
-    sp.set('directory_ids', '0')
-  }
-  if (state.closedSubdirs?.length) {
-    sp.set(
-      'closed_subdirs',
-      state.closedSubdirs.map((pair) => `${Number(pair.directoryId)}:${pair.name}`).join(',')
-    )
-  }
-  const subpaths = serializeSubpathPairs(state.directorySubpaths, 'path')
-  if (subpaths) sp.set('directory_subpaths', subpaths)
   if (state.video.search) sp.set('search', state.video.search)
   if (!state.video.random && state.video.tempSort) sp.set('temp_sort', state.video.tempSort)
   if (state.video.tagIds?.length) {
@@ -304,64 +236,8 @@ export const normalizeUrlStateFromStore = (store, tagsByName) => {
         .map((name) => tagsByName.get(name))
         .filter((id) => Number.isFinite(id) && id > 0)
 
-  const activeDirectoryIds = (store.directories || [])
-    .map((directory) => Number(directory?.id))
-    .filter((id) => Number.isFinite(id) && id > 0)
-    .sort((a, b) => a - b)
-  const activeSet = new Set(activeDirectoryIds)
-  const enabledDirectoryIds = Array.from(
-    new Set(
-      (store.enabledDirectoryIds || [])
-        .map((id) => Number(id))
-        .filter((id) => Number.isFinite(id) && id > 0 && activeSet.has(id))
-    )
-  ).sort((a, b) => a - b)
-  const directorySubpaths = []
-  if (store.directoryFilterMode === 'custom') {
-    const enabledSet = new Set(enabledDirectoryIds)
-    for (const item of Array.isArray(store.directorySubpaths) ? store.directorySubpaths : []) {
-      const id = Number(item?.directoryId)
-      const path = String(item?.path || '').trim()
-      if (!Number.isFinite(id) || id <= 0 || !path || !activeSet.has(id) || !enabledSet.has(id)) {
-        continue
-      }
-      directorySubpaths.push({ directoryId: id, path })
-    }
-    directorySubpaths.sort((a, b) =>
-      a.directoryId === b.directoryId ? a.path.localeCompare(b.path) : a.directoryId - b.directoryId
-    )
-  }
-  let directoryIds = null
-  if (store.directoryFilterMode === 'custom') {
-    if (enabledDirectoryIds.length === 0) {
-      directoryIds = []
-    } else if (
-      activeDirectoryIds.length === 0 ||
-      enabledDirectoryIds.length < activeDirectoryIds.length ||
-      directorySubpaths.length > 0
-    ) {
-      directoryIds = enabledDirectoryIds
-    }
-  }
-  const closedSubdirs = []
-  for (const [rawId, names] of Object.entries(store.closedSubdirectories || {})) {
-    const id = Number(rawId)
-    if (!Number.isFinite(id) || id <= 0 || !activeSet.has(id)) continue
-    if (!Array.isArray(names)) continue
-    for (const name of names) {
-      const clean = String(name || '').trim()
-      if (clean) closedSubdirs.push({ directoryId: id, name: clean })
-    }
-  }
-  closedSubdirs.sort((a, b) =>
-    a.directoryId === b.directoryId ? a.name.localeCompare(b.name) : a.directoryId - b.directoryId
-  )
-
   return {
     view: store.viewMode === 'jav' ? 'jav' : 'video',
-    directoryIds,
-    closedSubdirs,
-    directorySubpaths,
     video: {
       page: store.randomMode ? 1 : store.page,
       search: (store.searchTerm || '').trim(),
@@ -372,13 +248,15 @@ export const normalizeUrlStateFromStore = (store, tagsByName) => {
     },
     jav: {
       tab:
-        store.javTab === 'idol'
-          ? 'idol'
-          : store.javTab === 'studio'
-            ? 'studio'
-            : store.javTab === 'series'
-              ? 'series'
-              : 'list',
+        store.javTab === 'download'
+          ? 'download'
+          : store.javTab === 'idol'
+            ? 'idol'
+            : store.javTab === 'studio'
+              ? 'studio'
+              : store.javTab === 'series'
+                ? 'series'
+                : 'list',
       page:
         store.javTab === 'idol'
           ? store.idolPage

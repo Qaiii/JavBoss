@@ -18,15 +18,23 @@ function plain(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
-function createHarness() {
+function createHarness(options = {}) {
   const data = new Map([
     [`${RELAY_PREFIX}1`, { sessionId: SESSION_ID }],
     [`${SESSION_PREFIX}${SESSION_ID}`, { sessionId: SESSION_ID }],
   ]);
+  const localData = new Map();
+  if (options.magnetSettings) {
+    localData.set("javboss:magnet-download-settings", options.magnetSettings);
+  }
+  if (options.javDBSettings) {
+    localData.set("javboss:javdb-settings", options.javDBSettings);
+  }
   const listeners = {};
   const sentMessages = [];
   const createdTabs = [];
   const updatedTabs = [];
+  const fetchCalls = [];
 
   const sessionStorage = {
     async get(keys) {
@@ -46,6 +54,17 @@ function createHarness() {
     },
   };
 
+  const localStorage = {
+    async get(keys) {
+      const requested = Array.isArray(keys) ? keys : [keys];
+      return Object.fromEntries(
+        requested
+          .filter((key) => localData.has(key))
+          .map((key) => [key, localData.get(key)]),
+      );
+    },
+  };
+
   const chrome = {
     runtime: {
       onMessage: { addListener: (listener) => (listeners.message = listener) },
@@ -56,7 +75,7 @@ function createHarness() {
         `chrome-extension://iikdjhkpjihfkehccfmkpkdmenmbaacn/${resourcePath}`,
       sendMessage: async () => ({ ok: true }),
     },
-    storage: { session: sessionStorage },
+    storage: { local: localStorage, session: sessionStorage },
     tabs: {
       create: async (properties) => {
         createdTabs.push(properties);
@@ -74,7 +93,16 @@ function createHarness() {
     },
   };
 
-  vm.runInNewContext(source, { chrome, URL });
+  const fetch = async (url, options) => {
+    fetchCalls.push({ url, options });
+    return {
+      ok: true,
+      status: 201,
+      json: async () => ({}),
+    };
+  };
+
+  vm.runInNewContext(source, { chrome, fetch, URL });
 
   async function send(message, tab) {
     return new Promise((resolve) => {
@@ -90,12 +118,75 @@ function createHarness() {
   return {
     createdTabs,
     data,
+    fetchCalls,
     listeners,
     send,
     sentMessages,
     updatedTabs,
   };
 }
+
+test("a clicked magnet link is submitted to the configured JavBoss server", async () => {
+  const harness = createHarness({
+    magnetSettings: {
+      enabled: true,
+      serverUrl: "http://192.168.1.20:17654/javboss",
+    },
+  });
+  const magnetUrl =
+    "magnet:?xt=urn:btih:0123456789ABCDEF0123456789ABCDEF01234567&dn=Test";
+  const response = await harness.send(
+    { type: "JAVBOSS_DOWNLOAD_MAGNET", magnetUrl },
+    { id: 2, url: "https://www.javbus.com/ABC-123" },
+  );
+
+  assert.deepEqual(plain(response), { ok: true });
+  assert.equal(harness.fetchCalls.length, 1);
+  assert.equal(
+    harness.fetchCalls[0].url,
+    "http://192.168.1.20:17654/javboss/extension/downloads",
+  );
+  assert.equal(harness.fetchCalls[0].options.method, "POST");
+  assert.deepEqual(JSON.parse(harness.fetchCalls[0].options.body), {
+    magnet_url: magnetUrl,
+  });
+});
+
+test("magnet submission is rejected until it is manually enabled", async () => {
+  const harness = createHarness({
+    magnetSettings: {
+      enabled: false,
+      serverUrl: "http://127.0.0.1:17654",
+    },
+  });
+  const response = await harness.send(
+    {
+      type: "JAVBOSS_DOWNLOAD_MAGNET",
+      magnetUrl: "magnet:?xt=urn:btih:0123456789ABCDEF0123456789ABCDEF01234567",
+    },
+    { id: 2, url: "https://www.javbus.com/ABC-123" },
+  );
+
+  assert.deepEqual(plain(response), {
+    ok: false,
+    error: "请先在扩展中填写 JavBoss Server 地址并启用磁力下载",
+  });
+  assert.equal(harness.fetchCalls.length, 0);
+});
+
+test("a non-magnet URL is rejected without contacting JavBoss", async () => {
+  const harness = createHarness();
+  const response = await harness.send(
+    { type: "JAVBOSS_DOWNLOAD_MAGNET", magnetUrl: "https://example.com/file" },
+    { id: 2, url: "https://www.javbus.com/ABC-123" },
+  );
+
+  assert.deepEqual(plain(response), {
+    ok: false,
+    error: "invalid magnet link",
+  });
+  assert.equal(harness.fetchCalls.length, 0);
+});
 
 test("a manually created tab cannot inherit from its opener", async () => {
   const harness = createHarness();
@@ -106,6 +197,45 @@ test("a manually created tab cannot inherit from its opener", async () => {
 
   assert.deepEqual(plain(response), { ok: true, relay: false });
   assert.equal(harness.data.has(`${RELAY_PREFIX}2`), false);
+});
+
+test("all scrape providers open immediately after the sender tab", async () => {
+  const urls = [
+    "https://www.javbus.com/search/OFJE-282",
+    "https://www.javlibrary.com/tw/vl_searchbyid.php?keyword=OFJE-282",
+    "https://javdb.com/search?q=OFJE-282&f=all",
+    "https://avsox.click/tw/search/030919_047",
+  ];
+
+  for (const url of urls) {
+    const harness = createHarness();
+    const response = await harness.send(
+      {
+        type: "JAVBOSS_SCRAPE_OPEN_RELAY",
+        sessionId: SESSION_ID,
+        url,
+      },
+      {
+        id: 1,
+        index: 3,
+        windowId: 5,
+        url: "chrome-extension://iikdjhkpjihfkehccfmkpkdmenmbaacn/bridge.html",
+      },
+    );
+
+    assert.deepEqual(plain(response), { ok: true });
+    assert.deepEqual(plain(harness.createdTabs), [
+      {
+        url: "about:blank",
+        active: true,
+        index: 4,
+        windowId: 5,
+      },
+    ]);
+    assert.deepEqual(plain(harness.updatedTabs), [
+      { tabId: 10, properties: { url } },
+    ]);
+  }
 });
 
 test("the bridge can open an allowed JavLibrary URL", async () => {
@@ -166,6 +296,7 @@ test("the bridge opens JavDB assistance with clean URLs and temporary state", as
     },
     {
       id: 1,
+      index: 3,
       windowId: 5,
       url: "chrome-extension://iikdjhkpjihfkehccfmkpkdmenmbaacn/bridge.html",
     },
@@ -180,6 +311,7 @@ test("the bridge opens JavDB assistance with clean URLs and temporary state", as
     {
       url: "chrome-extension://iikdjhkpjihfkehccfmkpkdmenmbaacn/assist-loading.html",
       active: true,
+      index: 4,
       windowId: 5,
     },
   ]);
@@ -210,6 +342,62 @@ test("the bridge opens JavDB assistance with clean URLs and temporary state", as
     tabId: 10,
     properties: { active: true },
   });
+});
+
+test("disabled JavDB auto redirect uses every original fallback search", async () => {
+  const cases = [
+    {
+      request: { target: "movie", code: "ADN-429" },
+      fallbackUrl: "https://javdb.com/search?q=ADN-429&f=all",
+    },
+    {
+      request: { target: "idol", code: "ADN-429", name: "岬ななみ" },
+      fallbackUrl:
+        "https://javdb.com/search?f=actor&q=%E5%B2%AC%E3%81%AA%E3%81%AA%E3%81%BF",
+    },
+    {
+      request: { target: "studio", code: "ADN-429", name: "S1 NO.1 STYLE" },
+      fallbackUrl: "https://javdb.com/search?f=maker&q=S1%20NO.1%20STYLE",
+    },
+    {
+      request: { target: "series", code: "ADN-429", name: "絶対的美少女" },
+      fallbackUrl:
+        "https://javdb.com/search?f=series&q=%E7%B5%B6%E5%AF%BE%E7%9A%84%E7%BE%8E%E5%B0%91%E5%A5%B3",
+    },
+  ];
+
+  for (const current of cases) {
+    const harness = createHarness({
+      javDBSettings: { autoRedirect: false },
+    });
+    const response = await harness.send(
+      {
+        type: "JAVBOSS_JAVDB_OPEN_ASSIST",
+        sessionId: SESSION_ID,
+        url: "https://javdb.com/search?q=ADN-429&f=all#assist-marker",
+        fallbackUrl: `${current.fallbackUrl}#fallback-marker`,
+        request: current.request,
+      },
+      {
+        id: 1,
+        index: 3,
+        windowId: 5,
+        url: "chrome-extension://iikdjhkpjihfkehccfmkpkdmenmbaacn/bridge.html",
+      },
+    );
+
+    assert.deepEqual(plain(response), { ok: true });
+    assert.deepEqual(plain(harness.createdTabs), [
+      {
+        url: current.fallbackUrl,
+        active: true,
+        index: 4,
+        windowId: 5,
+      },
+    ]);
+    assert.equal(harness.data.has(`${JAVDB_ASSIST_PREFIX}10`), false);
+    assert.deepEqual(plain(harness.updatedTabs), []);
+  }
 });
 
 test("an ordinary JavDB tab cannot activate itself through assistance", async () => {

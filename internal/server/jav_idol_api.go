@@ -25,7 +25,6 @@ func listJavIdols(c *gin.Context) {
 	offset := queryInt(c, "offset", 0)
 	search := strings.TrimSpace(c.Query("search"))
 	sort := strings.TrimSpace(c.Query("sort"))
-	directoryIDs := parseDirectoryIDs(c.Query("directory_ids"))
 	favoriteGroupID := int64(0)
 	if favoriteGroupParam := strings.TrimSpace(c.Query("favorite_group_id")); favoriteGroupParam != "" {
 		parsed, err := strconv.ParseInt(favoriteGroupParam, 10, 64)
@@ -40,14 +39,14 @@ func listJavIdols(c *gin.Context) {
 		return
 	}
 
-	items, total, err := dbpkg.ListJavIdols(c.Request.Context(), search, sort, limit, offset, directoryIDs, parseClosedSubdirectories(c.Query("closed_subdirs")), parseDirectorySubpaths(c.Query("directory_subpaths")), favoriteGroupID, filters)
+	items, total, err := dbpkg.ListJavIdols(c.Request.Context(), search, sort, limit, offset, nil, favoriteGroupID, filters)
 	if err != nil {
 		logging.Error("list jav idols: %v", err)
 		respondLocalizedError(c, http.StatusInternalServerError, "加载女优列表失败", "Failed to load idols")
 		return
 	}
 
-	enrichJavIdolSummaries(c.Request.Context(), items, directoryIDs)
+	enrichJavIdolSummaries(c.Request.Context(), items)
 
 	c.JSON(http.StatusOK, gin.H{
 		"items": items,
@@ -138,7 +137,7 @@ func listJavIdolOptions(c *gin.Context) {
 		search,
 		limit,
 		offset,
-		parseDirectoryIDs(c.Query("directory_ids")),
+		nil,
 	)
 	if err != nil {
 		logging.Error("list jav idol options: %v", err)
@@ -184,8 +183,7 @@ func mergeJavIdols(c *gin.Context) {
 		return
 	}
 
-	directoryIDs := parseDirectoryIDs(c.Query("directory_ids"))
-	item, err := dbpkg.MergeJavIdols(c.Request.Context(), req.CanonicalID, req.MergeIDs, directoryIDs)
+	item, err := dbpkg.MergeJavIdols(c.Request.Context(), req.CanonicalID, req.MergeIDs, nil)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			respondLocalizedError(c, http.StatusNotFound, "女优不存在", "Idol was not found")
@@ -196,7 +194,7 @@ func mergeJavIdols(c *gin.Context) {
 		return
 	}
 	items := []dbpkg.JavIdolSummary{*item}
-	enrichJavIdolSummaries(c.Request.Context(), items, directoryIDs)
+	enrichJavIdolSummaries(c.Request.Context(), items)
 	c.JSON(http.StatusOK, items[0])
 }
 
@@ -238,7 +236,6 @@ func updateJavIdol(c *gin.Context) {
 		}
 	}
 
-	directoryIDs := parseDirectoryIDs(c.Query("directory_ids"))
 	item, err := dbpkg.UpdateJavIdol(c.Request.Context(), id, dbpkg.JavIdolUpdateInput{
 		Name:         req.Name,
 		RomanName:    req.RomanName,
@@ -251,7 +248,7 @@ func updateJavIdol(c *gin.Context) {
 		Hips:         req.Hips,
 		Cup:          req.Cup,
 		Aliases:      req.Aliases,
-	}, directoryIDs)
+	}, nil)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			respondLocalizedError(c, http.StatusNotFound, "女优不存在", "Idol was not found")
@@ -262,7 +259,7 @@ func updateJavIdol(c *gin.Context) {
 		return
 	}
 	items := []dbpkg.JavIdolSummary{*item}
-	enrichJavIdolSummaries(c.Request.Context(), items, directoryIDs)
+	enrichJavIdolSummaries(c.Request.Context(), items)
 	c.JSON(http.StatusOK, items[0])
 }
 
@@ -276,7 +273,7 @@ func listJavIdolCoverOptions(c *gin.Context) {
 	options, err := dbpkg.ListIdolCoverOptions(
 		c.Request.Context(),
 		id,
-		parseDirectoryIDs(c.Query("directory_ids")),
+		nil,
 	)
 	if err != nil {
 		logging.Error("list jav idol cover options id=%d: %v", id, err)
@@ -314,7 +311,7 @@ func updateJavIdolCover(c *gin.Context) {
 		id,
 		req.JavID,
 		req.CropLeft,
-		parseDirectoryIDs(c.Query("directory_ids")),
+		nil,
 	)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -327,7 +324,7 @@ func updateJavIdolCover(c *gin.Context) {
 	}
 
 	items := []dbpkg.JavIdolSummary{*item}
-	enrichJavIdolSummaries(c.Request.Context(), items, parseDirectoryIDs(c.Query("directory_ids")))
+	enrichJavIdolSummaries(c.Request.Context(), items)
 	c.JSON(http.StatusOK, items[0])
 }
 
@@ -338,8 +335,7 @@ func getJavIdol(c *gin.Context) {
 		return
 	}
 
-	directoryIDs := parseDirectoryIDs(c.Query("directory_ids"))
-	item, err := dbpkg.GetJavIdolSummary(c.Request.Context(), id, directoryIDs)
+	item, err := dbpkg.GetJavIdolSummary(c.Request.Context(), id, nil)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			respondLocalizedError(c, http.StatusNotFound, "女优不存在", "Idol was not found")
@@ -351,7 +347,7 @@ func getJavIdol(c *gin.Context) {
 	}
 
 	items := []dbpkg.JavIdolSummary{*item}
-	enrichJavIdolSummaries(c.Request.Context(), items, directoryIDs)
+	enrichJavIdolSummaries(c.Request.Context(), items)
 	c.JSON(http.StatusOK, items[0])
 }
 
@@ -376,110 +372,18 @@ func getJavIdolJavDBURL(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"url": profileURL})
 }
 
-// javExternalWork is one work listed on the idol's JavDB profile page.
-type javExternalWork struct {
-	Code        string `json:"code"`
-	Title       string `json:"title"`
-	CoverURL    string `json:"cover_url"`
-	ReleaseUnix int64  `json:"release_unix"`
-	DurationMin int    `json:"duration_min"`
-	SourceURL   string `json:"source_url"`
-	InLibrary   bool   `json:"in_library"`
-}
-
-// getJavIdolExternalWorks returns the idol's persisted JavDB works (scraped in
-// the background by the idol works queue), flagging each code with whether it
-// already exists in the library. No live JavDB requests happen here.
-func getJavIdolExternalWorks(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil || id <= 0 {
-		respondLocalizedError(c, http.StatusBadRequest, "女优 ID 无效", "Invalid idol ID")
-		return
-	}
-	page := 1
-	if pageParam := strings.TrimSpace(c.Query("page")); pageParam != "" {
-		parsed, err := strconv.Atoi(pageParam)
-		if err != nil || parsed < 1 {
-			respondLocalizedError(c, http.StatusBadRequest, "页码无效", "Invalid page number")
-			return
-		}
-		page = parsed
-	}
-	limit := 24
-	if limitParam := strings.TrimSpace(c.Query("page_size")); limitParam != "" {
-		parsed, err := strconv.Atoi(limitParam)
-		if err != nil || parsed < 1 || parsed > 100 {
-			respondLocalizedError(c, http.StatusBadRequest, "每页数量无效", "Invalid page size")
-			return
-		}
-		limit = parsed
-	}
-
-	ctx := c.Request.Context()
-	if _, err := dbpkg.GetJavIdolSummary(ctx, id, nil); err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			respondLocalizedError(c, http.StatusNotFound, "女优不存在", "Idol was not found")
-			return
-		}
-		logging.Error("get external works idol id=%d: %v", id, err)
-		respondLocalizedError(c, http.StatusInternalServerError, "加载女优信息失败", "Failed to load idol information")
-		return
-	}
-
-	track, err := dbpkg.GetJavIdolTrack(ctx, id)
-	if err != nil {
-		logging.Error("get jav idol track id=%d: %v", id, err)
-		respondLocalizedError(c, http.StatusInternalServerError, "加载女优跟踪状态失败", "Failed to load idol tracking state")
-		return
-	}
-	if !track.Tracked {
-		// First time this idol is viewed: make sure she enters the background
-		// scrape queue immediately instead of waiting for the periodic sweep.
-		if err := dbpkg.UpsertJavIdolTrack(ctx, id, nil); err != nil {
-			logging.Error("track jav idol on view id=%d: %v", id, err)
-		} else {
-			service.EnqueueIdolWorks(id)
-			track.Tracked = true
-		}
-	} else if track.LastError != "" && track.LastAttemptAt != nil &&
-		track.LastAttemptAt.Before(time.Now().Add(-time.Duration(dbpkg.JavIdolRetryMinutes(ctx))*time.Minute)) {
-		// The previous scrape failed and the retry delay has elapsed: re-queue
-		// so a transient provider failure self-heals on the next page view
-		// instead of waiting for the periodic sweep.
-		service.EnqueueIdolWorks(id)
-	}
-
-	items, total, err := dbpkg.ListJavIdolWorks(ctx, id, limit, (page-1)*limit)
-	if err != nil {
-		logging.Error("list jav idol works id=%d: %v", id, err)
-		respondLocalizedError(c, http.StatusInternalServerError, "加载作品列表失败", "Failed to load the works list")
-		return
-	}
-
-	hasNext := int64(page)*int64(limit) < total
-	c.JSON(http.StatusOK, gin.H{
-		"items":           items,
-		"has_next":        hasNext,
-		"total":           total,
-		"tracked":         track.Tracked,
-		"last_scraped_at": track.LastScrapedAt,
-		"last_error":      track.LastError,
-		"source_url":      track.JavdbURL,
-	})
-}
-
-func enrichJavIdolSummaries(ctx context.Context, items []dbpkg.JavIdolSummary, directoryIDs []int64) {
+func enrichJavIdolSummaries(ctx context.Context, items []dbpkg.JavIdolSummary) {
 	cfg := common.AppConfig
 	coverDir := ""
 	if cfg != nil {
 		coverDir = cfg.JavCoverDir
 	}
 	for i := range items {
-		enrichJavIdolSummary(ctx, &items[i], coverDir, directoryIDs)
+		enrichJavIdolSummary(ctx, &items[i], coverDir)
 	}
 }
 
-func enrichJavIdolSummary(ctx context.Context, item *dbpkg.JavIdolSummary, coverDir string, directoryIDs []int64) {
+func enrichJavIdolSummary(ctx context.Context, item *dbpkg.JavIdolSummary, coverDir string) {
 	item.Name = strings.TrimSpace(item.Name)
 	item.RomanName = strings.TrimSpace(item.RomanName)
 	item.JapaneseName = strings.TrimSpace(item.JapaneseName)
@@ -500,7 +404,7 @@ func enrichJavIdolSummary(ctx context.Context, item *dbpkg.JavIdolSummary, cover
 			return
 		}
 	}
-	codes, err := dbpkg.ListIdolCoverCodes(ctx, item.ID, directoryIDs)
+	codes, err := dbpkg.ListIdolCoverCodes(ctx, item.ID, nil)
 	if err != nil {
 		logging.Error("list idol cover codes id=%d: %v", item.ID, err)
 		return

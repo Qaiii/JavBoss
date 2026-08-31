@@ -60,6 +60,15 @@ curl -fsSL https://raw.githubusercontent.com/Solr159/JavBoss/main/scripts/instal
 - Windows：双击桌面的 `JavBoss` 快捷方式，或在开始菜单中搜索 `JavBoss`。
 - Linux / macOS：打开终端运行 `javboss`。
 
+<details>
+<summary>点击查看默认安装位置</summary>
+
+- Windows：`C:\Users\你的用户名\AppData\Local\JavBoss` （右键点击桌面快捷方式 -> 属性 -> 打开文件所在位置 即可快速定位）
+- Linux：`~/.local/share/javboss`
+- macOS：`~/Applications/JavBoss`
+
+</details>
+
 </dd>
 </dl>
 
@@ -91,7 +100,7 @@ curl -fsSL https://raw.githubusercontent.com/Solr159/JavBoss/main/scripts/instal
 <dl>
 <dd>
 
-docker-compose.yaml（建议放在单独的目录里）：
+docker-compose.yaml（建议放在单独的目录中）：
 
 ```yaml
 services:
@@ -104,7 +113,7 @@ services:
       - "host.docker.internal:host-gateway"
     volumes:
       - ./data:/app/data
-      - /:/host:ro
+      - /:/host:ro # 默认只读挂载，如果需要使用目录整理、文件重命名、文件删除等功能，将末尾的':ro'移除
     restart: unless-stopped
 ```
 
@@ -114,7 +123,7 @@ services:
 docker compose up -d
 ```
 
-Docker 部署下使用浏览器播放视频，不会调用本机 mpv。添加目录时直接填写宿主机路径，例如 `/mnt/disk1/videos`，程序会自动映射到容器内可访问路径。
+Docker 部署下默认只能使用浏览器播放器（较为简陋且依赖服务端转码），如果需要使用 MPV，参考 [Client 模式说明](#client-模式说明)。添加目录时直接填写宿主机路径，例如 `/mnt/disk1/videos`，程序会自动映射到容器内可访问路径。
 
 </dd>
 </dl>
@@ -122,7 +131,8 @@ Docker 部署下使用浏览器播放视频，不会调用本机 mpv。添加目
 </br>
 
 **浏览器访问地址：`http://localhost:8655`，非 docker 方式启动后，程序会自动打开浏览器。</br>**
-**Docker 方式启动默认支持局域网设备访问，将 `localhost` 改为部署主机的局域网ip。非 docker 方式需要在全局设置中手动开启局域网访问，然后重启软件。</br>**
+**Docker 部署默认支持局域网设备访问，将 `localhost` 改为部署主机的局域网ip。</br>**
+**非 Docker 部署请在设置中手动开启局域网访问，然后重启软件。</br>**
 **默认登录密码为 `admin`，可在全局设置中修改。**
 
 ### 2. 添加本地目录
@@ -177,103 +187,6 @@ docker compose pull
 docker compose up -d
 ```
 
-## 命令行一键安装默认位置
-
-- Windows：`C:\Users\你的用户名\AppData\Local\JavBoss` （右键点击桌面快捷方式 -> 属性 -> 打开文件所在位置 即可快速定位）
-- Linux：`~/.local/share/javboss`
-- macOS：`~/Applications/JavBoss`
-
-
-## 部分截图
-
-**软件功能迭代比较快，截图更新可能不及时，以最新实物为准**
-
-<p align="center">
-  <img src="screenshot/jav_work_1.png" width="49%">
-  <img src="screenshot/jav_idol_1.png" width="49%">
-</p>
-
-<p align="center">
-  <img src="screenshot/jav_studio_1.png" width="49%">
-  <img src="screenshot/jav_series_1.png" width="49%">
-</p>
-
-<p align="center">
-  <img src="screenshot/jav_search.png" width="49%">
-  <img src="screenshot/jav_tag.png" width="49%">
-</p>
-
-<p align="center">
-  <img src="screenshot/mpv.png" width="49%">
-  <img src="screenshot/jav_screenshot.png" width="49%">
-</p>
-
-<p align="center">
-  <img src="screenshot/video_scrape_1.png" width="49%">
-  <img src="screenshot/video_1.png" width="49%">
-</p>
-
-<p align="center">
-  <img src="screenshot/setting_dir.png" width="49%">
-  <img src="screenshot/setting_basic.png" width="49%">
-</p>
-
-<p align="center">
-  <img src="screenshot/setting_mpv_1.png" width="49%">
-  <img src="screenshot/setting_mpv_2.png" width="49%">
-</p>
-
-
-## ✨ 功能介绍
-
-### 1. 🔎 强大的 JAV 刮削和检索
-
-JavBoss 会从文件名中自动提取番号，例如 `IPX-633`、`SSIS-001`、`ipx633_ch` 等常见格式，并将识别出的影片归入 JAV 媒体库。
-
-- 内部整合多个数据源（javbus、avmoo、theporndb、javdatabase等等），不同信息自动从最合适的数据源获取。
-- 支持手动刮削视频到 JAV，解决冷门番号无法被自动刮削的问题。
-- 自动抓取作品标题、发行时间、封面、演员、标签等基本信息。
-- 自动抓取并补全女优信息，身高、中英文名、三围、出生日期等等。
-- 自动抓取并补全 JAV 厂商和系列信息。
-- 强大的排序功能：支持多种 JAV 和女优排序方式：发行日期、时长、播放次数、身高、年龄、三围等等。
-- 强大的查找和筛选功能，支持编辑各种复杂查询（关键字、女优、标签、厂商、系列等）进行分页浏览。
-- 强大的随机浏览功能：支持全局随机显示以及任意筛选条件下随机显示。
-- 支持作品、厂商、系列、女优收藏夹，并且可以自由排列单个收藏夹内的items顺序，
-
-### 2. 📁 智能目录管理与可迁移数据
-
-添加本地视频目录后，JavBoss 会在后台持续同步目录内容，已经入库的视频可以立即浏览，扫描和资料补全会逐步完成。
-
-- 支持多个资源目录，适合本机硬盘、NAS 挂载目录、移动硬盘等场景。
-- 自动截图生成视频封面，生成视频指纹落库，通过视频文件名尝试关联 JAV 番号。
-- 可任意选择启用目录，未启用的目录内容自动隐藏。
-- 目录不可用时不会删除历史索引，移动硬盘重新接入后数据会恢复显示。
-- 标签、JAV 关联和视频指纹绑定，常见的视频移动、改名场景不用重新打标签。
-- 数据库、封面、缩略图等运行数据集中保存在 `data/`，升级或迁移时复制 `data/` 目录即可。
-
-### 3. ⏯️ 内置 mpv 播放器
-
-JavBoss 集成 [mpv](https://github.com/mpv-player/mpv) 播放能力，点击视频即可调用轻量、高性能的本地播放器，适合播放大文件、高码率和各种常见视频格式。
-
-- 通过 mpv 播放原始本地文件，避免浏览器格式兼容性限制。
-- 支持默认音量、窗口尺寸、置顶等播放配置。
-- 支持自定义快捷键，例如快进、快退、音量调整等。
-- 自带 [ModernZ](https://github.com/Samillion/ModernZ) OSC 脚本，mpv 播放时默认使用更现代的播放器控制界面。
-- 使用 mpv 播放时可随时截图，截图文件保存在`/data`目录中。
-- 在普通视频库和 JAV 作品库中都可以打开截图面板，按时间顺序预览所有 mpv 截图。
-- 截图面板支持放大预览、删除截图，并可直接从某张截图对应的时刻继续播放。
-- 可在全局设置中选择默认播放器，支持使用 mpv 或系统播放器播放视频，并可定位到文件所在目录。
-
-### 4. 🧭 简单易用的 UI
-
-前端界面围绕“快速找到想看的视频”设计，不堆复杂设置，把常用操作放在筛选、排序、标签和随机浏览上。
-
-- 支持普通视频库、JAV 作品库、女优视角浏览。
-- 自适应响应式布局，更小的浏览器缩放倍数下会每行会显示更多的内容。
-- 所有可见信息将尽可能展示，不做复杂的页面嵌套。
-- 所有的操作按钮都放在触手可及的位置，尽可能的降低用户心智负担。
-
-
 ## 注意事项
 
 - JavBoss 是本地媒体库管理工具，不提供任何资源分发、获取、共享等功能。
@@ -301,12 +214,12 @@ server_url = "http://192.168.1.100:8655"
 ## Q&A
 
 - Q: 使用时要一直确保外网访问通畅吗？
-- A: JavBoss 所有的信息读取来源于 `\data` 目录，已经看到的信息都是永远离线可用的。无法访问外网意味着 JavBoss 无法做后续的 JAV 信息的抓取和更新，已入库的信息不受影响。
+- A: JavBoss 所有的信息读取来源于 `data/` 目录，已经看到的信息都是永远离线可用的。无法访问外网意味着 JavBoss 无法做后续的 JAV 信息的抓取和更新，已入库的信息不受影响。
 
 <br>
 
 - Q: 新下载的视频怎么入库？想删除一些视频怎么办？
-- A: 需要重新触发一次扫描，详情见上方的 `目录扫描和 JAV 刮削说明`。
+- A: 直接在目录里面操作，然后需要重新触发一次扫描，参考上方的 `目录扫描和 JAV 刮削说明`。
 
 <br>
 

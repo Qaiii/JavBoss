@@ -78,9 +78,6 @@ export async function fetchVideos({
   search = '',
   sort = '',
   seed = null,
-  directoryIds = [],
-  closedSubdirs = [],
-  directorySubpaths = [],
   hideJav = false,
 } = {}) {
   const params = new URLSearchParams()
@@ -90,11 +87,6 @@ export async function fetchVideos({
   if (search) params.set('search', search)
   if (sort) params.set('sort', sort)
   if (seed != null) params.set('seed', String(seed))
-  if (directoryIds.length) params.set('directory_ids', directoryIds.join(','))
-  const closed = closedSubdirsParam(closedSubdirs)
-  if (closed) params.set('closed_subdirs', closed)
-  const subpaths = directorySubpathsParam(directorySubpaths)
-  if (subpaths) params.set('directory_subpaths', subpaths)
   params.set('hide_jav', hideJav ? '1' : '0')
   const res = await apiFetch(`/videos?${params.toString()}`)
   if (!res.ok) throw await apiError(res)
@@ -106,18 +98,8 @@ export async function fetchVideos({
   return data
 }
 
-export async function fetchTags({
-  directoryIds = [],
-  closedSubdirs = [],
-  directorySubpaths = [],
-  hideJav = false,
-} = {}) {
+export async function fetchTags({ hideJav = false } = {}) {
   const params = new URLSearchParams()
-  if (directoryIds.length) params.set('directory_ids', directoryIds.join(','))
-  const closed = closedSubdirsParam(closedSubdirs)
-  if (closed) params.set('closed_subdirs', closed)
-  const subpaths = directorySubpathsParam(directorySubpaths)
-  if (subpaths) params.set('directory_subpaths', subpaths)
   params.set('hide_jav', hideJav ? '1' : '0')
   const query = params.toString()
   const res = await apiFetch(`/tags${query ? `?${query}` : ''}`)
@@ -590,9 +572,6 @@ export async function fetchJavs({
   favoriteRatingMax = 5,
   sort = '',
   seed = null,
-  directoryIds = [],
-  closedSubdirs = [],
-  directorySubpaths = [],
   favoriteGroupId = null,
 } = {}) {
   const params = new URLSearchParams()
@@ -611,11 +590,6 @@ export async function fetchJavs({
   }
   if (sort) params.set('sort', sort)
   if (seed != null) params.set('seed', String(seed))
-  if (directoryIds.length) params.set('directory_ids', directoryIds.join(','))
-  const closed = closedSubdirsParam(closedSubdirs)
-  if (closed) params.set('closed_subdirs', closed)
-  const subpaths = directorySubpathsParam(directorySubpaths)
-  if (subpaths) params.set('directory_subpaths', subpaths)
   if (favoriteGroupId) params.set('favorite_group_id', String(favoriteGroupId))
   const res = await apiFetch(`/jav?${params.toString()}`)
   if (!res.ok) {
@@ -636,7 +610,6 @@ export async function fetchJavFilterOptions({
   favoriteRatingMin = 0.5,
   favoriteRatingMax = 5,
   favoriteGroupId = null,
-  directoryIds = [],
   prefixSearch = '',
   idolSearch = '',
   tagSearch = '',
@@ -658,7 +631,6 @@ export async function fetchJavFilterOptions({
     params.set('favorite_rating_max', String(favoriteRatingMax))
   }
   if (favoriteGroupId) params.set('favorite_group_id', String(favoriteGroupId))
-  if (directoryIds.length) params.set('directory_ids', directoryIds.join(','))
   if (prefixSearch) params.set('prefix_search', prefixSearch)
   if (idolSearch) params.set('idol_search', idolSearch)
   if (tagSearch) params.set('tag_search', tagSearch)
@@ -672,42 +644,123 @@ export async function fetchJavFilterOptions({
   return res.json()
 }
 
-function javSampleImagesRequest(id, directoryIds) {
-  const javId = Number(id)
-  const normalizedDirectoryIds = directoryIds
-    .map((directoryId) => Number(directoryId))
-    .filter((directoryId) => Number.isFinite(directoryId) && directoryId > 0)
-  return {
-    javId,
-    normalizedDirectoryIds,
-    requestKey: `${javId}:${normalizedDirectoryIds.join(',')}`,
+export async function fetchDownloaderSettings() {
+  const res = await apiFetch('/downloader/settings', { cache: 'no-store' })
+  if (!res.ok) throw await apiError(res)
+  return parseJSONResponse(res)
+}
+
+export async function updateDownloaderSettings(payload) {
+  const res = await apiFetch('/downloader/settings', {
+    method: 'PUT',
+    headers: jsonHeaders,
+    body: JSON.stringify(payload),
+  })
+  if (!res.ok) throw await apiError(res)
+  return parseJSONResponse(res)
+}
+
+export async function updateCloudDrive2Settings(payload) {
+  const res = await apiFetch('/downloader/clouddrive2', {
+    method: 'PUT',
+    headers: jsonHeaders,
+    body: JSON.stringify(payload),
+  })
+  if (!res.ok) throw await apiError(res)
+  return parseJSONResponse(res)
+}
+
+export async function fetchCloudDrive2Token() {
+  const res = await apiFetch('/downloader/clouddrive2/token', {
+    cache: 'no-store',
+  })
+  if (!res.ok) throw await apiError(res)
+  return parseJSONResponse(res)
+}
+
+export async function testCloudDrive2() {
+  const res = await apiFetch('/downloader/clouddrive2/test', {
+    method: 'POST',
+  })
+  if (!res.ok) throw await apiError(res)
+  return parseJSONResponse(res)
+}
+
+export async function fetchDownloadJobs({ limit = 100 } = {}) {
+  const res = await apiFetch(`/downloads?limit=${encodeURIComponent(limit)}`, {
+    cache: 'no-store',
+  })
+  if (!res.ok) throw await apiError(res)
+  return parseJSONResponse(res)
+}
+
+export async function createDownloadJob({ magnetUrl }) {
+  const res = await apiFetch('/downloads', {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify({
+      magnet_url: magnetUrl,
+    }),
+  })
+  if (!res.ok) throw await apiError(res)
+  return parseJSONResponse(res)
+}
+
+export async function retryDownloadJob(id) {
+  const res = await apiFetch(`/downloads/${encodeURIComponent(id)}/retry`, {
+    method: 'POST',
+  })
+  if (!res.ok) throw await apiError(res)
+}
+
+export async function cancelDownloadJob(id) {
+  const res = await apiFetch(`/downloads/${encodeURIComponent(id)}/cancel`, {
+    method: 'POST',
+  })
+  if (!res.ok) throw await apiError(res)
+}
+
+export async function revealDownloadLocation(id) {
+  const res = await apiFetch(`/downloads/${id}/reveal`, { method: 'POST' })
+  if (!res.ok) {
+    throw await apiError(res)
   }
 }
 
-export function getResolvedJavSampleImages(id, { directoryIds = [] } = {}) {
-  const { javId, requestKey } = javSampleImagesRequest(id, directoryIds)
+export async function deleteDownloadJob(id) {
+  const res = await apiFetch(`/downloads/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  })
+  if (!res.ok) throw await apiError(res)
+}
+
+function javSampleImagesRequest(id) {
+  const javId = Number(id)
+  return {
+    javId,
+    requestKey: String(javId),
+  }
+}
+
+export function getResolvedJavSampleImages(id) {
+  const { javId, requestKey } = javSampleImagesRequest(id)
   if (!Number.isFinite(javId) || javId <= 0) return null
   return javSampleImagesResolved.get(requestKey) || null
 }
 
-export function resolveJavSampleImages(id, { directoryIds = [] } = {}) {
-  const { javId, normalizedDirectoryIds, requestKey } = javSampleImagesRequest(id, directoryIds)
+export function resolveJavSampleImages(id) {
+  const { javId, requestKey } = javSampleImagesRequest(id)
   if (!Number.isFinite(javId) || javId <= 0) return Promise.resolve([])
   const resolved = javSampleImagesResolved.get(requestKey)
   if (resolved) return Promise.resolve(resolved)
 
-  const params = new URLSearchParams()
-  if (normalizedDirectoryIds.length) {
-    params.set('directory_ids', normalizedDirectoryIds.join(','))
-  }
-  const query = params.toString()
   const existing = javSampleImagesResolveInFlight.get(requestKey)
   if (existing) return existing
 
-  const request = apiFetch(
-    `/jav/items/${encodeURIComponent(javId)}/sample-images${query ? `?${query}` : ''}`,
-    { method: 'POST', cache: 'no-store' }
-  )
+  const request = apiFetch(`/jav/items/${encodeURIComponent(javId)}/sample-images`, {
+    method: 'POST',
+    cache: 'no-store',
+  })
     .then(async (res) => {
       if (!res.ok) throw await apiError(res)
       const payload = await res.json()
@@ -722,32 +775,16 @@ export function resolveJavSampleImages(id, { directoryIds = [] } = {}) {
   return request
 }
 
-export async function fetchJavPrefixes({ directoryIds = [], directorySubpaths = [] } = {}) {
-  const params = new URLSearchParams()
-  if (directoryIds.length) params.set('directory_ids', directoryIds.join(','))
-  const subpaths = directorySubpathsParam(directorySubpaths)
-  if (subpaths) params.set('directory_subpaths', subpaths)
-  const query = params.toString()
-  const res = await apiFetch(`/jav/prefixes${query ? `?${query}` : ''}`)
+export async function fetchJavPrefixes() {
+  const res = await apiFetch('/jav/prefixes')
   if (!res.ok) {
     throw await apiError(res)
   }
   return res.json()
 }
 
-export async function fetchJavTags({
-  directoryIds = [],
-  closedSubdirs = [],
-  directorySubpaths = [],
-} = {}) {
-  const params = new URLSearchParams()
-  if (directoryIds.length) params.set('directory_ids', directoryIds.join(','))
-  const closed = closedSubdirsParam(closedSubdirs)
-  if (closed) params.set('closed_subdirs', closed)
-  const subpaths = directorySubpathsParam(directorySubpaths)
-  if (subpaths) params.set('directory_subpaths', subpaths)
-  const query = params.toString()
-  const res = await apiFetch(`/jav/tags${query ? `?${query}` : ''}`)
+export async function fetchJavTags() {
+  const res = await apiFetch('/jav/tags')
   if (!res.ok) {
     throw await apiError(res)
   }
@@ -774,11 +811,8 @@ export async function updateJavCover(code, url) {
   return res.json()
 }
 
-export async function updateJavItem(id, payload, { directoryIds = [] } = {}) {
-  const params = new URLSearchParams()
-  if (directoryIds.length) params.set('directory_ids', directoryIds.join(','))
-  const query = params.toString()
-  const res = await apiFetch(`/jav/items/${encodeURIComponent(id)}${query ? `?${query}` : ''}`, {
+export async function updateJavItem(id, payload) {
+  const res = await apiFetch(`/jav/items/${encodeURIComponent(id)}`, {
     method: 'PUT',
     headers: jsonHeaders,
     body: JSON.stringify(payload || {}),
@@ -940,9 +974,6 @@ export async function fetchJavIdols({
   offset = 0,
   search = '',
   sort = '',
-  directoryIds = [],
-  closedSubdirs = [],
-  directorySubpaths = [],
   favoriteGroupId = null,
   profileFilters = {},
 } = {}) {
@@ -951,11 +982,6 @@ export async function fetchJavIdols({
   params.set('offset', String(offset))
   if (search) params.set('search', search)
   if (sort) params.set('sort', sort)
-  if (directoryIds.length) params.set('directory_ids', directoryIds.join(','))
-  const closed = closedSubdirsParam(closedSubdirs)
-  if (closed) params.set('closed_subdirs', closed)
-  const subpaths = directorySubpathsParam(directorySubpaths)
-  if (subpaths) params.set('directory_subpaths', subpaths)
   if (favoriteGroupId) params.set('favorite_group_id', String(favoriteGroupId))
   for (const key of ['height', 'age', 'cup', 'bust', 'waist', 'hips']) {
     const value = profileFilters?.[key]
@@ -982,17 +1008,11 @@ export async function createJavIdol(name) {
   return res.json()
 }
 
-export async function fetchJavIdolOptions({
-  limit = 25,
-  offset = 0,
-  search = '',
-  directoryIds = [],
-} = {}) {
+export async function fetchJavIdolOptions({ limit = 25, offset = 0, search = '' } = {}) {
   const params = new URLSearchParams()
   params.set('limit', String(limit))
   params.set('offset', String(offset))
   if (search) params.set('search', search)
-  if (directoryIds.length) params.set('directory_ids', directoryIds.join(','))
   const res = await apiFetch(`/jav/idols/options?${params.toString()}`)
   if (!res.ok) {
     throw await apiError(res)
@@ -1000,11 +1020,8 @@ export async function fetchJavIdolOptions({
   return res.json()
 }
 
-export async function mergeJavIdols({ canonicalId, mergeIds = [], directoryIds = [] } = {}) {
-  const params = new URLSearchParams()
-  if (directoryIds.length) params.set('directory_ids', directoryIds.join(','))
-  const query = params.toString()
-  const res = await apiFetch(`/jav/idols/merge${query ? `?${query}` : ''}`, {
+export async function mergeJavIdols({ canonicalId, mergeIds = [] } = {}) {
+  const res = await apiFetch('/jav/idols/merge', {
     method: 'POST',
     headers: jsonHeaders,
     body: JSON.stringify({
@@ -1018,11 +1035,8 @@ export async function mergeJavIdols({ canonicalId, mergeIds = [], directoryIds =
   return res.json()
 }
 
-export async function updateJavIdol(id, payload, { directoryIds = [] } = {}) {
-  const params = new URLSearchParams()
-  if (directoryIds.length) params.set('directory_ids', directoryIds.join(','))
-  const query = params.toString()
-  const res = await apiFetch(`/jav/idols/${encodeURIComponent(id)}${query ? `?${query}` : ''}`, {
+export async function updateJavIdol(id, payload) {
+  const res = await apiFetch(`/jav/idols/${encodeURIComponent(id)}`, {
     method: 'PATCH',
     headers: jsonHeaders,
     body: JSON.stringify(payload),
@@ -1044,12 +1058,9 @@ function javFavoriteEntityRoute(entityType = 'idol') {
   return JAV_FAVORITE_ENTITY_ROUTES[String(entityType || '').trim()] || 'idol'
 }
 
-export async function fetchJavFavoriteGroups(entityType = 'idol', { directoryIds = [] } = {}) {
+export async function fetchJavFavoriteGroups(entityType = 'idol') {
   const route = javFavoriteEntityRoute(entityType)
-  const params = new URLSearchParams()
-  if (directoryIds.length) params.set('directory_ids', directoryIds.join(','))
-  const query = params.toString()
-  const res = await apiFetch(`/jav/${route}-favorite-groups${query ? `?${query}` : ''}`)
+  const res = await apiFetch(`/jav/${route}-favorite-groups`)
   if (!res.ok) {
     throw await apiError(res)
   }
@@ -1104,18 +1115,9 @@ export async function reorderJavFavoriteGroups(entityType = 'idol', groupIds = [
   }
 }
 
-export async function fetchJavFavoriteGroupItems(
-  entityType = 'idol',
-  id,
-  { directoryIds = [] } = {}
-) {
+export async function fetchJavFavoriteGroupItems(entityType = 'idol', id) {
   const route = javFavoriteEntityRoute(entityType)
-  const params = new URLSearchParams()
-  if (directoryIds.length) params.set('directory_ids', directoryIds.join(','))
-  const query = params.toString()
-  const res = await apiFetch(
-    `/jav/${route}-favorite-groups/${encodeURIComponent(id)}/items${query ? `?${query}` : ''}`
-  )
+  const res = await apiFetch(`/jav/${route}-favorite-groups/${encodeURIComponent(id)}/items`)
   if (!res.ok) {
     throw await apiError(res)
   }
@@ -1174,13 +1176,8 @@ export async function replaceJavFavoriteGroups(entityType = 'idol', id, groupIds
   }
 }
 
-export async function fetchJavIdolCoverOptions(id, { directoryIds = [] } = {}) {
-  const params = new URLSearchParams()
-  if (directoryIds.length) params.set('directory_ids', directoryIds.join(','))
-  const query = params.toString()
-  const res = await apiFetch(
-    `/jav/idols/${encodeURIComponent(id)}/cover-options${query ? `?${query}` : ''}`
-  )
+export async function fetchJavIdolCoverOptions(id) {
+  const res = await apiFetch(`/jav/idols/${encodeURIComponent(id)}/cover-options`)
   if (!res.ok) {
     throw await apiError(res)
   }
@@ -1188,21 +1185,12 @@ export async function fetchJavIdolCoverOptions(id, { directoryIds = [] } = {}) {
   return Array.isArray(data?.items) ? data.items : []
 }
 
-export async function updateJavIdolCover(
-  id,
-  { javId = 0, cropLeft = 0.53, directoryIds = [] } = {}
-) {
-  const params = new URLSearchParams()
-  if (directoryIds.length) params.set('directory_ids', directoryIds.join(','))
-  const query = params.toString()
-  const res = await apiFetch(
-    `/jav/idols/${encodeURIComponent(id)}/cover${query ? `?${query}` : ''}`,
-    {
-      method: 'PUT',
-      headers: jsonHeaders,
-      body: JSON.stringify({ jav_id: javId, crop_left: cropLeft }),
-    }
-  )
+export async function updateJavIdolCover(id, { javId = 0, cropLeft = 0.53 } = {}) {
+  const res = await apiFetch(`/jav/idols/${encodeURIComponent(id)}/cover`, {
+    method: 'PUT',
+    headers: jsonHeaders,
+    body: JSON.stringify({ jav_id: javId, crop_left: cropLeft }),
+  })
   if (!res.ok) {
     throw await apiError(res)
   }
@@ -1213,20 +1201,12 @@ export async function fetchJavStudios({
   limit = 25,
   offset = 0,
   search = '',
-  directoryIds = [],
-  closedSubdirs = [],
-  directorySubpaths = [],
   favoriteGroupId = null,
 } = {}) {
   const params = new URLSearchParams()
   params.set('limit', String(limit))
   params.set('offset', String(offset))
   if (search) params.set('search', search)
-  if (directoryIds.length) params.set('directory_ids', directoryIds.join(','))
-  const closed = closedSubdirsParam(closedSubdirs)
-  if (closed) params.set('closed_subdirs', closed)
-  const subpaths = directorySubpathsParam(directorySubpaths)
-  if (subpaths) params.set('directory_subpaths', subpaths)
   if (favoriteGroupId) params.set('favorite_group_id', String(favoriteGroupId))
   const res = await apiFetch(`/jav/studios?${params.toString()}`)
   if (!res.ok) {
@@ -1247,11 +1227,8 @@ export async function fetchJavStudioOptions({ limit = 25, offset = 0, search = '
   return res.json()
 }
 
-export async function mergeJavStudios({ canonicalId, mergeIds = [], directoryIds = [] } = {}) {
-  const params = new URLSearchParams()
-  if (directoryIds.length) params.set('directory_ids', directoryIds.join(','))
-  const query = params.toString()
-  const res = await apiFetch(`/jav/studios/merge${query ? `?${query}` : ''}`, {
+export async function mergeJavStudios({ canonicalId, mergeIds = [] } = {}) {
+  const res = await apiFetch('/jav/studios/merge', {
     method: 'POST',
     headers: jsonHeaders,
     body: JSON.stringify({
@@ -1265,11 +1242,8 @@ export async function mergeJavStudios({ canonicalId, mergeIds = [], directoryIds
   return res.json()
 }
 
-export async function updateJavStudio(id, payload, { directoryIds = [] } = {}) {
-  const params = new URLSearchParams()
-  if (directoryIds.length) params.set('directory_ids', directoryIds.join(','))
-  const query = params.toString()
-  const res = await apiFetch(`/jav/studios/${encodeURIComponent(id)}${query ? `?${query}` : ''}`, {
+export async function updateJavStudio(id, payload) {
+  const res = await apiFetch(`/jav/studios/${encodeURIComponent(id)}`, {
     method: 'PATCH',
     headers: jsonHeaders,
     body: JSON.stringify(payload),
@@ -1291,11 +1265,8 @@ export async function fetchJavStudioJavDBURL({ studioId = null } = {}) {
   return data?.url || ''
 }
 
-export async function fetchJavStudioPreview(id, { directoryIds = [] } = {}) {
-  const params = new URLSearchParams()
-  if (directoryIds.length) params.set('directory_ids', directoryIds.join(','))
-  const query = params.toString()
-  const res = await apiFetch(`/jav/studios/${encodeURIComponent(id)}${query ? `?${query}` : ''}`)
+export async function fetchJavStudioPreview(id) {
+  const res = await apiFetch(`/jav/studios/${encodeURIComponent(id)}`)
   if (!res.ok) {
     throw await apiError(res)
   }
@@ -1306,20 +1277,12 @@ export async function fetchJavSeries({
   limit = 25,
   offset = 0,
   search = '',
-  directoryIds = [],
-  closedSubdirs = [],
-  directorySubpaths = [],
   favoriteGroupId = null,
 } = {}) {
   const params = new URLSearchParams()
   params.set('limit', String(limit))
   params.set('offset', String(offset))
   if (search) params.set('search', search)
-  if (directoryIds.length) params.set('directory_ids', directoryIds.join(','))
-  const closed = closedSubdirsParam(closedSubdirs)
-  if (closed) params.set('closed_subdirs', closed)
-  const subpaths = directorySubpathsParam(directorySubpaths)
-  if (subpaths) params.set('directory_subpaths', subpaths)
   if (favoriteGroupId) params.set('favorite_group_id', String(favoriteGroupId))
   const res = await apiFetch(`/jav/series?${params.toString()}`)
   if (!res.ok) {
@@ -1339,22 +1302,16 @@ export async function fetchJavSeriesJavDBURL({ seriesId = null } = {}) {
   return data?.url || ''
 }
 
-export async function fetchJavSeriesPreview(id, { directoryIds = [] } = {}) {
-  const params = new URLSearchParams()
-  if (directoryIds.length) params.set('directory_ids', directoryIds.join(','))
-  const query = params.toString()
-  const res = await apiFetch(`/jav/series/${encodeURIComponent(id)}${query ? `?${query}` : ''}`)
+export async function fetchJavSeriesPreview(id) {
+  const res = await apiFetch(`/jav/series/${encodeURIComponent(id)}`)
   if (!res.ok) {
     throw await apiError(res)
   }
   return res.json()
 }
 
-export async function fetchJavIdolPreview(id, { directoryIds = [] } = {}) {
-  const params = new URLSearchParams()
-  if (directoryIds.length) params.set('directory_ids', directoryIds.join(','))
-  const query = params.toString()
-  const res = await apiFetch(`/jav/idols/${encodeURIComponent(id)}${query ? `?${query}` : ''}`)
+export async function fetchJavIdolPreview(id) {
+  const res = await apiFetch(`/jav/idols/${encodeURIComponent(id)}`)
   if (!res.ok) {
     throw await apiError(res)
   }
