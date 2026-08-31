@@ -3,15 +3,7 @@ import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined'
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
 
-import CustomThemeEditor from '@/components/CustomThemeEditor'
 import DirectoryManager from '@/components/DirectoryManager'
-import {
-  CUSTOM_THEME_ID,
-  readCustomTheme,
-  setTheme as setAppTheme,
-  THEMES,
-  useThemeId,
-} from '@/theme/themes'
 import AppModal from '@/components/AppModal'
 import PlayerSettingsModal from '@/components/PlayerSettingsModal'
 import WebHotkeySettings from '@/components/WebHotkeySettings'
@@ -30,11 +22,6 @@ const SETTINGS_SECTIONS = [
     id: 'display',
     title: { zh: '显示与交互', en: 'Display & Interaction' },
     summary: { zh: '界面提示与交互行为', en: 'Interface hints and interactions' },
-  },
-  {
-    id: 'appearance',
-    title: { zh: '外观', en: 'Appearance' },
-    summary: { zh: '选择配色方案', en: 'Choose a color scheme' },
   },
   {
     id: 'shortcuts',
@@ -322,9 +309,6 @@ export default function GlobalSettingsModal({
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [open, passwordDialogOpen, savingPassword])
-
-  const themeId = useThemeId()
-  const [customEditorOpen, setCustomEditorOpen] = useState(false)
 
   if (!open) return null
 
@@ -675,81 +659,6 @@ export default function GlobalSettingsModal({
       {renderProxyPanel()}
     </div>
   )
-
-  const renderAppearancePanel = () => {
-    return (
-      <div className="space-y-5">
-        <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
-          <div className="space-y-4">
-            <h4 className="text-sm font-semibold text-zinc-800">
-              {zh('配色方案', 'Color scheme')}
-            </h4>
-            <div className="flex flex-wrap gap-3">
-              {THEMES.map((theme) => {
-                const selected = themeId === theme.id
-                const isCustom = theme.id === CUSTOM_THEME_ID
-                const custom = isCustom ? readCustomTheme() : null
-                const preview =
-                  isCustom && custom
-                    ? [
-                        custom.colors.bgPage || theme.preview[0],
-                        custom.colors.bgSurface || theme.preview[1],
-                        custom.colors.primary || theme.preview[2],
-                      ]
-                    : theme.preview
-                return (
-                  <div key={theme.id} className="relative">
-                    <button
-                      type="button"
-                      onClick={() => (isCustom ? setCustomEditorOpen(true) : setAppTheme(theme.id))}
-                      className={`w-40 rounded-2xl border p-3 text-left transition ${
-                        selected
-                          ? 'border-blue-500 ring-2 ring-blue-100'
-                          : 'border-zinc-200 hover:border-zinc-300'
-                      }`}
-                    >
-                      <div className="flex gap-1.5">
-                        {preview.map((color) => (
-                          <span
-                            key={color}
-                            className="h-6 w-6 rounded-lg border border-black/10"
-                            style={{ backgroundColor: color }}
-                          />
-                        ))}
-                      </div>
-                      <div className="mt-2 text-sm font-medium text-zinc-800">{theme.label}</div>
-                      <div className="text-xs text-zinc-500">
-                        {selected
-                          ? zh('使用中', 'In use')
-                          : isCustom
-                            ? zh('点击编辑', 'Click to edit')
-                            : zh('点击应用', 'Click to apply')}
-                      </div>
-                    </button>
-                    {isCustom ? (
-                      <button
-                        type="button"
-                        onClick={() => setCustomEditorOpen(true)}
-                        className="absolute right-2 top-2 rounded-full bg-zinc-900 px-2 py-0.5 text-[10px] font-medium text-white hover:bg-zinc-700"
-                      >
-                        {zh('编辑', 'Edit')}
-                      </button>
-                    ) : null}
-                  </div>
-                )
-              })}
-            </div>
-            <p className="text-sm text-zinc-500">
-              {zh(
-                '选择配色方案，立即生效并保存在本机浏览器中。',
-                'Choose a color scheme. It applies immediately and is saved in this browser.'
-              )}
-            </p>
-          </div>
-        </section>
-      </div>
-    )
-  }
 
   const renderDisplayPanel = () => {
     const currentInitialViewMode = initialViewMode === 'jav' ? 'jav' : 'video'
@@ -1602,7 +1511,6 @@ export default function GlobalSettingsModal({
               currentSection === 'directories' ? 'md:pt-3' : 'md:pt-6'
             }`}
           >
-            {currentSection === 'appearance' && renderAppearancePanel()}
             {currentSection === 'display' && renderDisplayPanel()}
             {currentSection === 'shortcuts' && renderShortcutsPanel()}
             {currentSection === 'network' && renderNetworkPanel()}
@@ -1613,7 +1521,6 @@ export default function GlobalSettingsModal({
           </section>
         </div>
       </AppModal>
-      <CustomThemeEditor open={customEditorOpen} onClose={() => setCustomEditorOpen(false)} />
     </>
   )
 }

@@ -8,8 +8,6 @@ import LocalOfferOutlinedIcon from '@mui/icons-material/LocalOfferOutlined'
 import MovieCreationOutlinedIcon from '@mui/icons-material/MovieCreationOutlined'
 import NumbersRoundedIcon from '@mui/icons-material/NumbersRounded'
 import PeopleAltOutlinedIcon from '@mui/icons-material/PeopleAltOutlined'
-import DarkModeOutlinedIcon from '@mui/icons-material/DarkModeOutlined'
-import LightModeOutlinedIcon from '@mui/icons-material/LightModeOutlined'
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined'
 import VideocamOutlinedIcon from '@mui/icons-material/VideocamOutlined'
 import VideoLibraryOutlinedIcon from '@mui/icons-material/VideoLibraryOutlined'
@@ -17,7 +15,6 @@ import { fetchJavPrefixes } from '@/api'
 import JavPrefixModal from '@/components/JavPrefixModal'
 import { getErrorMessage } from '@/utils/errors'
 import { zh } from '@/utils/i18n'
-import { getTheme, toggleDarkTheme, useThemeId } from '@/theme/themes'
 
 const tabs = [
   { id: 'video', label: zh('视频', 'Video'), icon: VideoLibraryOutlinedIcon },
@@ -78,8 +75,6 @@ export default function SideTabs({
   const [prefixItems, setPrefixItems] = useState([])
   const [prefixLoading, setPrefixLoading] = useState(false)
   const [prefixError, setPrefixError] = useState('')
-  const themeId = useThemeId()
-  const currentTheme = getTheme(themeId)
 
   useEffect(() => {
     if (!prefixModalOpen) return undefined
@@ -176,12 +171,6 @@ export default function SideTabs({
               </span>
             </div>
           ) : null}
-          <RailButton
-            className="w-full"
-            icon={currentTheme?.dark ? LightModeOutlinedIcon : DarkModeOutlinedIcon}
-            label={currentTheme?.dark ? zh('浅色模式', 'Light mode') : zh('深色模式', 'Dark mode')}
-            onClick={toggleDarkTheme}
-          />
           <RailButton
             className="w-full"
             icon={SettingsOutlinedIcon}
