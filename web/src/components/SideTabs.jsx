@@ -17,6 +17,7 @@ import { fetchJavPrefixes } from '@/api'
 import JavPrefixModal from '@/components/JavPrefixModal'
 import { getErrorMessage } from '@/utils/errors'
 import { zh } from '@/utils/i18n'
+import { getTheme, toggleDarkTheme, useThemeId } from '@/theme/themes'
 
 const tabs = [
   { id: 'video', label: zh('视频', 'Video'), icon: VideoLibraryOutlinedIcon },
@@ -77,6 +78,8 @@ export default function SideTabs({
   const [prefixItems, setPrefixItems] = useState([])
   const [prefixLoading, setPrefixLoading] = useState(false)
   const [prefixError, setPrefixError] = useState('')
+  const themeId = useThemeId()
+  const currentTheme = getTheme(themeId)
 
   useEffect(() => {
     if (!prefixModalOpen) return undefined
