@@ -611,13 +611,13 @@ export default function JavQueryEditorModal({
                     : zh('最高喜爱度', 'Maximum favorite rating')
                 }
                 sx={{
-                  color: 'var(--c-accent)',
+                  color: 'var(--c-primary)',
                   py: 1,
                   '& .MuiSlider-valueLabel': {
                     top: -4,
                     padding: 0,
                     background: 'transparent',
-                    color: 'var(--c-ink-3)',
+                    color: 'var(--c-text-3)',
                     fontSize: '0.75rem',
                     fontWeight: 500,
                   },

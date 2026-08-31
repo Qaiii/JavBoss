@@ -3,11 +3,11 @@ import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined'
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
 
+import CustomThemeEditor from '@/components/CustomThemeEditor'
 import DirectoryManager from '@/components/DirectoryManager'
 import {
-  DEFAULT_DARK_THEME_ID,
-  getTheme,
-  isDarkThemeId,
+  CUSTOM_THEME_ID,
+  readCustomTheme,
   setTheme as setAppTheme,
   THEMES,
   useThemeId,
@@ -34,7 +34,7 @@ const SETTINGS_SECTIONS = [
   {
     id: 'appearance',
     title: { zh: '外观', en: 'Appearance' },
-    summary: { zh: '浅色 / 深色主题与色调', en: 'Light / dark theme and tint' },
+    summary: { zh: '选择配色方案', en: 'Choose a color scheme' },
   },
   {
     id: 'shortcuts',
@@ -320,6 +320,7 @@ export default function GlobalSettingsModal({
   }, [open, passwordDialogOpen, savingPassword])
 
   const themeId = useThemeId()
+  const [customEditorOpen, setCustomEditorOpen] = useState(false)
 
   if (!open) return null
 
@@ -672,89 +673,72 @@ export default function GlobalSettingsModal({
   )
 
   const renderAppearancePanel = () => {
-    const currentTheme = getTheme(themeId) || THEMES[0]
-    const darkThemes = THEMES.filter((theme) => theme.dark)
-
     return (
       <div className="space-y-5">
         <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
           <div className="space-y-4">
-            <div className="flex flex-wrap items-center gap-3">
-              <h4 className="text-sm font-semibold text-zinc-800">{zh('模式', 'Mode')}</h4>
-              <div className="flex overflow-hidden rounded-xl border border-zinc-200">
-                <button
-                  type="button"
-                  onClick={() => setAppTheme('light')}
-                  className={`px-4 py-1.5 text-sm ${
-                    !currentTheme.dark
-                      ? 'bg-zinc-900 text-white'
-                      : 'bg-white text-zinc-700 hover:bg-zinc-50'
-                  }`}
-                >
-                  {zh('浅色', 'Light')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setAppTheme(isDarkThemeId(themeId) ? themeId : DEFAULT_DARK_THEME_ID)
-                  }
-                  className={`px-4 py-1.5 text-sm ${
-                    currentTheme.dark
-                      ? 'bg-zinc-900 text-white'
-                      : 'bg-white text-zinc-700 hover:bg-zinc-50'
-                  }`}
-                >
-                  {zh('深色', 'Dark')}
-                </button>
-              </div>
-            </div>
-            <p className="text-sm text-zinc-500">
-              {zh(
-                '深色模式采用带色调的暗色面板，可在下方选择色调。',
-                'Dark mode uses tinted dark surfaces; pick a tint below.'
-              )}
-            </p>
-          </div>
-        </section>
-
-        <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
-          <div className="space-y-4">
-            <h4 className="text-sm font-semibold text-zinc-800">{zh('深色色调', 'Dark tint')}</h4>
+            <h4 className="text-sm font-semibold text-zinc-800">
+              {zh('配色方案', 'Color scheme')}
+            </h4>
             <div className="flex flex-wrap gap-3">
-              {darkThemes.map((theme) => {
+              {THEMES.map((theme) => {
                 const selected = themeId === theme.id
+                const isCustom = theme.id === CUSTOM_THEME_ID
+                const custom = isCustom ? readCustomTheme() : null
+                const preview =
+                  isCustom && custom
+                    ? [
+                        custom.colors.bgPage || theme.preview[0],
+                        custom.colors.bgSurface || theme.preview[1],
+                        custom.colors.primary || theme.preview[2],
+                      ]
+                    : theme.preview
                 return (
-                  <button
-                    key={theme.id}
-                    type="button"
-                    onClick={() => setAppTheme(theme.id)}
-                    className={`w-40 rounded-2xl border p-3 text-left transition ${
-                      selected
-                        ? 'border-blue-500 ring-2 ring-blue-100'
-                        : 'border-zinc-200 hover:border-zinc-300'
-                    }`}
-                  >
-                    <div className="flex gap-1.5">
-                      {theme.preview.map((color) => (
-                        <span
-                          key={color}
-                          className="h-6 w-6 rounded-lg border border-black/10"
-                          style={{ backgroundColor: color }}
-                        />
-                      ))}
-                    </div>
-                    <div className="mt-2 text-sm font-medium text-zinc-800">{theme.label}</div>
-                    <div className="text-xs text-zinc-500">
-                      {selected ? zh('使用中', 'In use') : zh('点击应用', 'Click to apply')}
-                    </div>
-                  </button>
+                  <div key={theme.id} className="relative">
+                    <button
+                      type="button"
+                      onClick={() => (isCustom ? setCustomEditorOpen(true) : setAppTheme(theme.id))}
+                      className={`w-40 rounded-2xl border p-3 text-left transition ${
+                        selected
+                          ? 'border-blue-500 ring-2 ring-blue-100'
+                          : 'border-zinc-200 hover:border-zinc-300'
+                      }`}
+                    >
+                      <div className="flex gap-1.5">
+                        {preview.map((color) => (
+                          <span
+                            key={color}
+                            className="h-6 w-6 rounded-lg border border-black/10"
+                            style={{ backgroundColor: color }}
+                          />
+                        ))}
+                      </div>
+                      <div className="mt-2 text-sm font-medium text-zinc-800">{theme.label}</div>
+                      <div className="text-xs text-zinc-500">
+                        {selected
+                          ? zh('使用中', 'In use')
+                          : isCustom
+                            ? zh('点击编辑', 'Click to edit')
+                            : zh('点击应用', 'Click to apply')}
+                      </div>
+                    </button>
+                    {isCustom ? (
+                      <button
+                        type="button"
+                        onClick={() => setCustomEditorOpen(true)}
+                        className="absolute right-2 top-2 rounded-full bg-zinc-900 px-2 py-0.5 text-[10px] font-medium text-white hover:bg-zinc-700"
+                      >
+                        {zh('编辑', 'Edit')}
+                      </button>
+                    ) : null}
+                  </div>
                 )
               })}
             </div>
             <p className="text-sm text-zinc-500">
               {zh(
-                '选择立即生效并保存在本机浏览器中。',
-                'Changes apply immediately and are saved in this browser.'
+                '选择配色方案，立即生效并保存在本机浏览器中。',
+                'Choose a color scheme. It applies immediately and is saved in this browser.'
               )}
             </p>
           </div>
@@ -1551,78 +1535,81 @@ export default function GlobalSettingsModal({
   }
 
   return (
-    <AppModal
-      ariaLabelledby="global-settings-title"
-      className="px-4"
-      contentClassName="flex h-[min(86vh,820px)] w-full max-w-6xl flex-col overflow-hidden rounded-[28px] border border-zinc-200 bg-[#f5f5f7] shadow-2xl"
-      onClose={onClose}
-    >
-      <div className="flex items-center justify-between border-b border-zinc-200 bg-white/70 px-6 py-4 backdrop-blur">
-        <div>
-          <h2 id="global-settings-title" className="text-lg font-semibold text-zinc-900">
-            {zh('全局设置', 'Global Settings')}
-          </h2>
-          <p className="mt-1 text-sm text-zinc-500">{zh(activeTitle.zh, activeTitle.en)}</p>
-        </div>
-        <button
-          onClick={onClose}
-          className="rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-50"
-        >
-          {zh('关闭', 'Close')}
-        </button>
-      </div>
-
-      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-        <aside className="border-b border-zinc-200 bg-white/60 p-3 backdrop-blur md:w-[280px] md:border-b-0 md:border-r">
-          <div className="flex gap-2 overflow-x-auto md:flex-col">
-            {visibleSections.map((section) => {
-              const selected = currentSection === section.id
-              const badgeText = section.id === 'directories' ? String(directories.length) : ''
-
-              return (
-                <button
-                  key={section.id}
-                  type="button"
-                  onClick={() => setActiveSection(section.id)}
-                  className={`min-w-[220px] rounded-2xl border px-4 py-3 text-left transition md:min-w-0 ${
-                    selected
-                      ? 'border-zinc-200 bg-white shadow-sm'
-                      : 'border-transparent bg-transparent hover:border-zinc-200 hover:bg-white/80'
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="text-sm font-semibold text-zinc-900">
-                        {zh(section.title.zh, section.title.en)}
-                      </div>
-                    </div>
-                    {badgeText ? (
-                      <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-600">
-                        {badgeText}
-                      </span>
-                    ) : null}
-                  </div>
-                </button>
-              )
-            })}
+    <>
+      <AppModal
+        ariaLabelledby="global-settings-title"
+        className="px-4"
+        contentClassName="flex h-[min(86vh,820px)] w-full max-w-6xl flex-col overflow-hidden rounded-[28px] border border-zinc-200 bg-[#f5f5f7] shadow-2xl"
+        onClose={onClose}
+      >
+        <div className="flex items-center justify-between border-b border-zinc-200 bg-white/70 px-6 py-4 backdrop-blur">
+          <div>
+            <h2 id="global-settings-title" className="text-lg font-semibold text-zinc-900">
+              {zh('全局设置', 'Global Settings')}
+            </h2>
+            <p className="mt-1 text-sm text-zinc-500">{zh(activeTitle.zh, activeTitle.en)}</p>
           </div>
-        </aside>
+          <button
+            onClick={onClose}
+            className="rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-50"
+          >
+            {zh('关闭', 'Close')}
+          </button>
+        </div>
 
-        <section
-          className={`min-h-0 flex-1 overflow-y-auto px-4 pb-4 pt-4 md:px-6 md:pb-6 ${
-            currentSection === 'directories' ? 'md:pt-3' : 'md:pt-6'
-          }`}
-        >
-          {currentSection === 'appearance' && renderAppearancePanel()}
-          {currentSection === 'display' && renderDisplayPanel()}
-          {currentSection === 'shortcuts' && renderShortcutsPanel()}
-          {currentSection === 'network' && renderNetworkPanel()}
-          {currentSection === 'tools' && renderToolsPanel()}
-          {currentSection === 'player' && renderPlayerPanel()}
-          {currentSection === 'directories' && renderDirectoriesPanel()}
-          {currentSection === 'security' && renderSecurityPanel()}
-        </section>
-      </div>
-    </AppModal>
+        <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+          <aside className="border-b border-zinc-200 bg-white/60 p-3 backdrop-blur md:w-[280px] md:border-b-0 md:border-r">
+            <div className="flex gap-2 overflow-x-auto md:flex-col">
+              {visibleSections.map((section) => {
+                const selected = currentSection === section.id
+                const badgeText = section.id === 'directories' ? String(directories.length) : ''
+
+                return (
+                  <button
+                    key={section.id}
+                    type="button"
+                    onClick={() => setActiveSection(section.id)}
+                    className={`min-w-[220px] rounded-2xl border px-4 py-3 text-left transition md:min-w-0 ${
+                      selected
+                        ? 'border-zinc-200 bg-white shadow-sm'
+                        : 'border-transparent bg-transparent hover:border-zinc-200 hover:bg-white/80'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-semibold text-zinc-900">
+                          {zh(section.title.zh, section.title.en)}
+                        </div>
+                      </div>
+                      {badgeText ? (
+                        <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-600">
+                          {badgeText}
+                        </span>
+                      ) : null}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          </aside>
+
+          <section
+            className={`min-h-0 flex-1 overflow-y-auto px-4 pb-4 pt-4 md:px-6 md:pb-6 ${
+              currentSection === 'directories' ? 'md:pt-3' : 'md:pt-6'
+            }`}
+          >
+            {currentSection === 'appearance' && renderAppearancePanel()}
+            {currentSection === 'display' && renderDisplayPanel()}
+            {currentSection === 'shortcuts' && renderShortcutsPanel()}
+            {currentSection === 'network' && renderNetworkPanel()}
+            {currentSection === 'tools' && renderToolsPanel()}
+            {currentSection === 'player' && renderPlayerPanel()}
+            {currentSection === 'directories' && renderDirectoriesPanel()}
+            {currentSection === 'security' && renderSecurityPanel()}
+          </section>
+        </div>
+      </AppModal>
+      <CustomThemeEditor open={customEditorOpen} onClose={() => setCustomEditorOpen(false)} />
+    </>
   )
 }

@@ -130,9 +130,10 @@ func TestListIdolsNeedingWorksScrape(t *testing.T) {
 	idol1 := models.JavIdol{Name: "Stale Idol"}      // scraped long ago -> due
 	idol2 := models.JavIdol{Name: "Fresh Idol"}      // scraped recently -> not due
 	idol3 := models.JavIdol{Name: "Never Attempted"} // no track row -> due
-	idol4 := models.JavIdol{Name: "Old Failure"}     // failed long ago -> due
-	idol5 := models.JavIdol{Name: "Recent Failure"}  // failed recently -> not due (avoid hammering)
-	for _, id := range []*models.JavIdol{&idol1, &idol2, &idol3, &idol4, &idol5} {
+	idol4 := models.JavIdol{Name: "Old Failure"}     // failed long ago -> retry due
+	idol5 := models.JavIdol{Name: "Recent Failure"}  // failed recently -> not retried yet
+	idol6 := models.JavIdol{Name: "Recovered Stale"} // failed long ago, then succeeded recently
+	for _, id := range []*models.JavIdol{&idol1, &idol2, &idol3, &idol4, &idol5, &idol6} {
 		if err := gdb.Create(id).Error; err != nil {
 			t.Fatalf("create idol: %v", err)
 		}
@@ -156,9 +157,23 @@ func TestListIdolsNeedingWorksScrape(t *testing.T) {
 	if err := MarkJavIdolTrackError(ctx, idol5.ID, nil); err != nil {
 		t.Fatalf("mark idol5 failure: %v", err)
 	}
+	// idol6: an old failure followed by a fresh success. The failed attempt
+	// updated the row again at `fresh`, so only the recent success decides.
+	if err := MarkJavIdolTrackError(ctx, idol6.ID, nil); err != nil {
+		t.Fatalf("mark idol6 failure: %v", err)
+	}
+	if err := gdb.Model(&models.JavIdolTrack{}).Where("jav_idol_id = ?", idol6.ID).
+		Update("updated_at", old).Error; err != nil {
+		t.Fatalf("backdate idol6 failure: %v", err)
+	}
+	if err := MarkJavIdolTrackScraped(ctx, idol6.ID, "url6", 1, fresh); err != nil {
+		t.Fatalf("mark idol6 success: %v", err)
+	}
 
+	// Retry window: 30 minutes. Refresh window: 7 days.
+	retrySince := now.Add(-30 * time.Minute)
 	since := now.Add(-7 * 24 * time.Hour)
-	due, err := ListIdolsNeedingWorksScrape(ctx, since)
+	due, err := ListIdolsNeedingWorksScrape(ctx, retrySince, since)
 	if err != nil {
 		t.Fatalf("list needing: %v", err)
 	}
@@ -180,6 +195,23 @@ func TestListIdolsNeedingWorksScrape(t *testing.T) {
 	}
 	if got[idol5.ID] {
 		t.Fatal("idol5 (recent failure) should not be retried yet")
+	}
+	if got[idol6.ID] {
+		t.Fatal("idol6 (old failure then fresh success) should not be retried")
+	}
+}
+
+func TestJavIdolRetryMinutesConfigFallback(t *testing.T) {
+	openTestDB(t)
+	ctx := context.Background()
+	if got := JavIdolRetryMinutes(ctx); got != DefaultJavIdolRetryMinutes {
+		t.Fatalf("default retry minutes = %d, want %d", got, DefaultJavIdolRetryMinutes)
+	}
+	if err := UpsertConfig(ctx, map[string]string{"jav_idol_retry_minutes": "90"}); err != nil {
+		t.Fatalf("upsert retry minutes config: %v", err)
+	}
+	if got := JavIdolRetryMinutes(ctx); got != 90 {
+		t.Fatalf("configured retry minutes = %d, want 90", got)
 	}
 }
 

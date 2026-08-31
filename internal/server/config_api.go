@@ -103,6 +103,7 @@ func updateConfig(c *gin.Context) {
 		SeriesPageSize         *int                  `json:"series_page_size"`
 		SeriesWaterfallDefault *bool                 `json:"series_waterfall_default"`
 		JavIdolRefreshDays     *int                  `json:"jav_idol_refresh_days"`
+		JavIdolRetryMinutes    *int                  `json:"jav_idol_retry_minutes"`
 		VideoHideJav           *bool                 `json:"video_hide_jav"`
 		VideoSort              string                `json:"video_sort"`
 		JavSort                string                `json:"jav_sort"`
@@ -203,6 +204,14 @@ func updateConfig(c *gin.Context) {
 			return
 		}
 		entries["jav_idol_refresh_days"] = strconv.Itoa(days)
+	}
+	if req.JavIdolRetryMinutes != nil {
+		minutes := *req.JavIdolRetryMinutes
+		if minutes < 5 || minutes > 1440 {
+			respondLocalizedError(c, http.StatusBadRequest, "女优作品失败重试间隔必须在 5-1440 分钟之间", "Idol works retry interval must be between 5 and 1440 minutes")
+			return
+		}
+		entries["jav_idol_retry_minutes"] = strconv.Itoa(minutes)
 	}
 	if req.JavHideSeries != nil {
 		entries["jav_hide_series"] = strconv.FormatBool(*req.JavHideSeries)

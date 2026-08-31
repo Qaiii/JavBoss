@@ -18,6 +18,13 @@ import (
 // refreshes of a tracked idol's works when no config override is present.
 const DefaultJavIdolRefreshDays = 7
 
+// DefaultJavIdolRetryMinutes is how long to wait after a failed works scrape
+// before the idol is retried automatically. It is deliberately much shorter
+// than the full refresh interval so transient failures (e.g. a provider 403 or
+// a flaky network) self-heal quickly instead of waiting for the next full
+// refresh window.
+const DefaultJavIdolRetryMinutes = 30
+
 // GetJavIdolBasic returns the core name fields of an idol regardless of
 // whether she has any visible works, for background works scraping.
 func GetJavIdolBasic(ctx context.Context, idolID int64) (*models.JavIdol, error) {
@@ -99,6 +106,10 @@ type JavIdolTrackState struct {
 	LastScrapedAt *time.Time `json:"last_scraped_at"`
 	WorksCount    int        `json:"works_count"`
 	LastError     string     `json:"last_error"`
+	// LastAttemptAt is the time of the most recent scrape attempt (success or
+	// failure), taken from the track row's updated_at. It lets callers throttle
+	// automatic retries after a failure.
+	LastAttemptAt *time.Time `json:"last_attempt_at"`
 }
 
 // JavIdolRefreshDays returns the configured refresh interval in days, falling
@@ -109,6 +120,17 @@ func JavIdolRefreshDays(ctx context.Context) int {
 		return DefaultJavIdolRefreshDays
 	}
 	return ParsePositiveIntConfig(cfg["jav_idol_refresh_days"], DefaultJavIdolRefreshDays)
+}
+
+// JavIdolRetryMinutes returns the configured retry delay in minutes after a
+// failed works scrape, falling back to DefaultJavIdolRetryMinutes when the
+// config key is absent or invalid.
+func JavIdolRetryMinutes(ctx context.Context) int {
+	cfg, err := ListConfig(ctx)
+	if err != nil {
+		return DefaultJavIdolRetryMinutes
+	}
+	return ParsePositiveIntConfig(cfg["jav_idol_retry_minutes"], DefaultJavIdolRetryMinutes)
 }
 
 // ParsePositiveIntConfig parses an integer config value, returning fallback
@@ -138,6 +160,7 @@ func GetJavIdolTrack(ctx context.Context, idolID int64) (JavIdolTrackState, erro
 		LastScrapedAt: track.LastScrapedAt,
 		WorksCount:    track.WorksCount,
 		LastError:     track.LastError,
+		LastAttemptAt: &track.UpdatedAt,
 	}, nil
 }
 
@@ -202,12 +225,14 @@ func RemoveJavIdolTrack(ctx context.Context, idolID int64) error {
 // JavDB works scrape:
 //   - idols never attempted at all (including ones imported by older versions
 //     that predate the works queue);
-//   - idols whose last attempt failed and happened before `since` (failed
-//     attempts are retried, but not more often than the refresh interval);
+//   - idols whose last attempt failed and happened before `retrySince` — the
+//     short retry window, so a failed scrape is retried after the retry delay
+//     instead of waiting for the full refresh interval;
 //   - idols whose last successful scrape is older than `since`.
 //
-// `since` is typically now - refreshInterval.
-func ListIdolsNeedingWorksScrape(ctx context.Context, since time.Time) ([]int64, error) {
+// `retrySince` is typically now - retryDelay (minutes), and `since` is
+// typically now - refreshInterval (days).
+func ListIdolsNeedingWorksScrape(ctx context.Context, retrySince, since time.Time) ([]int64, error) {
 	var ids []int64
 	err := common.DB.WithContext(ctx).
 		Table("jav_idol ji").
@@ -215,7 +240,7 @@ func ListIdolsNeedingWorksScrape(ctx context.Context, since time.Time) ([]int64,
 		Joins("LEFT JOIN jav_idol_track jit ON jit.jav_idol_id = ji.id").
 		Where(`jit.jav_idol_id IS NULL
 			OR (jit.last_scraped_at IS NULL AND (jit.updated_at IS NULL OR jit.updated_at < ?))
-			OR jit.last_scraped_at < ?`, since, since).
+			OR (jit.last_scraped_at IS NOT NULL AND jit.last_error = '' AND jit.last_scraped_at < ?)`, retrySince, since).
 		Order("ji.id ASC").
 		Pluck("ji.id", &ids).Error
 	if err != nil {

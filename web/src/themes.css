@@ -1,24 +1,30 @@
 /*
  * 主题调色板（全站唯一色彩配置入口）
  * ---------------------------------------------------------------
- * 结构说明：
- * 1. :root            —— 浅色主题（默认）。所有变量的浅色取值 = Tailwind 官方色值。
- * 2. html[data-theme=...] —— 每个暗色主题一个变量块（主题 id 需在 src/theme/themes.js 注册）。
+ * 色彩分层（自上而下，越往上越接近使用意图）：
+ * 1. 令牌层 token     —— --c-<色系>-<阶位>（RGB 三元组，供 Tailwind 工具类映射）
+ * 2. 语义层 semantic  —— 五大类：主色 / 辅助色 / 状态色 / 中性色 / 背景色
+ * 3. 组件层 component —— --c-tag-* / --c-badge-* / --c-select-*（引用语义层，供组件与覆写层使用）
  *
- * 两类变量：
- * - 令牌变量 --c-<色系>-<阶位>：RGB 通道三元组（如 `249 250 251`），
- *   供 tailwind.config.js 中的工具类（bg-gray-100、text-slate-600 等）和
- *   rgb(var(--c-xxx) / <alpha>) 透明度写法使用。
- * - 语义变量 --c-ink / --c-surface / --c-accent ...：完整颜色值，
- *   供 index.css 的自定义规则和暗色覆写层使用。
+ * 五大类语义色：
+ * - 主色（--c-primary-*）   页面核心强调：按钮、选中态、链接、focus 环
+ * - 辅助色（--c-secondary-*）次强调：JAV 角标等次要品牌强调
+ * - 状态色（--c-{success|warning|error|info}-*）功能状态：成功 / 警示 / 错误 / 信息
+ * - 中性色（--c-text-* / --c-border-*）文字层级与边框
+ * - 背景色（--c-bg-*）页面 / 面板 / 浮层 / 遮罩
  *
- * 新增主题：复制任意暗色主题块，改 data-theme 与变量值，
- * 再在 src/theme/themes.js 的 THEMES 里注册即可，无需改动任何组件或覆写层。
+ * 主题文件：:root 为浅色默认；html[data-theme=...] 每暗色主题一个变量块
+ * （主题 id 需在 src/theme/themes.js 注册）。
+ *
+ * 新增主题：复制任意暗色主题块，改 data-theme 与令牌层 / 语义层取值，
+ * 组件层只覆盖与语义层不一致的差异项，无需改动任何组件或覆写层。
  * ---------------------------------------------------------------
  */
 
 :root {
-  /* ---- 令牌变量：中性色（gray / zinc / slate）---- */
+  /* ==============================================================
+     1. 令牌层：中性灰阶（gray / zinc / slate）
+     ============================================================== */
   --c-gray-50: 249 250 251;
   --c-gray-100: 243 244 246;
   --c-gray-200: 229 231 235;
@@ -42,8 +48,22 @@
   --c-slate-400: 148 163 184;
   --c-slate-500: 100 116 139;
   --c-slate-600: 71 85 105;
+  --c-gray-700: 55 65 81;
+  --c-gray-800: 31 41 55;
+  --c-gray-900: 17 24 39;
+  --c-gray-950: 3 7 18;
 
-  /* ---- 令牌变量：彩色系浅色阶（50-300，用作软底色 / 描边 / 渐变）---- */
+  --c-zinc-700: 63 63 70;
+  --c-zinc-800: 39 39 42;
+  --c-zinc-900: 24 24 27;
+  --c-zinc-950: 9 9 11;
+
+  --c-slate-700: 51 65 85;
+  --c-slate-800: 30 41 59;
+  --c-slate-900: 15 23 42;
+  --c-slate-950: 2 6 23;
+
+  /* 令牌层：彩色系浅色阶（50-300，用作软底色 / 描边 / 渐变） */
   --c-blue-50: 239 246 255;
   --c-blue-100: 219 234 254;
   --c-blue-200: 191 219 254;
@@ -87,77 +107,102 @@
   --c-orange-200: 254 215 170;
   --c-orange-300: 253 186 116;
 
-  /* ---- 语义变量：页面 / 面板 ---- */
-  --c-page: #f9fafb; /* 页面背景（body） */
-  --c-surface-rgb: 255 255 255; /* 卡片 / 面板背景（bg-white 覆写用） */
-  --c-surface: rgb(var(--c-surface-rgb));
-  --c-glass: rgb(var(--c-surface-rgb) / 0.92); /* 顶栏毛玻璃 */
-  --c-panel-deep: #030712; /* 浅色模式下的“墨色”面板（bg-gray-950 等） */
-  --c-panel-deep-hover: #1f2937;
-  --c-toast-bg: rgb(39 39 42 / 0.95); /* 居中提示条 */
+  /* ==============================================================
+     2. 语义层：主色 Primary（核心强调）
+     ============================================================== */
+  --c-primary: #2563eb; /* 主色（选中页码、侧栏指示条、按钮） */
+  --c-primary-strong: #1d4ed8; /* 强调文字 / 激活态 */
+  --c-primary-deep: #1e40af; /* 更深强调文字 */
+  --c-primary-darkest: #1e3a8a; /* 最深强调文字（悬停） */
+  --c-primary-soft: rgb(var(--c-blue-50)); /* 主色软底 */
+  --c-primary-soft-hover: #f5f9ff; /* 更浅软底（悬停） */
+  --c-primary-border: rgb(var(--c-blue-200));
+  --c-primary-chip: rgb(var(--c-blue-100)); /* 筛选胶囊底色 */
+  --c-primary-bright: #60a5fa; /* 亮主色描边（激活标签 / 搜索聚焦） */
+  --c-primary-text: #ffffff; /* 主色上的文字 */
+  --c-primary-focus-ring-rgb: 59 130 246; /* focus ring RGB 三元组 */
 
-  /* ---- 语义变量：文字 ---- */
-  --c-ink: #0f172a; /* 主文本（slate-900） */
-  --c-ink-strong: #1e293b; /* 次强文本（slate-800） */
-  --c-ink-2: #334155; /* 常规文本（slate-700） */
-  --c-ink-3: rgb(var(--c-slate-600));
-  --c-ink-muted: rgb(var(--c-slate-500));
-  --c-ink-faint: rgb(var(--c-slate-400));
-  --c-ink-disabled: rgb(var(--c-slate-300));
-  --c-on-accent: #ffffff; /* 强调色上的文字 */
+  /* ==============================================================
+     2. 语义层：辅助色 Secondary（次要强调：JAV 角标等）
+     ============================================================== */
+  --c-secondary: #7c3aed;
+  --c-secondary-soft: rgb(var(--c-purple-100));
+  --c-secondary-border: rgb(var(--c-purple-200));
+  --c-secondary-text: #7e22ce;
 
-  /* ---- 语义变量：边框 ---- */
+  /* ==============================================================
+     2. 语义层：状态色 Status（success / warning / error / info）
+     ============================================================== */
+  --c-success: #059669;
+  --c-success-soft: rgb(var(--c-emerald-100));
+  --c-success-border: rgb(var(--c-emerald-200));
+  --c-success-text: #047857;
+
+  --c-warning: #f59e0b;
+  --c-warning-soft: rgb(var(--c-amber-50));
+  --c-warning-border: #fde68a;
+  --c-warning-text: #78350f;
+  --c-warning-icon: #b45309;
+
+  --c-error: #dc2626; /* 危险操作（清空筛选等悬停红） */
+  --c-error-soft: rgb(var(--c-red-50));
+  --c-error-border: rgb(var(--c-red-200));
+  --c-error-text: #b91c1c;
+
+  --c-info: #0284c7;
+  --c-info-soft: rgb(var(--c-sky-100));
+  --c-info-border: rgb(var(--c-sky-200));
+  --c-info-text: #0369a1;
+
+  /* ==============================================================
+     2. 语义层：中性色 Neutral（文字层级 / 边框）
+     ============================================================== */
+  --c-text: #0f172a; /* 主文本（slate-900） */
+  --c-text-strong: #1e293b; /* 次强文本（slate-800） */
+  --c-text-2: #334155; /* 常规文本（slate-700） */
+  --c-text-3: rgb(var(--c-slate-600));
+  --c-text-muted: rgb(var(--c-slate-500));
+  --c-text-faint: rgb(var(--c-slate-400));
+  --c-text-disabled: rgb(var(--c-slate-300));
+
   --c-border: rgb(var(--c-slate-200));
   --c-border-soft: #dbe3ec; /* 面板描边 */
   --c-border-strong: rgb(var(--c-slate-300));
-  --c-emphasis-border: #111827; /* 输入框聚焦等强调描边 */
+  --c-border-emphasis: #111827; /* 输入框聚焦等强调描边 */
+  --c-scrollbar: rgb(var(--c-slate-300));
 
-  /* ---- 语义变量：强调色（跟随主题色调）---- */
-  --c-accent: #2563eb; /* 主强调（选中页码、侧栏指示条） */
-  --c-accent-strong: #1d4ed8; /* 强调文字 / 激活态 */
-  --c-accent-deep: #1e40af; /* 深强调文字 */
-  --c-accent-darkest: #1e3a8a; /* 悬停强调文字 */
-  --c-accent-soft: rgb(var(--c-blue-50)); /* 强调色软底 */
-  --c-accent-softer: #f5f9ff; /* 更浅的强调软底（悬停） */
-  --c-accent-border: rgb(var(--c-blue-200));
-  --c-accent-chip: rgb(var(--c-blue-100)); /* 筛选胶囊底色 */
-  --c-accent-bright: #60a5fa; /* 亮强调描边（激活标签 / 搜索聚焦） */
-  --c-focus-ring-rgb: 59 130 246;
+  /* ==============================================================
+     2. 语义层：背景色 Background
+     ============================================================== */
+  --c-bg-page: #f9fafb; /* 页面背景（body） */
+  --c-bg-surface-rgb: 255 255 255; /* 卡片 / 面板背景 RGB 三元组 */
+  --c-bg-surface: rgb(var(--c-bg-surface-rgb));
+  --c-bg-glass: rgb(var(--c-bg-surface-rgb) / 0.92); /* 顶栏毛玻璃 */
+  --c-bg-elevated: rgb(39 39 42 / 0.95); /* 浮层（居中提示条等） */
+  --c-bg-panel-deep: #030712; /* 浅色模式下的“墨色”面板（bg-gray-950 等） */
+  --c-bg-panel-deep-hover: #1f2937;
+  --c-bg-hover-veil: rgb(15 23 42 / 0.05); /* MUI 悬浮遮罩 */
+  --c-bg-overlay-rgb: 15 23 42; /* 阴影 / 遮罩 RGB 三元组 */
 
-  /* ---- 语义变量：阴影 / 遮罩 ---- */
-  --c-shadow-rgb: 15 23 42;
-  --c-hover-veil: rgb(15 23 42 / 0.05); /* MUI 悬浮遮罩 */
-
-  /* ---- 语义变量：警示提示条 ---- */
-  --c-warn-bg: rgb(var(--c-amber-50));
-  --c-warn-border: #fde68a;
-  --c-warn-text: #78350f;
-  --c-warn-icon: #b45309;
-
-  /* ---- 语义变量：侧栏角标 ---- */
-  --c-badge-video-border: rgb(var(--c-sky-200));
-  --c-badge-video-bg: rgb(var(--c-sky-100));
-  --c-badge-video-text: #0369a1;
-  --c-badge-jav-border: rgb(var(--c-purple-200));
-  --c-badge-jav-bg: rgb(var(--c-purple-100));
-  --c-badge-jav-text: #7e22ce;
-
-  /* ---- 语义变量：标签胶囊 ---- */
+  /* ==============================================================
+     3. 组件语义层：标签胶囊 / 侧栏角标 / 选择框
+     （值引用上面的语义层；暗色主题只覆盖差异项）
+     ============================================================== */
   --c-tag-bg: rgb(var(--c-slate-50));
   --c-tag-border: #d6dbe4;
   --c-tag-bg-hover: rgb(var(--c-slate-100));
   --c-tag-border-hover: rgb(var(--c-slate-300));
-  --c-tag-label: var(--c-ink-2);
-  --c-tag-label-active: var(--c-ink-strong);
+  --c-tag-label: var(--c-text-2);
+  --c-tag-label-active: var(--c-text-strong);
   --c-tag-count-bg: rgb(255 255 255 / 0.82);
-  --c-tag-count-text: rgb(var(--c-slate-500));
+  --c-tag-count-text: var(--c-text-muted);
 
-  --c-tag-user-bg: rgb(var(--c-emerald-100));
-  --c-tag-user-border: rgb(var(--c-emerald-200));
+  --c-tag-user-bg: var(--c-success-soft);
+  --c-tag-user-border: var(--c-success-border);
   --c-tag-user-bg-hover: rgb(var(--c-emerald-200));
   --c-tag-user-border-hover: #6ee7b7;
   --c-tag-user-count-bg: rgb(16 185 129 / 0.12);
-  --c-tag-user-count-text: #047857;
+  --c-tag-user-count-text: var(--c-success-text);
 
   --c-tag-scraped-bg: rgb(var(--c-orange-100));
   --c-tag-scraped-border: rgb(var(--c-orange-200));
@@ -166,8 +211,8 @@
   --c-tag-scraped-count-bg: rgb(249 115 22 / 0.12);
   --c-tag-scraped-count-text: #c2410c;
 
-  --c-tag-active-bg: rgb(var(--c-blue-100));
-  --c-tag-active-border: var(--c-accent-bright);
+  --c-tag-active-bg: var(--c-primary-chip);
+  --c-tag-active-border: var(--c-primary-bright);
   --c-tag-selected-bg: #f59e0b;
   --c-tag-selected-border: #d97706;
   --c-tag-selected-count-bg: rgb(255 255 255 / 0.18);
@@ -177,18 +222,20 @@
   --c-tag-delete-text: #be123c;
   --c-tag-check: #c78b3b;
 
-  /* ---- 语义变量：选择 / 播放器 ---- */
+  --c-badge-video-bg: var(--c-info-soft);
+  --c-badge-video-border: var(--c-info-border);
+  --c-badge-video-text: var(--c-info-text);
+  --c-badge-jav-bg: var(--c-secondary-soft);
+  --c-badge-jav-border: var(--c-secondary-border);
+  --c-badge-jav-text: var(--c-secondary-text);
+
   --c-select-check: #0284c7;
-  --c-select-check-box: rgb(var(--c-surface-rgb) / 0.96);
-
-  --c-danger: #dc2626; /* 危险操作（清空筛选等悬停红） */
-
-  --c-scrollbar: rgb(var(--c-slate-300));
+  --c-select-check-box: rgb(var(--c-bg-surface-rgb) / 0.96);
 }
 
 /* ================= 暗色主题：墨蓝（默认暗色） ================= */
 html[data-theme='navy'] {
-  /* 中性色：偏蓝的深夜色调 */
+  /* ---- 令牌层：中性灰阶（偏蓝的深夜色调） ---- */
   --c-gray-50: 20 24 33;
   --c-gray-100: 27 32 48;
   --c-gray-200: 41 48 70;
@@ -212,8 +259,22 @@ html[data-theme='navy'] {
   --c-slate-400: 111 123 150;
   --c-slate-500: 140 152 179;
   --c-slate-600: 165 177 201;
+  --c-gray-700: 72 81 106;
+  --c-gray-800: 63 71 94;
+  --c-gray-900: 55 63 85;
+  --c-gray-950: 50 58 78;
 
-  /* 彩色系浅色阶 → 深色软底（保留色相、压低亮度） */
+  --c-zinc-700: 76 80 96;
+  --c-zinc-800: 66 70 85;
+  --c-zinc-900: 58 62 76;
+  --c-zinc-950: 52 55 68;
+
+  --c-slate-700: 76 88 118;
+  --c-slate-800: 66 78 106;
+  --c-slate-900: 58 69 96;
+  --c-slate-950: 52 62 88;
+
+  /* ---- 令牌层：彩色系浅色阶（深色软底，保留色相） ---- */
   --c-blue-50: 23 37 61;
   --c-blue-100: 30 49 83;
   --c-blue-200: 41 66 108;
@@ -257,67 +318,87 @@ html[data-theme='navy'] {
   --c-orange-200: 86 62 36;
   --c-orange-300: 117 85 47;
 
-  /* 页面 / 面板 */
-  --c-page: #0f131c;
-  --c-surface-rgb: 22 28 43;
-  --c-glass: rgb(var(--c-surface-rgb) / 0.92);
-  --c-panel-deep: #0a0e18;
-  --c-panel-deep-hover: #1c2334;
-  --c-toast-bg: rgb(34 41 60 / 0.97);
+  /* ---- 语义层：主色 ---- */
+  --c-primary: #3b82f6;
+  --c-primary-strong: #85b4fa;
+  --c-primary-deep: #a9c8fb;
+  --c-primary-darkest: #c6d9fd;
+  --c-primary-soft: rgb(var(--c-blue-50));
+  --c-primary-soft-hover: #182338;
+  --c-primary-border: rgb(var(--c-blue-200));
+  --c-primary-chip: rgb(var(--c-blue-100));
+  --c-primary-bright: #60a5fa;
+  --c-primary-text: #ffffff;
+  --c-primary-focus-ring-rgb: 96 165 250;
 
-  /* 文字 */
-  --c-ink: #e8ecf5;
-  --c-ink-strong: #d7dde9;
-  --c-ink-2: #bfc8da;
-  --c-on-accent: #ffffff;
+  /* ---- 语义层：辅助色 ---- */
+  --c-secondary: #a78bfa;
+  --c-secondary-soft: rgb(var(--c-purple-100));
+  --c-secondary-border: rgb(var(--c-purple-200));
+  --c-secondary-text: #c4b5fd;
 
-  /* 边框 */
+  /* ---- 语义层：状态色 ---- */
+  --c-success: #34d399;
+  --c-success-soft: rgb(var(--c-emerald-100));
+  --c-success-border: rgb(var(--c-emerald-200));
+  --c-success-text: #6ee7b7;
+
+  --c-warning: #fbbf24;
+  --c-warning-soft: rgb(var(--c-amber-50));
+  --c-warning-border: #4d3f1d;
+  --c-warning-text: #ecd48a;
+  --c-warning-icon: #d9b35a;
+
+  --c-error: #f87171;
+  --c-error-soft: rgb(var(--c-red-50));
+  --c-error-border: rgb(var(--c-red-200));
+  --c-error-text: #fca5a5;
+
+  --c-info: #38bdf8;
+  --c-info-soft: rgb(var(--c-sky-100));
+  --c-info-border: rgb(var(--c-sky-200));
+  --c-info-text: #7dd3fc;
+
+  /* ---- 语义层：中性色 ---- */
+  --c-text: #e8ecf5;
+  --c-text-strong: #d7dde9;
+  --c-text-2: #bfc8da;
+  --c-text-3: rgb(var(--c-slate-600));
+  --c-text-muted: rgb(var(--c-slate-500));
+  --c-text-faint: rgb(var(--c-slate-400));
+  --c-text-disabled: rgb(var(--c-slate-300));
+
+  --c-border: rgb(var(--c-slate-200));
   --c-border-soft: #2c3550;
-  --c-emphasis-border: #c9d3e6;
+  --c-border-strong: rgb(var(--c-slate-300));
+  --c-border-emphasis: #c9d3e6;
+  --c-scrollbar: rgb(var(--c-slate-300));
 
-  /* 强调色 */
-  --c-accent: #3b82f6;
-  --c-accent-strong: #85b4fa;
-  --c-accent-deep: #a9c8fb;
-  --c-accent-darkest: #c6d9fd;
-  --c-accent-softer: #182338;
-  --c-accent-bright: #60a5fa;
-  --c-focus-ring-rgb: 96 165 250;
+  /* ---- 语义层：背景色 ---- */
+  --c-bg-page: #0f131c;
+  --c-bg-surface-rgb: 22 28 43;
+  --c-bg-glass: rgb(var(--c-bg-surface-rgb) / 0.92);
+  --c-bg-elevated: rgb(34 41 60 / 0.97);
+  --c-bg-panel-deep: #0a0e18;
+  --c-bg-panel-deep-hover: #1c2334;
+  --c-bg-hover-veil: rgb(255 255 255 / 0.07);
+  --c-bg-overlay-rgb: 0 0 0;
 
-  /* 阴影 */
-  --c-shadow-rgb: 0 0 0;
-  --c-hover-veil: rgb(255 255 255 / 0.07);
-
-  /* 警示 */
-  --c-warn-bg: #2a2312;
-  --c-warn-border: #4d3f1d;
-  --c-warn-text: #ecd48a;
-  --c-warn-icon: #d9b35a;
-
-  /* 角标 */
-  --c-badge-video-text: #7dd3fc;
-  --c-badge-jav-text: #c4b5fd;
-
-  /* 标签 */
+  /* ---- 组件层差异项 ---- */
   --c-tag-border: #303950;
   --c-tag-count-bg: rgb(255 255 255 / 0.09);
   --c-tag-user-border-hover: #34d399;
   --c-tag-user-count-bg: rgb(52 211 153 / 0.14);
-  --c-tag-user-count-text: #6ee7b7;
   --c-tag-scraped-count-bg: rgb(251 146 60 / 0.14);
   --c-tag-scraped-count-text: #fdba74;
   --c-tag-delete-bg-hover: #56242e;
   --c-tag-check: #d9a855;
-
-  /* 选择 */
   --c-select-check: #38bdf8;
-
-  --c-danger: #f87171;
 }
 
 /* ================= 暗色主题：暖棕 ================= */
 html[data-theme='coffee'] {
-  /* 中性色：暖棕 / 奶咖色调 */
+  /* ---- 令牌层：中性灰阶（暖棕 / 奶咖色调） ---- */
   --c-gray-50: 25 19 9;
   --c-gray-100: 33 26 15;
   --c-gray-200: 47 38 23;
@@ -341,8 +422,22 @@ html[data-theme='coffee'] {
   --c-slate-400: 126 111 87;
   --c-slate-500: 156 141 116;
   --c-slate-600: 182 168 141;
+  --c-gray-700: 88 75 50;
+  --c-gray-800: 78 66 44;
+  --c-gray-900: 70 59 40;
+  --c-gray-950: 63 53 36;
 
-  /* 彩色系浅色阶 → 深色软底 */
+  --c-zinc-700: 92 78 54;
+  --c-zinc-800: 82 69 47;
+  --c-zinc-900: 73 61 42;
+  --c-zinc-950: 66 55 38;
+
+  --c-slate-700: 92 78 54;
+  --c-slate-800: 82 69 47;
+  --c-slate-900: 73 61 42;
+  --c-slate-950: 66 55 38;
+
+  /* ---- 令牌层：彩色系浅色阶（深色软底） ---- */
   --c-blue-50: 43 33 19;
   --c-blue-100: 61 47 26;
   --c-blue-200: 85 65 31;
@@ -386,67 +481,87 @@ html[data-theme='coffee'] {
   --c-orange-200: 92 62 28;
   --c-orange-300: 123 84 37;
 
-  /* 页面 / 面板 */
-  --c-page: #161008;
-  --c-surface-rgb: 30 23 14;
-  --c-glass: rgb(var(--c-surface-rgb) / 0.92);
-  --c-panel-deep: #0f0a05;
-  --c-panel-deep-hover: #2b2114;
-  --c-toast-bg: rgb(44 34 20 / 0.97);
+  /* ---- 语义层：主色（琥珀） ---- */
+  --c-primary: #d97706;
+  --c-primary-strong: #f59e0b;
+  --c-primary-deep: #fbbf24;
+  --c-primary-darkest: #fcd34d;
+  --c-primary-soft: rgb(var(--c-blue-50));
+  --c-primary-soft-hover: #261e0d;
+  --c-primary-border: rgb(var(--c-blue-200));
+  --c-primary-chip: rgb(var(--c-blue-100));
+  --c-primary-bright: #f59e0b;
+  --c-primary-text: #ffffff;
+  --c-primary-focus-ring-rgb: 245 158 11;
 
-  /* 文字 */
-  --c-ink: #f1e8d8;
-  --c-ink-strong: #e4dac4;
-  --c-ink-2: #cdbfa4;
-  --c-on-accent: #ffffff;
+  /* ---- 语义层：辅助色 ---- */
+  --c-secondary: #a78bfa;
+  --c-secondary-soft: rgb(var(--c-purple-100));
+  --c-secondary-border: rgb(var(--c-purple-200));
+  --c-secondary-text: #c4b5fd;
 
-  /* 边框 */
+  /* ---- 语义层：状态色 ---- */
+  --c-success: #34d399;
+  --c-success-soft: rgb(var(--c-emerald-100));
+  --c-success-border: rgb(var(--c-emerald-200));
+  --c-success-text: #6ee7b7;
+
+  --c-warning: #fbbf24;
+  --c-warning-soft: rgb(var(--c-amber-50));
+  --c-warning-border: #52421c;
+  --c-warning-text: #ecd28a;
+  --c-warning-icon: #d9b35a;
+
+  --c-error: #f87171;
+  --c-error-soft: rgb(var(--c-red-50));
+  --c-error-border: rgb(var(--c-red-200));
+  --c-error-text: #fca5a5;
+
+  --c-info: #38bdf8;
+  --c-info-soft: rgb(var(--c-sky-100));
+  --c-info-border: rgb(var(--c-sky-200));
+  --c-info-text: #7dd3fc;
+
+  /* ---- 语义层：中性色 ---- */
+  --c-text: #f1e8d8;
+  --c-text-strong: #e4dac4;
+  --c-text-2: #cdbfa4;
+  --c-text-3: rgb(var(--c-slate-600));
+  --c-text-muted: rgb(var(--c-slate-500));
+  --c-text-faint: rgb(var(--c-slate-400));
+  --c-text-disabled: rgb(var(--c-slate-300));
+
+  --c-border: rgb(var(--c-slate-200));
   --c-border-soft: #3f3421;
-  --c-emphasis-border: #e2d3ae;
+  --c-border-strong: rgb(var(--c-slate-300));
+  --c-border-emphasis: #e2d3ae;
+  --c-scrollbar: rgb(var(--c-slate-300));
 
-  /* 强调色：琥珀（暖棕主题配套） */
-  --c-accent: #d97706;
-  --c-accent-strong: #f59e0b;
-  --c-accent-deep: #fbbf24;
-  --c-accent-darkest: #fcd34d;
-  --c-accent-softer: #261e0d;
-  --c-accent-bright: #f59e0b;
-  --c-focus-ring-rgb: 245 158 11;
+  /* ---- 语义层：背景色 ---- */
+  --c-bg-page: #161008;
+  --c-bg-surface-rgb: 30 23 14;
+  --c-bg-glass: rgb(var(--c-bg-surface-rgb) / 0.92);
+  --c-bg-elevated: rgb(44 34 20 / 0.97);
+  --c-bg-panel-deep: #0f0a05;
+  --c-bg-panel-deep-hover: #2b2114;
+  --c-bg-hover-veil: rgb(255 255 255 / 0.06);
+  --c-bg-overlay-rgb: 0 0 0;
 
-  /* 阴影 */
-  --c-shadow-rgb: 0 0 0;
-  --c-hover-veil: rgb(255 255 255 / 0.06);
-
-  /* 警示 */
-  --c-warn-bg: #2e2410;
-  --c-warn-border: #52421c;
-  --c-warn-text: #ecd28a;
-  --c-warn-icon: #d9b35a;
-
-  /* 角标 */
-  --c-badge-video-text: #7dd3fc;
-  --c-badge-jav-text: #c4b5fd;
-
-  /* 标签 */
+  /* ---- 组件层差异项 ---- */
   --c-tag-border: #4a3c26;
   --c-tag-count-bg: rgb(255 255 255 / 0.08);
   --c-tag-user-border-hover: #34d399;
   --c-tag-user-count-bg: rgb(52 211 153 / 0.15);
-  --c-tag-user-count-text: #6ee7b7;
   --c-tag-scraped-count-bg: rgb(251 146 60 / 0.15);
   --c-tag-scraped-count-text: #fdba74;
   --c-tag-delete-bg-hover: #6d2433;
   --c-tag-check: #d9a855;
-
-  /* 选择 */
   --c-select-check: #f59e0b;
-
-  --c-danger: #f87171;
 }
 
 /* ================= 暗色主题：青碧 ================= */
 html[data-theme='teal'] {
-  /* 中性色：青灰 / 竹玉色调 */
+  /* ---- 令牌层：中性灰阶（青灰 / 竹玉色调） ---- */
   --c-gray-50: 18 25 23;
   --c-gray-100: 25 33 31;
   --c-gray-200: 37 48 44;
@@ -470,8 +585,22 @@ html[data-theme='teal'] {
   --c-slate-400: 101 117 109;
   --c-slate-500: 129 146 137;
   --c-slate-600: 155 172 162;
+  --c-gray-700: 70 83 77;
+  --c-gray-800: 61 73 68;
+  --c-gray-900: 54 64 59;
+  --c-gray-950: 47 57 53;
 
-  /* 彩色系浅色阶 → 深色软底 */
+  --c-zinc-700: 72 86 79;
+  --c-zinc-800: 63 76 70;
+  --c-zinc-900: 55 67 61;
+  --c-zinc-950: 49 59 55;
+
+  --c-slate-700: 68 84 76;
+  --c-slate-800: 59 74 66;
+  --c-slate-900: 51 65 58;
+  --c-slate-950: 45 58 52;
+
+  /* ---- 令牌层：彩色系浅色阶（深色软底） ---- */
   --c-blue-50: 14 40 34;
   --c-blue-100: 19 56 48;
   --c-blue-200: 26 77 65;
@@ -515,60 +644,80 @@ html[data-theme='teal'] {
   --c-orange-200: 79 61 45;
   --c-orange-300: 109 88 63;
 
-  /* 页面 / 面板 */
-  --c-page: #0d1513;
-  --c-surface-rgb: 18 29 26;
-  --c-glass: rgb(var(--c-surface-rgb) / 0.92);
-  --c-panel-deep: #081009;
-  --c-panel-deep-hover: #1b2a25;
-  --c-toast-bg: rgb(26 40 35 / 0.97);
+  /* ---- 语义层：主色（青碧） ---- */
+  --c-primary: #0d9488;
+  --c-primary-strong: #2dd4bf;
+  --c-primary-deep: #5eead4;
+  --c-primary-darkest: #99f6e4;
+  --c-primary-soft: rgb(var(--c-blue-50));
+  --c-primary-soft-hover: #0d2622;
+  --c-primary-border: rgb(var(--c-blue-200));
+  --c-primary-chip: rgb(var(--c-blue-100));
+  --c-primary-bright: #2dd4bf;
+  --c-primary-text: #ffffff;
+  --c-primary-focus-ring-rgb: 45 212 191;
 
-  /* 文字 */
-  --c-ink: #e3efe9;
-  --c-ink-strong: #d2e2da;
-  --c-ink-2: #b8ccc4;
-  --c-on-accent: #ffffff;
+  /* ---- 语义层：辅助色 ---- */
+  --c-secondary: #a78bfa;
+  --c-secondary-soft: rgb(var(--c-purple-100));
+  --c-secondary-border: rgb(var(--c-purple-200));
+  --c-secondary-text: #c4b5fd;
 
-  /* 边框 */
+  /* ---- 语义层：状态色 ---- */
+  --c-success: #34d399;
+  --c-success-soft: rgb(var(--c-emerald-100));
+  --c-success-border: rgb(var(--c-emerald-200));
+  --c-success-text: #6ee7b7;
+
+  --c-warning: #fbbf24;
+  --c-warning-soft: rgb(var(--c-amber-50));
+  --c-warning-border: #4d431f;
+  --c-warning-text: #ead9a0;
+  --c-warning-icon: #d3bd6a;
+
+  --c-error: #f87171;
+  --c-error-soft: rgb(var(--c-red-50));
+  --c-error-border: rgb(var(--c-red-200));
+  --c-error-text: #fca5a5;
+
+  --c-info: #38bdf8;
+  --c-info-soft: rgb(var(--c-sky-100));
+  --c-info-border: rgb(var(--c-sky-200));
+  --c-info-text: #7dd3fc;
+
+  /* ---- 语义层：中性色 ---- */
+  --c-text: #e3efe9;
+  --c-text-strong: #d2e2da;
+  --c-text-2: #b8ccc4;
+  --c-text-3: rgb(var(--c-slate-600));
+  --c-text-muted: rgb(var(--c-slate-500));
+  --c-text-faint: rgb(var(--c-slate-400));
+  --c-text-disabled: rgb(var(--c-slate-300));
+
+  --c-border: rgb(var(--c-slate-200));
   --c-border-soft: #293c36;
-  --c-emphasis-border: #cfe4da;
+  --c-border-strong: rgb(var(--c-slate-300));
+  --c-border-emphasis: #cfe4da;
+  --c-scrollbar: rgb(var(--c-slate-300));
 
-  /* 强调色：青碧 */
-  --c-accent: #0d9488;
-  --c-accent-strong: #2dd4bf;
-  --c-accent-deep: #5eead4;
-  --c-accent-darkest: #99f6e4;
-  --c-accent-softer: #0d2622;
-  --c-accent-bright: #2dd4bf;
-  --c-focus-ring-rgb: 45 212 191;
+  /* ---- 语义层：背景色 ---- */
+  --c-bg-page: #0d1513;
+  --c-bg-surface-rgb: 18 29 26;
+  --c-bg-glass: rgb(var(--c-bg-surface-rgb) / 0.92);
+  --c-bg-elevated: rgb(26 40 35 / 0.97);
+  --c-bg-panel-deep: #081009;
+  --c-bg-panel-deep-hover: #1b2a25;
+  --c-bg-hover-veil: rgb(255 255 255 / 0.06);
+  --c-bg-overlay-rgb: 0 0 0;
 
-  /* 阴影 */
-  --c-shadow-rgb: 0 0 0;
-  --c-hover-veil: rgb(255 255 255 / 0.06);
-
-  /* 警示 */
-  --c-warn-bg: #2b2415;
-  --c-warn-border: #4d431f;
-  --c-warn-text: #ead9a0;
-  --c-warn-icon: #d3bd6a;
-
-  /* 角标 */
-  --c-badge-video-text: #7dd3fc;
-  --c-badge-jav-text: #c4b5fd;
-
-  /* 标签 */
+  /* ---- 组件层差异项 ---- */
   --c-tag-border: #2f423b;
   --c-tag-count-bg: rgb(255 255 255 / 0.08);
   --c-tag-user-border-hover: #34d399;
   --c-tag-user-count-bg: rgb(52 211 153 / 0.14);
-  --c-tag-user-count-text: #6ee7b7;
   --c-tag-scraped-count-bg: rgb(251 146 60 / 0.14);
   --c-tag-scraped-count-text: #fdba74;
   --c-tag-delete-bg-hover: #5e2a31;
   --c-tag-check: #d0bd6e;
-
-  /* 选择 */
   --c-select-check: #2dd4bf;
-
-  --c-danger: #f87171;
 }

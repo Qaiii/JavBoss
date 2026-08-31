@@ -441,6 +441,12 @@ func getJavIdolExternalWorks(c *gin.Context) {
 			service.EnqueueIdolWorks(id)
 			track.Tracked = true
 		}
+	} else if track.LastError != "" && track.LastAttemptAt != nil &&
+		track.LastAttemptAt.Before(time.Now().Add(-time.Duration(dbpkg.JavIdolRetryMinutes(ctx))*time.Minute)) {
+		// The previous scrape failed and the retry delay has elapsed: re-queue
+		// so a transient provider failure self-heals on the next page view
+		// instead of waiting for the periodic sweep.
+		service.EnqueueIdolWorks(id)
 	}
 
 	items, total, err := dbpkg.ListJavIdolWorks(ctx, id, limit, (page-1)*limit)
