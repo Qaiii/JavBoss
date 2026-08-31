@@ -227,6 +227,28 @@ body.has-page-scroll .sticky-pagination {
   color: var(--c-badge-jav-text);
 }
 
+.side-tabs__directory-count {
+  position: absolute;
+  top: 4px;
+  right: 5px;
+  border-radius: 999px;
+  background: rgb(var(--c-blue-100));
+  padding: 1px 4px;
+  color: var(--c-primary-strong);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.filter-menu.side-tabs__directory-menu {
+  position: fixed;
+  top: auto;
+  right: auto;
+  bottom: 10px;
+  left: calc(var(--side-tabs-width) + 8px);
+  width: 22rem;
+}
+
 .filter-topbar {
   position: sticky;
   top: 0;
