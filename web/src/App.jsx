@@ -94,7 +94,7 @@ import {
   webHotkeyFromKeyboardEvent,
   webHotkeyKeyId,
 } from '@/utils/webHotkeys'
-import { useStore, videoSelectionKey } from '@/store'
+import { useStore, videoSelectionKey, directoryQueryIds, directoryQuerySubpaths } from '@/store'
 import { useAuth } from '@/auth'
 
 const WATERFALL_STORAGE_KEY = 'javboss.waterfallModes'
@@ -320,6 +320,15 @@ export default function App() {
     favoriteGroupsErrorByType,
     loadJavFavoriteGroups,
     directories,
+    enabledDirectoryIds,
+    directorySubpaths,
+    closedSubdirectories,
+    directoryFilterMode,
+    setEnabledDirectoryIds,
+    setDirectorySubpathFilter,
+    setClosedSubdirectories,
+    setClosedSubdirectoriesFromUrl,
+    setDirectoryFilterFromUrl,
     loadDirectories,
     createDirectory,
     updateDirectory,
