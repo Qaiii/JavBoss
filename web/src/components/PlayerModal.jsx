@@ -7,6 +7,8 @@ import FullscreenExitIcon from '@mui/icons-material/FullscreenExit'
 import FullscreenIcon from '@mui/icons-material/Fullscreen'
 import PauseIcon from '@mui/icons-material/Pause'
 import PhotoCameraIcon from '@mui/icons-material/PhotoCamera'
+import PictureInPictureAltIcon from '@mui/icons-material/PictureInPictureAlt'
+import PictureInPictureAltOutlinedIcon from '@mui/icons-material/PictureInPictureAltOutlined'
 import PlayArrowIcon from '@mui/icons-material/PlayArrow'
 import Replay10Icon from '@mui/icons-material/Replay10'
 import ReplayIcon from '@mui/icons-material/Replay'
@@ -77,6 +79,10 @@ export default function PlayerModal({
   const screenshotInFlightRef = useRef(false)
   const screenshotNoticeTimerRef = useRef(null)
   const pendingSeekTimerRef = useRef(null)
+  const pipNoticeTimerRef = useRef(null)
+  const pipVideoElRef = useRef(null)
+  const isPiPRef = useRef(false)
+  const dismissedWhilePipRef = useRef(false)
 
   // 乐观 seek：设置播放器时间后立即更新 UI，并启动兑底定时器——若 5 秒内
   // 仍未定位完成（HLS 转码流定位慢），回落到播放器真实时间，避免永久卡住。
@@ -110,6 +116,16 @@ export default function PlayerModal({
   onCloseRef.current = onClose
   const onPlaybackErrorRef = useRef(onPlaybackError)
   onPlaybackErrorRef.current = onPlaybackError
+  // 画中画播放中关闭播放器：不卸载 DOM（卸载 <video> 会让浏览器退出画中画），
+  // 而是把整个弹窗移出视口，让视频继续在画中画窗口播放；退出画中画时自动恢复。
+  const handleClose = useCallback(() => {
+    if (isPiPRef.current) {
+      setDismissedWhilePip(true)
+      document.activeElement?.blur?.()
+      return
+    }
+    onCloseRef.current()
+  }, [])
   const [playbackInfo, setPlaybackInfo] = useState(null)
   const [playbackError, setPlaybackError] = useState('')
   const [loadingPlayback, setLoadingPlayback] = useState(false)
@@ -132,6 +148,14 @@ export default function PlayerModal({
   // 进度条先退回旧位置再跳过去的视觉抖动；定位完成（seeked/追平）后清除。
   const [pendingSeekTime, setPendingSeekTime] = useState(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [isPiP, setIsPiP] = useState(false)
+  const [dismissedWhilePip, setDismissedWhilePip] = useState(false)
+  const [pipNotice, setPipNotice] = useState('')
+  // 画中画为浏览器能力（Chrome/Edge 桌面与 Android 支持），不支持时隐藏按钮
+  const pipSupported = useMemo(
+    () => typeof document !== 'undefined' && Boolean(document.pictureInPictureEnabled),
+    []
+  )
   // 精细指针（鼠标）设备：有“移出播放区域”概念，用于移出即隐藏控制条
   const [isFinePointer] = useState(
     () =>
@@ -194,9 +218,20 @@ export default function PlayerModal({
   }, [menuOpen])
 
   useEffect(() => {
+    isPiPRef.current = isPiP
+  }, [isPiP])
+
+  useEffect(() => {
+    dismissedWhilePipRef.current = dismissedWhilePip
+  }, [dismissedWhilePip])
+
+  useEffect(() => {
     return () => {
       if (screenshotNoticeTimerRef.current) {
         window.clearTimeout(screenshotNoticeTimerRef.current)
+      }
+      if (pipNoticeTimerRef.current) {
+        window.clearTimeout(pipNoticeTimerRef.current)
       }
       if (pendingSeekTimerRef.current) {
         window.clearTimeout(pendingSeekTimerRef.current)
@@ -248,6 +283,17 @@ export default function PlayerModal({
     showControls()
     scheduleHideControls()
   }, [showControls, scheduleHideControls])
+
+  const showPipNotice = useCallback((message) => {
+    if (pipNoticeTimerRef.current) {
+      window.clearTimeout(pipNoticeTimerRef.current)
+    }
+    setPipNotice(message)
+    pipNoticeTimerRef.current = window.setTimeout(() => {
+      pipNoticeTimerRef.current = null
+      setPipNotice('')
+    }, 1600)
+  }, [])
 
   // 视频区交互（移动/点击唤出控制条、移出隐藏、单击播放暂停、双击全屏）。
   // 用原生事件挂在 shell 上而不是 JSX 属性，避免 eslint 对非交互元素的告警。
@@ -379,6 +425,9 @@ export default function PlayerModal({
       setLoadingPlayback(false)
       setScreenshotNotice(false)
       setVideoSize(null)
+      setDismissedWhilePip(false)
+      setIsPiP(false)
+      setPipNotice('')
       return
     }
 
@@ -388,6 +437,9 @@ export default function PlayerModal({
     setPlaybackInfo(null)
     setScreenshotNotice(false)
     setVideoSize(null)
+    setDismissedWhilePip(false)
+    setIsPiP(false)
+    setPipNotice('')
 
     fetchPlaybackInfo(video.id, { locationId: video.location_id })
       .then((info) => {
@@ -429,6 +481,23 @@ export default function PlayerModal({
     playerRef.current = player
 
     const playerEl = player.el()
+    // 画中画操作基于底层 <video> 元素（video.js 会用 .vjs-tech 替换原标签），
+    // 在 player.ready 中拿到后绑定 enter/leavepictureinpicture 事件。
+    let techEl = null
+    const handleEnterPiP = () => {
+      setIsPiP(true)
+      showPipNotice(zh('已进入画中画模式', 'Entered picture-in-picture'))
+    }
+    const handleLeavePiP = () => {
+      setIsPiP(false)
+      if (dismissedWhilePipRef.current) {
+        setDismissedWhilePip(false)
+        showControls()
+        showPipNotice(zh('已退出画中画，恢复播放器', 'Exited picture-in-picture, player restored'))
+      } else {
+        showPipNotice(zh('已退出画中画', 'Exited picture-in-picture'))
+      }
+    }
     const savedVolume = (() => {
       try {
         const raw = localStorage.getItem(VOLUME_STORAGE_KEY)
@@ -537,6 +606,15 @@ export default function PlayerModal({
       toggleMute: () => {
         player.muted(!player.muted())
       },
+      togglePictureInPicture: () => {
+        const element = techEl ?? pipVideoElRef.current
+        if (!element) return
+        if (document.pictureInPictureElement === element) {
+          document.exitPictureInPicture().catch(() => {})
+          return
+        }
+        element.requestPictureInPicture?.().catch(() => {})
+      },
       setVolumeLevel: (value) => {
         const next = Math.min(1, Math.max(0, Number(value)))
         player.volume(next)
@@ -571,6 +649,8 @@ export default function PlayerModal({
     }
 
     const handleKeyDown = (event) => {
+      // 画中画播放中播放器已移出视口：播放器快捷键不应再接管页面按键
+      if (dismissedWhilePipRef.current) return
       const target = event.target
       if (
         target instanceof Element &&
@@ -619,7 +699,7 @@ export default function PlayerModal({
           // 浏览器全屏时按 Esc 由浏览器接管退出全屏，不关闭弹窗
           if (document.fullscreenElement) return
           markHandled()
-          onCloseRef.current()
+          handleClose()
           break
         default:
           return
@@ -668,6 +748,13 @@ export default function PlayerModal({
       syncBuffered()
       syncVolumeState()
       focusPlayer()
+      techEl = player.tech(true)?.el() ?? null
+      pipVideoElRef.current = techEl
+      setIsPiP(Boolean(techEl && document.pictureInPictureElement === techEl))
+      if (techEl) {
+        techEl.addEventListener('enterpictureinpicture', handleEnterPiP)
+        techEl.addEventListener('leavepictureinpicture', handleLeavePiP)
+      }
     })
     player.on('play', handlePlay)
     player.on('pause', handlePause)
@@ -705,6 +792,11 @@ export default function PlayerModal({
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown, true)
+      if (techEl) {
+        techEl.removeEventListener('enterpictureinpicture', handleEnterPiP)
+        techEl.removeEventListener('leavepictureinpicture', handleLeavePiP)
+      }
+      pipVideoElRef.current = null
       player.off('play', handlePlay)
       player.off('pause', handlePause)
       player.off('ended', handleEnded)
@@ -725,7 +817,16 @@ export default function PlayerModal({
       playerRef.current?.dispose()
       playerRef.current = null
     }
-  }, [video, startTime, selectedSource, pokeControls, applySeek])
+  }, [
+    video,
+    startTime,
+    selectedSource,
+    pokeControls,
+    applySeek,
+    showControls,
+    showPipNotice,
+    handleClose,
+  ])
 
   // ---- 进度条交互 ----
   const seekTimeFromEvent = (event) => {
@@ -804,7 +905,11 @@ export default function PlayerModal({
     duration > 0 && tooltipTime != null ? clampPercent((tooltipTime / duration) * 100) : 0
 
   return (
-    <div className="fixed inset-0 z-[1700] flex items-center justify-center bg-black/70 pointer-coarse:bg-black">
+    <div
+      className={`fixed inset-0 z-[1700] flex items-center justify-center bg-black/70 transition-transform duration-300 pointer-coarse:bg-black ${
+        dismissedWhilePip ? '-translate-x-[120vw]' : ''
+      }`}
+    >
       {/*
         桌面端：白色卡片包裹，标题与关闭按钮在卡片内；
         移动端（触摸设备，含横屏）：隐藏白卡片边框，视频按比例贴边（100vw/100dvh，不超出不拉伸），标题悬浮在视频上方。
@@ -816,7 +921,7 @@ export default function PlayerModal({
       >
         <button
           aria-label={zh('关闭', 'Close')}
-          onClick={onClose}
+          onClick={handleClose}
           className={`absolute right-3 top-4 z-20 rounded-full bg-black/60 px-2 py-1 text-sm text-white hover:bg-black/80 pointer-coarse:top-3 pointer-coarse:transition-opacity pointer-coarse:duration-200 ${
             controlsVisible ? '' : 'pointer-coarse:pointer-events-none pointer-coarse:opacity-0'
           }`}
@@ -839,11 +944,16 @@ export default function PlayerModal({
               aspectRatio: videoSize ? `${videoSize.width} / ${videoSize.height}` : '16 / 9',
             }}
           >
-            {screenshotNotice || hotkeyHintVisible ? (
+            {screenshotNotice || pipNotice || hotkeyHintVisible ? (
               <div className="pointer-events-none absolute left-3 top-3 z-10 flex max-w-[calc(100%-1.5rem)] flex-col items-start gap-2">
                 {screenshotNotice ? (
                   <div className="rounded bg-black/75 px-3 py-1.5 text-sm font-medium text-white shadow">
                     {zh('截图成功', 'Screenshot saved')}
+                  </div>
+                ) : null}
+                {pipNotice ? (
+                  <div className="rounded bg-black/75 px-3 py-1.5 text-sm font-medium text-white shadow">
+                    {pipNotice}
                   </div>
                 ) : null}
                 {hotkeyHintVisible ? (
@@ -1032,6 +1142,22 @@ export default function PlayerModal({
                   >
                     <PhotoCameraIcon />
                   </button>
+
+                  {pipSupported ? (
+                    <button
+                      type="button"
+                      aria-label={
+                        isPiP
+                          ? zh('退出画中画', 'Exit picture-in-picture')
+                          : zh('画中画', 'Picture-in-picture')
+                      }
+                      title={zh('画中画', 'Picture-in-picture')}
+                      onClick={() => actionsRef.current?.togglePictureInPicture()}
+                      className={iconButtonClass}
+                    >
+                      {isPiP ? <PictureInPictureAltIcon /> : <PictureInPictureAltOutlinedIcon />}
+                    </button>
+                  ) : null}
 
                   {/* 播放速度菜单 */}
                   <div className="relative">

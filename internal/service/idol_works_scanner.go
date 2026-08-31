@@ -137,14 +137,20 @@ func EnqueueIdolWorksForActors(ctx context.Context, actorNames []string) {
 	}
 	days := dbpkg.JavIdolRefreshDays(ctx)
 	dueSince := time.Now().Add(-time.Duration(days) * 24 * time.Hour)
+	retryDelay := time.Duration(dbpkg.JavIdolRetryMinutes(ctx)) * time.Minute
 	for _, id := range ids {
 		track, err := dbpkg.GetJavIdolTrack(ctx, id)
 		if err != nil {
 			logging.Error("check idol track id=%d: %v", id, err)
 			continue
 		}
-		if track.Tracked && track.LastScrapedAt != nil && track.LastScrapedAt.After(dueSince) {
-			continue
+		if track.Tracked {
+			if track.LastScrapedAt != nil && track.LastScrapedAt.After(dueSince) {
+				continue // recently scraped successfully, no need to re-scrape
+			}
+			if track.LastAttemptAt != nil && track.LastAttemptAt.After(time.Now().Add(-retryDelay)) {
+				continue // last attempt (e.g. a failure) was recent; avoid hammering
+			}
 		}
 		idolWorksMgr.enqueue(id)
 	}
@@ -243,7 +249,8 @@ func StartIdolWorksRefreshScheduler(ctx context.Context, checkInterval time.Dura
 func refreshDueIdolWorks(ctx context.Context) {
 	days := dbpkg.JavIdolRefreshDays(ctx)
 	since := time.Now().Add(-time.Duration(days) * 24 * time.Hour)
-	ids, err := dbpkg.ListIdolsNeedingWorksScrape(ctx, since)
+	retrySince := time.Now().Add(-time.Duration(dbpkg.JavIdolRetryMinutes(ctx)) * time.Minute)
+	ids, err := dbpkg.ListIdolsNeedingWorksScrape(ctx, retrySince, since)
 	if err != nil {
 		logging.Error("list idol works refreshes: %v", err)
 		return
