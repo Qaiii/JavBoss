@@ -319,6 +319,8 @@ export default function GlobalSettingsModal({
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [open, passwordDialogOpen, savingPassword])
 
+  const themeId = useThemeId()
+
   if (!open) return null
 
   const handleSaveProxy = async () => {
@@ -365,7 +367,6 @@ export default function GlobalSettingsModal({
   const proxyUnchanged = desiredHostText === currentHostText && desiredPortText === currentPortText
   const proxyHostMissing = proxyEnabledInput && proxyHostInputTrimmed === ''
   const proxyInputMissing = proxyEnabledInput && proxyInputTrimmed === ''
-  const themeId = useThemeId()
   const visibleSections = SETTINGS_SECTIONS
   const currentSection = visibleSections.some((section) => section.id === activeSection)
     ? activeSection
@@ -679,9 +680,7 @@ export default function GlobalSettingsModal({
         <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
           <div className="space-y-4">
             <div className="flex flex-wrap items-center gap-3">
-              <h4 className="text-sm font-semibold text-zinc-800">
-                {zh('模式', 'Mode')}
-              </h4>
+              <h4 className="text-sm font-semibold text-zinc-800">{zh('模式', 'Mode')}</h4>
               <div className="flex overflow-hidden rounded-xl border border-zinc-200">
                 <button
                   type="button"
@@ -720,9 +719,7 @@ export default function GlobalSettingsModal({
 
         <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
           <div className="space-y-4">
-            <h4 className="text-sm font-semibold text-zinc-800">
-              {zh('深色色调', 'Dark tint')}
-            </h4>
+            <h4 className="text-sm font-semibold text-zinc-800">{zh('深色色调', 'Dark tint')}</h4>
             <div className="flex flex-wrap gap-3">
               {darkThemes.map((theme) => {
                 const selected = themeId === theme.id
@@ -746,9 +743,7 @@ export default function GlobalSettingsModal({
                         />
                       ))}
                     </div>
-                    <div className="mt-2 text-sm font-medium text-zinc-800">
-                      {zh(theme.label.zh, theme.label.en)}
-                    </div>
+                    <div className="mt-2 text-sm font-medium text-zinc-800">{theme.label}</div>
                     <div className="text-xs text-zinc-500">
                       {selected ? zh('使用中', 'In use') : zh('点击应用', 'Click to apply')}
                     </div>

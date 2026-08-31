@@ -1341,9 +1341,6 @@ html.theme-dark .bg-white\/70 {
 html.theme-dark .bg-white\/60 {
   background-color: rgb(var(--c-surface-rgb) / 0.6);
 }
-html.theme-dark .border-white\/80 {
-  border-color: rgb(var(--c-border-soft) / 0.9);
-}
 /* 设置弹窗外壳（bg-[#f5f5f7]） */
 html.theme-dark .bg-\[\#f5f5f7\] {
   background-color: var(--c-page);
@@ -1621,4 +1618,18 @@ html.theme-dark .MuiMenuItem-root:hover {
 }
 html.theme-dark .MuiRating-iconEmpty {
   color: rgb(var(--c-gray-400));
+}
+
+/* ---- 纯白面板补充覆写（/80 /85 与 !important 变体）---- */
+html.theme-dark .bg-white\/80 {
+  background-color: rgb(var(--c-surface-rgb) / 0.8);
+}
+html.theme-dark .bg-white\/85 {
+  background-color: rgb(var(--c-surface-rgb) / 0.85);
+}
+html.theme-dark .\!bg-white\/90 {
+  background-color: rgb(var(--c-surface-rgb) / 0.9) !important;
+}
+html.theme-dark .hover\:\!bg-white:hover {
+  background-color: rgb(var(--c-surface-rgb)) !important;
 }

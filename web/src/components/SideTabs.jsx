@@ -315,11 +315,7 @@ export default function SideTabs({
           <RailButton
             className="w-full"
             icon={currentTheme?.dark ? LightModeOutlinedIcon : DarkModeOutlinedIcon}
-            label={
-              currentTheme?.dark
-                ? zh('浅色模式', 'Light mode')
-                : zh('深色模式', 'Dark mode')
-            }
+            label={currentTheme?.dark ? zh('浅色模式', 'Light mode') : zh('深色模式', 'Dark mode')}
             onClick={toggleDarkTheme}
           />
           <RailButton

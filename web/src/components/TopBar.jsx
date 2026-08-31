@@ -944,16 +944,6 @@ export default function TopBar({
               </div>
             ) : null}
 
-            {isJavMode && javTab === 'list' ? (
-              <FavoriteRatingFilter
-                enabled={favoriteRatingEnabled}
-                min={favoriteRatingMin}
-                max={favoriteRatingMax}
-                onEnabledChange={onFavoriteRatingEnabledChange}
-                onRangeChange={onFavoriteRatingRangeChange}
-              />
-            ) : null}
-
             {focusedSubpath ? (
               <span
                 className="filter-location-path"
