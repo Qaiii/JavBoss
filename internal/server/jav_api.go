@@ -165,7 +165,7 @@ func listJavFilterOptions(c *gin.Context) {
 }
 
 func listJavPrefixes(c *gin.Context) {
-	items, err := dbpkg.ListJavPrefixes(c.Request.Context(), nil)
+	items, err := dbpkg.ListJavPrefixes(c.Request.Context(), nil, parseDirectorySubpaths(c.Query("directory_subpaths")))
 	if err != nil {
 		logging.Error("list jav prefixes error: %v", err)
 		respondLocalizedError(c, http.StatusInternalServerError, "加载 JAV 番号前缀失败", "Failed to load JAV code prefixes")
@@ -404,7 +404,7 @@ func javSampleImagesToModel(info *jav.JavInfo) models.JavSampleImages {
 }
 
 func listJavTags(c *gin.Context) {
-	tags, err := dbpkg.ListJavTags(c.Request.Context(), nil)
+	tags, err := dbpkg.ListJavTags(c.Request.Context(), nil, parseClosedSubdirectories(c.Query("closed_subdirs")), parseDirectorySubpaths(c.Query("directory_subpaths")))
 	if err != nil {
 		logging.Error("list jav tags error: %v", err)
 		respondLocalizedError(c, http.StatusInternalServerError, "加载 JAV 标签失败", "Failed to load JAV tags")

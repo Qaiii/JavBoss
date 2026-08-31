@@ -148,7 +148,7 @@ func TestDisabledDirectoryContentsAreNotVisible(t *testing.T) {
 		t.Fatalf("create video location: %v", err)
 	}
 
-	items, err := ListVideos(ctx, 10, 0, nil, "", "recent", nil, nil)
+	items, err := ListVideos(ctx, 10, 0, nil, "", "recent", nil, nil, nil, nil)
 	if err != nil || len(items) != 1 {
 		t.Fatalf("enabled directory videos = %#v, err = %v", items, err)
 	}
@@ -156,7 +156,7 @@ func TestDisabledDirectoryContentsAreNotVisible(t *testing.T) {
 	if _, err := UpdateDirectory(ctx, dir.ID, nil, nil, &enabled); err != nil {
 		t.Fatalf("disable directory: %v", err)
 	}
-	items, err = ListVideos(ctx, 10, 0, nil, "", "recent", nil, nil)
+	items, err = ListVideos(ctx, 10, 0, nil, "", "recent", nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("list videos after disabling directory: %v", err)
 	}

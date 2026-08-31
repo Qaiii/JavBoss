@@ -29,6 +29,8 @@ func listTags(c *gin.Context) {
 	tags, err := dbpkg.ListTags(
 		c.Request.Context(),
 		nil,
+		parseClosedSubdirectories(c.Query("closed_subdirs")),
+		parseDirectorySubpaths(c.Query("directory_subpaths")),
 		queryBool(c, "hide_jav", false),
 	)
 	if err != nil {

@@ -45,14 +45,14 @@ func listVideos(c *gin.Context) {
 		seed = &parsed
 	}
 
-	videos, err := dbpkg.ListVideos(c.Request.Context(), limit, offset, tagFilter, search, sort, seed, nil, hideJav)
+	videos, err := dbpkg.ListVideos(c.Request.Context(), limit, offset, tagFilter, search, sort, seed, nil, parseClosedSubdirectories(c.Query("closed_subdirs")), parseDirectorySubpaths(c.Query("directory_subpaths")), hideJav)
 	if err != nil {
 		logging.Error("list videos error: %v", err)
 		respondLocalizedError(c, http.StatusInternalServerError, "加载视频列表失败", "Failed to load videos")
 		return
 	}
 
-	total, err := dbpkg.CountVideos(c.Request.Context(), tagFilter, search, nil, hideJav)
+	total, err := dbpkg.CountVideos(c.Request.Context(), tagFilter, search, nil, parseClosedSubdirectories(c.Query("closed_subdirs")), parseDirectorySubpaths(c.Query("directory_subpaths")), hideJav)
 	if err != nil {
 		logging.Error("count videos error: %v", err)
 		respondLocalizedError(c, http.StatusInternalServerError, "统计视频数量失败", "Failed to count videos")
