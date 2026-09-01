@@ -316,6 +316,46 @@ export async function fetchPlaybackInfo(id, { locationId } = {}) {
   return res.json()
 }
 
+export async function fetchLocalSubtitles(id) {
+  const res = await apiFetch(`/videos/${id}/subtitles`, { cache: 'no-store' })
+  if (!res.ok) {
+    throw await apiError(res)
+  }
+  const data = await res.json()
+  return Array.isArray(data?.subtitles) ? data.subtitles : []
+}
+
+export async function searchJavSubtitles(id, { query = '' } = {}) {
+  const params = new URLSearchParams()
+  if (query) params.set('q', query)
+  const res = await apiFetch(`/videos/${id}/subtitles/search?${params.toString()}`)
+  if (!res.ok) {
+    throw await apiError(res)
+  }
+  return res.json()
+}
+
+export async function fetchJavSubtitleDetail(id, code) {
+  const params = new URLSearchParams({ code })
+  const res = await apiFetch(`/videos/${id}/subtitles/detail?${params.toString()}`)
+  if (!res.ok) {
+    throw await apiError(res)
+  }
+  return res.json()
+}
+
+export async function saveJavSubtitle(id, { code, subtitleId, format = 'srt' } = {}) {
+  const res = await apiFetch(`/videos/${id}/subtitles/save`, {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify({ code, subtitle_id: subtitleId, format }),
+  })
+  if (!res.ok) {
+    throw await apiError(res)
+  }
+  return res.json()
+}
+
 export async function fetchVideoScreenshots(id) {
   const res = await apiFetch(`/videos/${id}/screenshots`, { cache: 'no-store' })
   if (!res.ok) {

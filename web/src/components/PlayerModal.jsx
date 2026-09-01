@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import videojs from 'video.js'
 import 'video.js/dist/video-js.css'
 import CheckIcon from '@mui/icons-material/Check'
+import ClosedCaptionIcon from '@mui/icons-material/ClosedCaption'
+import DownloadIcon from '@mui/icons-material/Download'
 import Forward10Icon from '@mui/icons-material/Forward10'
 import FullscreenExitIcon from '@mui/icons-material/FullscreenExit'
 import FullscreenIcon from '@mui/icons-material/Fullscreen'
@@ -10,13 +12,22 @@ import PhotoCameraIcon from '@mui/icons-material/PhotoCamera'
 import PictureInPictureAltIcon from '@mui/icons-material/PictureInPictureAlt'
 import PictureInPictureAltOutlinedIcon from '@mui/icons-material/PictureInPictureAltOutlined'
 import PlayArrowIcon from '@mui/icons-material/PlayArrow'
+import PreviewIcon from '@mui/icons-material/Preview'
 import Replay10Icon from '@mui/icons-material/Replay10'
 import ReplayIcon from '@mui/icons-material/Replay'
+import SearchIcon from '@mui/icons-material/Search'
 import SettingsIcon from '@mui/icons-material/Settings'
 import VolumeDownIcon from '@mui/icons-material/VolumeDown'
 import VolumeOffIcon from '@mui/icons-material/VolumeOff'
 import VolumeUpIcon from '@mui/icons-material/VolumeUp'
-import { createVideoScreenshot, fetchPlaybackInfo } from '@/api'
+import {
+  createVideoScreenshot,
+  fetchJavSubtitleDetail,
+  fetchLocalSubtitles,
+  fetchPlaybackInfo,
+  saveJavSubtitle,
+  searchJavSubtitles,
+} from '@/api'
 import { getVideoDisplayName } from '@/utils/display'
 import {
   PLAYER_HOTKEY_ACTIONS,
@@ -83,6 +94,8 @@ export default function PlayerModal({
   const pipVideoElRef = useRef(null)
   const isPiPRef = useRef(false)
   const dismissedWhilePipRef = useRef(false)
+  const subNoticeTimerRef = useRef(null)
+  const subRetryRef = useRef(null)
 
   // 乐观 seek：设置播放器时间后立即更新 UI，并启动兑底定时器——若 5 秒内
   // 仍未定位完成（HLS 转码流定位慢），回落到播放器真实时间，避免永久卡住。
@@ -129,6 +142,16 @@ export default function PlayerModal({
   const [playbackInfo, setPlaybackInfo] = useState(null)
   const [playbackError, setPlaybackError] = useState('')
   const [loadingPlayback, setLoadingPlayback] = useState(false)
+  // ---- 字幕 ----
+  const [localSubtitles, setLocalSubtitles] = useState([])
+  const [activeSubtitle, setActiveSubtitle] = useState(null) // { kind:'local', name } | { kind:'online', id }
+  const [subSearchItems, setSubSearchItems] = useState([])
+  const [subSearchQuery, setSubSearchQuery] = useState('')
+  const [subDetailTracks, setSubDetailTracks] = useState([]) // { code, title, tracks }
+  const [subMenu, setSubMenu] = useState(null) // null | 'local' | 'search' | 'detail'
+  const [subSearchBusy, setSubSearchBusy] = useState(false)
+  const [subPreview, setSubPreview] = useState(null) // { label, text }
+  const [subNotice, setSubNotice] = useState('')
   const [screenshotNotice, setScreenshotNotice] = useState(false)
   const [videoSize, setVideoSize] = useState(null) // { width, height } of the source video
   const [playing, setPlaying] = useState(false)
@@ -236,6 +259,12 @@ export default function PlayerModal({
       if (pendingSeekTimerRef.current) {
         window.clearTimeout(pendingSeekTimerRef.current)
       }
+      if (subNoticeTimerRef.current) {
+        window.clearTimeout(subNoticeTimerRef.current)
+      }
+      if (subRetryRef.current) {
+        window.clearTimeout(subRetryRef.current)
+      }
       if (hideTimerRef.current) {
         window.clearTimeout(hideTimerRef.current)
       }
@@ -294,6 +323,245 @@ export default function PlayerModal({
       setPipNotice('')
     }, 1600)
   }, [])
+
+  const showSubNotice = useCallback((message) => {
+    if (subNoticeTimerRef.current) {
+      window.clearTimeout(subNoticeTimerRef.current)
+    }
+    setSubNotice(message)
+    subNoticeTimerRef.current = window.setTimeout(() => {
+      subNoticeTimerRef.current = null
+      setSubNotice('')
+    }, 2000)
+  }, [])
+
+  // 打开播放器时加载同目录本地字幕
+  useEffect(() => {
+    let cancelled = false
+    if (!video?.id) {
+      setLocalSubtitles([])
+      return undefined
+    }
+    fetchLocalSubtitles(video.id)
+      .then((items) => {
+        if (!cancelled) setLocalSubtitles(items)
+      })
+      .catch(() => {}) // 本地字幕加载失败不打扰播放
+    return () => {
+      cancelled = true
+    }
+  }, [video])
+
+  // 播放器准备好了之后：把当前字幕 track 的显示状态同步为 activeSubtitle
+  const applyActiveSubtitleToTracks = useCallback((player, active) => {
+    if (!player || !player.textTracks) return
+    let set = false
+    for (const track of player.textTracks()) {
+      const want =
+        active != null && active.kind === 'local'
+          ? track.label === active.name
+          : active != null && active.kind === 'online'
+            ? track.label === `online:${active.id}`
+            : false
+      track.mode = want ? 'showing' : 'hidden'
+      if (want) set = true
+    }
+    if (active != null && !set) {
+      // 目标 track 尚未加载（如刚选完在线字幕、网络慢）：先隐藏全部，等加载后再次应用
+      for (const track of player.textTracks()) track.mode = 'hidden'
+      if (subRetryRef.current) window.clearTimeout(subRetryRef.current)
+      subRetryRef.current = window.setTimeout(() => {
+        applyActiveSubtitleToTracks(playerRef.current, active)
+      }, 500)
+    }
+  }, [])
+
+  // 播放/切换一条字幕（local 或 online）。online 只建立远程 track，内容经后端代理转换。
+  const playSubtitle = useCallback(
+    (target) => {
+      const player = playerRef.current
+      if (!player || !video?.id) return
+      if (target == null) {
+        setActiveSubtitle(null)
+        setSubMenu(null)
+        applyActiveSubtitleToTracks(player, null)
+        return
+      }
+      if (target.kind === 'local') {
+        const base = `/videos/${video.id}/subtitles/vtt?name=${encodeURIComponent(target.name)}`
+        const tracks = player.textTracks()
+        const existing = Array.from(tracks || []).find((t) => t.label === target.name)
+        if (existing) {
+          setActiveSubtitle(target)
+          setSubMenu(null)
+          applyActiveSubtitleToTracks(player, target)
+          return
+        }
+        player.addRemoteTextTrack(
+          {
+            kind: 'subtitles',
+            label: target.name,
+            language: 'zh',
+            src: base,
+            mode: 'showing',
+            default: true,
+          },
+          true
+        )
+        setActiveSubtitle(target)
+        setSubMenu(null)
+      } else if (target.kind === 'online') {
+        const base = `/videos/${video.id}/subtitles/vtt?code=${encodeURIComponent(
+          target.code
+        )}&subtitle_id=${encodeURIComponent(target.id)}`
+        const tracks = player.textTracks()
+        const existing = Array.from(tracks || []).find((t) => t.label === `online:${target.id}`)
+        if (existing) {
+          setActiveSubtitle(target)
+          setSubMenu(null)
+          applyActiveSubtitleToTracks(player, target)
+          return
+        }
+        player.addRemoteTextTrack(
+          {
+            kind: 'subtitles',
+            label: `online:${target.id}`,
+            language: target.languageTag || 'zh',
+            src: base,
+            mode: 'showing',
+            default: true,
+          },
+          true
+        )
+        setActiveSubtitle(target)
+        setSubMenu(null)
+      }
+    },
+    [video, applyActiveSubtitleToTracks]
+  )
+
+  // 搜索在线字幕：默认用当前视频番号，允许手动改关键词
+  const runSubtitleSearch = useCallback(
+    async (overrideQuery) => {
+      if (!video?.id) return
+      const query = (overrideQuery ?? subSearchQuery ?? '').trim()
+      if (!query) {
+        showSubNotice(zh('请输入番号或关键词', 'Enter a movie code or keyword'))
+        return
+      }
+      setSubSearchBusy(true)
+      setSubSearchItems([])
+      setSubDetailTracks([])
+      setSubPreview(null)
+      try {
+        const data = await searchJavSubtitles(video.id, { query })
+        const items = Array.isArray(data?.items) ? data.items : []
+        setSubSearchItems(items)
+        if (items.length === 0) {
+          showSubNotice(
+            zh('未找到字幕，可尝试其他关键词', 'No subtitles found, try another keyword')
+          )
+        }
+      } catch (err) {
+        showSubNotice(getErrorMessage(err))
+      } finally {
+        setSubSearchBusy(false)
+      }
+    },
+    [video, subSearchQuery, showSubNotice]
+  )
+
+  // 加载某部影片的语言轨道列表
+  const openSubtitleDetail = useCallback(
+    async (code) => {
+      if (!video?.id) return
+      setSubMenu('detail')
+      setSubPreview(null)
+      setSubDetailTracks((prev) => ({ ...prev, [code]: { loading: true } }))
+      try {
+        const data = await fetchJavSubtitleDetail(video.id, code)
+        const tracks = Array.isArray(data?.subtitles) ? data.subtitles : []
+        setSubDetailTracks((prev) => ({
+          ...prev,
+          [code]: {
+            loading: false,
+            title: data?.title || code,
+            tracks,
+          },
+        }))
+      } catch (err) {
+        setSubDetailTracks((prev) => ({
+          ...prev,
+          [code]: { loading: false, error: getErrorMessage(err) },
+        }))
+      }
+    },
+    [video]
+  )
+
+  // 预览字幕文本（转成 SRT 便于阅读）
+  const previewSubtitle = useCallback(
+    async (target) => {
+      if (!video?.id) return
+      setSubPreview({
+        label: target.name || target.label || target.id,
+        text: zh('加载中…', 'Loading...'),
+      })
+      try {
+        let res
+        if (target.kind === 'local') {
+          res = await fetch(
+            `/videos/${video.id}/subtitles/vtt?name=${encodeURIComponent(target.name)}`,
+            {
+              cache: 'no-store',
+            }
+          )
+        } else {
+          res = await fetch(
+            `/videos/${video.id}/subtitles/vtt?code=${encodeURIComponent(target.code)}&subtitle_id=${encodeURIComponent(
+              target.id
+            )}`,
+            { cache: 'no-store' }
+          )
+        }
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const text = await res.text()
+        // 后端对本地字幕转的是 VTT；预览时转成 SRT 更易读
+        setSubPreview({ label: target.name || target.label || target.id, text })
+      } catch (err) {
+        setSubPreview({
+          label: target.name || target.label || target.id,
+          text: getErrorMessage(err),
+        })
+      }
+    },
+    [video]
+  )
+
+  // 保存在线字幕到视频同目录，命名 <番号>.srt；本地已有同名文件时后端会自动加后缀不覆盖
+  const saveSubtitle = useCallback(
+    async (target) => {
+      if (!video?.id) return
+      try {
+        const result = await saveJavSubtitle(video.id, {
+          code: target.code,
+          subtitleId: target.id,
+          format: 'srt',
+        })
+        showSubNotice(zh(`已保存 ${result?.name || ''}`, `Saved ${result?.name || ''}`))
+        // 保存后刷新本地列表，方便立刻切换
+        try {
+          const items = await fetchLocalSubtitles(video.id)
+          setLocalSubtitles(items)
+        } catch {
+          // 忽略刷新失败
+        }
+      } catch (err) {
+        showSubNotice(getErrorMessage(err))
+      }
+    },
+    [video, showSubNotice]
+  )
 
   // 视频区交互（移动/点击唤出控制条、移出隐藏、单击播放暂停、双击全屏）。
   // 用原生事件挂在 shell 上而不是 JSX 属性，避免 eslint 对非交互元素的告警。
@@ -428,6 +696,15 @@ export default function PlayerModal({
       setDismissedWhilePip(false)
       setIsPiP(false)
       setPipNotice('')
+      setLocalSubtitles([])
+      setActiveSubtitle(null)
+      setSubSearchItems([])
+      setSubSearchQuery('')
+      setSubDetailTracks([])
+      setSubMenu(null)
+      setSubPreview(null)
+      setSubNotice('')
+      setActiveSubtitle(null)
       return
     }
 
@@ -1143,6 +1420,247 @@ export default function PlayerModal({
                     <PhotoCameraIcon />
                   </button>
 
+                  {/* 字幕：关闭 / 本地字幕 / 在线搜索 / 预览 / 保存 */}
+                  <div className="relative">
+                    <button
+                      type="button"
+                      aria-label={zh('字幕', 'Subtitles')}
+                      onClick={() => {
+                        setSubMenu(subMenu === 'local' ? null : 'local')
+                        showControls()
+                      }}
+                      className={`${iconButtonClass} ${activeSubtitle ? 'text-yellow-300' : ''}`}
+                    >
+                      <ClosedCaptionIcon />
+                    </button>
+                    {subMenu != null ? (
+                      <div className="absolute bottom-12 right-0 z-30 w-72 overflow-hidden rounded-xl border border-white/10 bg-black/90 shadow-2xl backdrop-blur-sm">
+                        {/* 顶栏：本地 / 搜索 切换 */}
+                        <div className="flex items-center justify-between border-b border-white/10 px-3 py-2">
+                          <div className="flex gap-1">
+                            <button
+                              type="button"
+                              onClick={() => setSubMenu('local')}
+                              className={`rounded px-2 py-1 text-xs transition-colors ${
+                                subMenu === 'local'
+                                  ? 'bg-white/15 font-semibold text-white'
+                                  : 'text-white/60 hover:text-white'
+                              }`}
+                            >
+                              {zh('本地字幕', 'Local')}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setSubMenu('search')}
+                              className={`rounded px-2 py-1 text-xs transition-colors ${
+                                subMenu === 'search'
+                                  ? 'bg-white/15 font-semibold text-white'
+                                  : 'text-white/60 hover:text-white'
+                              }`}
+                            >
+                              {zh('搜索字幕', 'Search')}
+                            </button>
+                          </div>
+                          <button
+                            type="button"
+                            aria-label={zh('关闭字幕菜单', 'Close subtitle menu')}
+                            onClick={() => setSubMenu(null)}
+                            className="rounded px-1.5 text-sm text-white/60 hover:text-white"
+                          >
+                            ×
+                          </button>
+                        </div>
+
+                        {subMenu === 'local' ? (
+                          <div className="max-h-72 overflow-y-auto py-1">
+                            <SubMenuItem
+                              active={activeSubtitle == null}
+                              label={zh('关闭字幕', 'Off')}
+                              onClick={() => {
+                                playSubtitle(null)
+                              }}
+                            />
+                            {localSubtitles.length === 0 ? (
+                              <div className="px-3.5 py-2 text-xs text-white/50">
+                                {zh(
+                                  '未找到同目录字幕，可前往「搜索字幕」在线查找',
+                                  'No local subtitles found. Try the online search tab.'
+                                )}
+                              </div>
+                            ) : (
+                              localSubtitles.map((item) => (
+                                <SubMenuItem
+                                  key={item.name}
+                                  active={
+                                    activeSubtitle?.kind === 'local' &&
+                                    activeSubtitle.name === item.name
+                                  }
+                                  label={item.label || item.name}
+                                  onClick={() => playSubtitle({ kind: 'local', name: item.name })}
+                                  onPreview={() =>
+                                    previewSubtitle({ kind: 'local', name: item.name })
+                                  }
+                                />
+                              ))
+                            )}
+                          </div>
+                        ) : null}
+
+                        {subMenu === 'search' ? (
+                          <div className="max-h-72 overflow-y-auto">
+                            <div className="flex gap-1.5 p-2">
+                              <input
+                                value={subSearchQuery}
+                                onChange={(event) => setSubSearchQuery(event.target.value)}
+                                onKeyDown={(event) => {
+                                  if (event.key === 'Enter') {
+                                    runSubtitleSearch()
+                                  }
+                                }}
+                                placeholder={zh('番号，如 SSIS-480', 'Movie code, e.g. SSIS-480')}
+                                className="min-w-0 flex-1 rounded bg-white/10 px-2 py-1 text-xs text-white placeholder:text-white/40 focus:outline-none"
+                              />
+                              <button
+                                type="button"
+                                disabled={subSearchBusy}
+                                onClick={() => runSubtitleSearch()}
+                                className="rounded bg-white/15 px-2 py-1 text-xs text-white transition-colors hover:bg-white/25 disabled:opacity-50"
+                              >
+                                <SearchIcon style={{ fontSize: 14 }} />
+                              </button>
+                            </div>
+                            {subSearchBusy ? (
+                              <div className="px-3.5 py-3 text-xs text-white/50">
+                                {zh('搜索中…', 'Searching...')}
+                              </div>
+                            ) : null}
+                            {!subSearchBusy && subSearchItems.length === 0 ? (
+                              <div className="px-3.5 py-3 text-xs text-white/50">
+                                {zh(
+                                  '输入番号搜索在线字幕；搜索结果可预览或保存到视频目录',
+                                  'Search online subtitles by movie code. Results can be previewed or saved next to the video.'
+                                )}
+                              </div>
+                            ) : null}
+                            {subSearchItems.map((item) => {
+                              const detail = subDetailTracks[item.code]
+                              const tracks = detail?.tracks || []
+                              const versions = item.versions || []
+                              return (
+                                <div key={item.code} className="border-t border-white/5">
+                                  <button
+                                    type="button"
+                                    onClick={() => openSubtitleDetail(item.code)}
+                                    className="flex w-full items-center justify-between gap-2 px-3.5 py-2 text-left text-xs transition-colors hover:bg-white/10"
+                                  >
+                                    <span className="min-w-0 flex-1">
+                                      <span className="block font-semibold text-white">
+                                        {item.code}
+                                      </span>
+                                      {item.title ? (
+                                        <span className="block truncate text-white/50">
+                                          {item.title}
+                                        </span>
+                                      ) : null}
+                                    </span>
+                                    <span className="shrink-0 text-white/40">
+                                      {versions.length > 0
+                                        ? zh(
+                                            `${versions.length} 个版本`,
+                                            `${versions.length} versions`
+                                          )
+                                        : item.has_subtitles
+                                          ? zh('有字幕', 'Has subs')
+                                          : zh('无字幕', 'No subs')}
+                                    </span>
+                                  </button>
+                                  {detail?.loading ? (
+                                    <div className="px-3.5 pb-2 text-[11px] text-white/50">
+                                      {zh('加载中…', 'Loading...')}
+                                    </div>
+                                  ) : null}
+                                  {detail?.error ? (
+                                    <div className="px-3.5 pb-2 text-[11px] text-red-300">
+                                      {detail.error}
+                                    </div>
+                                  ) : null}
+                                  {tracks.length > 0
+                                    ? tracks.map((track) => (
+                                        <div
+                                          key={track.id}
+                                          className="flex items-center gap-1 px-3.5 py-1.5 pl-8"
+                                        >
+                                          <span className="min-w-0 flex-1 truncate text-xs text-white/80">
+                                            {track.label || track.lang || track.id}
+                                          </span>
+                                          <button
+                                            type="button"
+                                            aria-label={zh('预览', 'Preview')}
+                                            onClick={() =>
+                                              previewSubtitle({
+                                                kind: 'online',
+                                                code: item.code,
+                                                id: track.id,
+                                                label: track.label || track.lang,
+                                              })
+                                            }
+                                            className="rounded p-1 text-white/50 transition-colors hover:bg-white/15 hover:text-white"
+                                          >
+                                            <PreviewIcon style={{ fontSize: 15 }} />
+                                          </button>
+                                          <button
+                                            type="button"
+                                            aria-label={zh('保存', 'Save')}
+                                            onClick={() =>
+                                              saveSubtitle({
+                                                kind: 'online',
+                                                code: item.code,
+                                                id: track.id,
+                                                label: track.label || track.lang,
+                                              })
+                                            }
+                                            className="rounded p-1 text-white/50 transition-colors hover:bg-white/15 hover:text-white"
+                                          >
+                                            <DownloadIcon style={{ fontSize: 15 }} />
+                                          </button>
+                                        </div>
+                                      ))
+                                    : null}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
+                    {/* 字幕预览弹层 */}
+                    {subPreview ? (
+                      <div className="absolute bottom-12 right-0 z-40 flex max-h-72 w-72 flex-col overflow-hidden rounded-xl border border-white/10 bg-black/90 shadow-2xl backdrop-blur-sm">
+                        <div className="flex items-center justify-between border-b border-white/10 px-3 py-2">
+                          <span className="min-w-0 flex-1 truncate text-xs font-semibold text-white">
+                            {subPreview.label}
+                          </span>
+                          <button
+                            type="button"
+                            aria-label={zh('关闭预览', 'Close preview')}
+                            onClick={() => setSubPreview(null)}
+                            className="rounded px-1.5 text-sm text-white/60 hover:text-white"
+                          >
+                            ×
+                          </button>
+                        </div>
+                        <div className="max-h-60 overflow-y-auto whitespace-pre-wrap px-3 py-2 text-xs leading-5 text-white/80">
+                          {subPreview.text}
+                        </div>
+                      </div>
+                    ) : null}
+                    {subNotice ? (
+                      <div className="absolute bottom-14 right-0 z-40 rounded-md bg-black/85 px-2 py-1 text-xs text-white shadow">
+                        {subNotice}
+                      </div>
+                    ) : null}
+                  </div>
+
                   {pipSupported ? (
                     <button
                       type="button"
@@ -1217,6 +1735,39 @@ export default function PlayerModal({
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+// SubMenuItem is one row of the subtitle menu (off / a local subtitle / an
+// online track). Optionally shows a preview button next to the label.
+function SubMenuItem({ active, label, onClick, onPreview }) {
+  return (
+    <div className={`flex items-center gap-1 px-3.5 py-1.5 ${active ? 'bg-white/10' : ''}`}>
+      <button
+        type="button"
+        onClick={onClick}
+        className={`flex min-w-0 flex-1 items-center gap-2 text-left text-xs transition-colors hover:text-white ${
+          active ? 'font-semibold text-white' : 'text-white/80'
+        }`}
+      >
+        {active ? (
+          <CheckIcon style={{ fontSize: 14 }} className="shrink-0 text-yellow-300" />
+        ) : (
+          <span className="inline-block w-3.5 shrink-0" />
+        )}
+        <span className="min-w-0 flex-1 truncate">{label}</span>
+      </button>
+      {onPreview ? (
+        <button
+          type="button"
+          aria-label={zh('预览', 'Preview')}
+          onClick={onPreview}
+          className="rounded p-1 text-white/50 transition-colors hover:bg-white/15 hover:text-white"
+        >
+          <PreviewIcon style={{ fontSize: 15 }} />
+        </button>
+      ) : null}
     </div>
   )
 }
