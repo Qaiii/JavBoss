@@ -69,15 +69,16 @@ func subtitleVideoTarget(c *gin.Context) (*models.Video, string, error) {
 	return video, fullPath, nil
 }
 
-// listLocalSubtitles returns subtitle files stored next to the video, in
-// name-match priority order (exact video name match first).
+// listLocalSubtitles returns subtitle files for this video. For JAV videos
+// (which carry a 番号) only subtitle files whose name contains the code are
+// returned, so unrelated subtitles in the same folder are not shown.
 func listLocalSubtitles(c *gin.Context) {
-	_, fullPath, err := subtitleVideoTarget(c)
+	video, fullPath, err := subtitleVideoTarget(c)
 	if err != nil {
 		respondSubtitleError(c, err)
 		return
 	}
-	subs, err := subtitle.ListLocalSubtitles(fullPath)
+	subs, err := subtitle.ListLocalSubtitles(fullPath, videoCodeOf(video))
 	if err != nil {
 		logging.Error("list local subtitles error: %v", err)
 		respondLocalizedError(c, http.StatusInternalServerError, "读取本地字幕失败", "Failed to read local subtitles")

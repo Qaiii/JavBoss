@@ -24,8 +24,10 @@ type LocalSubtitle struct {
 }
 
 // ListLocalSubtitles scans the video's directory for subtitle files and returns
-// them ordered by how closely their name matches the video file name.
-func ListLocalSubtitles(videoPath string) ([]LocalSubtitle, error) {
+// them ordered by how closely their name matches the video file name. When code
+// is non-empty, only subtitle files whose name contains that code (the JAV 番号)
+// are returned, so unrelated subtitles in the same directory are hidden.
+func ListLocalSubtitles(videoPath, code string) ([]LocalSubtitle, error) {
 	dir := filepath.Dir(videoPath)
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -33,6 +35,7 @@ func ListLocalSubtitles(videoPath string) ([]LocalSubtitle, error) {
 	}
 
 	videoBase := normalizeName(filepath.Base(videoPath))
+	codeKey := normalizeName(code)
 	var subs []LocalSubtitle
 	for _, entry := range entries {
 		if entry.IsDir() {
@@ -43,6 +46,9 @@ func ListLocalSubtitles(videoPath string) ([]LocalSubtitle, error) {
 			continue
 		}
 		subBase := normalizeName(entry.Name())
+		if codeKey != "" && !strings.Contains(subBase, codeKey) {
+			continue
+		}
 		subs = append(subs, LocalSubtitle{
 			Name:    entry.Name(),
 			Path:    filepath.Join(dir, entry.Name()),
