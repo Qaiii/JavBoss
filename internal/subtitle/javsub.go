@@ -93,6 +93,49 @@ func SearchJavSubMovies(ctx context.Context, query string) ([]JavSubMovie, error
 // tracks carry stable identifiers plus a server-side signed download URL that
 // is never serialized to clients.
 func GetJavSubMovieDetail(ctx context.Context, code string) (title string, subtitles []JavSubSubtitle, err error) {
+	for _, candidate := range subtitleDetailCandidates(code) {
+		title, subtitles, err = fetchJavSubMovieDetail(ctx, candidate)
+		if err != nil {
+			return "", nil, err
+		}
+		if len(subtitles) > 0 {
+			return title, subtitles, nil
+		}
+	}
+	return title, subtitles, nil
+}
+
+// subtitleDetailCandidates returns the codes to try when resolving subtitle
+// detail. javsubtitle.com often returns variant codes from search (e.g.
+// "waaa-366-chinese-subtitle") while the actual subtitle tracks are attached to
+// the base code (e.g. "waaa-366"), so the base code must be tried first. Only
+// variants that actually strip a known suffix are tried; unknown shapes are
+// returned as-is.
+func subtitleDetailCandidates(code string) []string {
+	code = strings.TrimSpace(code)
+	if !safeCode(code) {
+		return []string{code}
+	}
+	lower := strings.ToLower(code)
+	for _, suffix := range []string{
+		"-chinese-subtitle",
+		"-uncensored-leak",
+		"-subtitle",
+		"-leak",
+		"-censored",
+		"-uncensored",
+	} {
+		if strings.HasSuffix(lower, suffix) {
+			base := code[:len(code)-len(suffix)]
+			if safeCode(base) {
+				return []string{code, base}
+			}
+		}
+	}
+	return []string{code}
+}
+
+func fetchJavSubMovieDetail(ctx context.Context, code string) (string, []JavSubSubtitle, error) {
 	code = strings.TrimSpace(code)
 	if !safeCode(code) {
 		return "", nil, fmt.Errorf("get jav subtitle detail: invalid code")
