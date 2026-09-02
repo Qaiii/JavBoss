@@ -35,7 +35,7 @@ func ListLocalSubtitles(videoPath, code string) ([]LocalSubtitle, error) {
 	}
 
 	videoBase := normalizeName(filepath.Base(videoPath))
-	codeKey := normalizeName(code)
+	codeTokens := strings.Fields(normalizeName(code))
 	var subs []LocalSubtitle
 	for _, entry := range entries {
 		if entry.IsDir() {
@@ -46,7 +46,10 @@ func ListLocalSubtitles(videoPath, code string) ([]LocalSubtitle, error) {
 			continue
 		}
 		subBase := normalizeName(entry.Name())
-		if codeKey != "" && !strings.Contains(subBase, codeKey) {
+		// 字幕名必须完整包含番号的每个词元（如 "WAAA-366" -> waaa + 366），
+		// 且作为连续片段出现——"WAAA-36.srt"、同系列的 "ABC-123"（番号为
+		// ABC-12）这类部分/粘连编号不会被误判为匹配。
+		if len(codeTokens) > 0 && !containsTokenSeq(strings.Fields(subBase), codeTokens) {
 			continue
 		}
 		subs = append(subs, LocalSubtitle{
@@ -75,6 +78,28 @@ func normalizeName(name string) string {
 	name = strings.TrimSuffix(name, filepath.Ext(name))
 	replacer := strings.NewReplacer("-", " ", "_", " ", ".", " ", "(", " ", ")", " ", "[", " ", "]", " ")
 	return strings.Join(strings.Fields(replacer.Replace(name)), " ")
+}
+
+// containsTokenSeq reports whether haystack contains needle as a contiguous
+// token sequence (all tokens must match in order). "waaa 366 chinese" contains
+// "waaa 366", but "waaa 36" or "abc 123" (needle "abc 12") do not.
+func containsTokenSeq(haystack, needle []string) bool {
+	if len(needle) == 0 {
+		return true
+	}
+	if len(needle) > len(haystack) {
+		return false
+	}
+outer:
+	for i := 0; i+len(needle) <= len(haystack); i++ {
+		for j := range needle {
+			if haystack[i+j] != needle[j] {
+				continue outer
+			}
+		}
+		return true
+	}
+	return false
 }
 
 func matchScore(videoBase, subBase string) int {
