@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import videojs from 'video.js'
 import 'video.js/dist/video-js.css'
 import CheckIcon from '@mui/icons-material/Check'
@@ -91,6 +91,8 @@ export default function PlayerModal({
   const playerRef = useRef(null)
   const shellRef = useRef(null)
   const seekBarRef = useRef(null)
+  // 悬停预览气泡元素：测量其宽度，用于在进度条两端贴边不超出
+  const seekTooltipRef = useRef(null)
   const hotkeyMapRef = useRef(new Map())
   const hideTimerRef = useRef(null)
   const clickTimerRef = useRef(null)
@@ -115,8 +117,11 @@ export default function PlayerModal({
   const framePendingSecondRef = useRef(null)
   const frameDesiredSecondRef = useRef(null)
   const frameHoverActiveRef = useRef(false)
-  // 保存最新的 requestFramePreview，供 fetchFrameAt 在帧就绪后按最新悬停位置续取
-  const framePreviewRequesterRef = useRef(null)
+  // 互引用打破依赖环：分别保存最新的抽帧请求与续排调度，供定时器/回调调用
+  const frameFetcherRef = useRef(null)
+  const frameSchedulerRef = useRef(null)
+  // 最近一次提取失败的整秒：失败后悬停期间不无限重试，切换秒位才重新尝试
+  const frameFailedSecondRef = useRef(null)
 
   // 乐观 seek：设置播放器时间后立即更新 UI，并启动兑底定时器——若 5 秒内
   // 仍未定位完成（HLS 转码流定位慢），回落到播放器真实时间，避免永久卡住。
@@ -189,6 +194,8 @@ export default function PlayerModal({
   const [seekHoverTime, setSeekHoverTime] = useState(null)
   const [dragTime, setDragTime] = useState(null)
   const [framePreview, setFramePreview] = useState(null) // 悬停预览帧的 objectURL
+  // 悬停气泡实测宽度与进度条宽度（px），用于两端贴边 clamp；null 表示未测量
+  const [tooltipBox, setTooltipBox] = useState(null) // { tooltipW, barW }
   // 乐观 seek：点击进度条后立即把 UI 钉在目标位置，避免 HLS 等流定位期间
   // 进度条先退回旧位置再跳过去的视觉抖动；定位完成（seeked/追平）后清除。
   const [pendingSeekTime, setPendingSeekTime] = useState(null)
@@ -815,10 +822,10 @@ export default function PlayerModal({
 
   // ---- 进度条悬停预览 ----
   // 悬停进度条时按整秒请求该时间点的一帧画面（GET /videos/:id/frame，后端不落盘）。
-  // 帧按整秒缓存为 objectURL：重复悬停同一秒直接命中缓存；debounce + 在途请求
-  // 守卫避免快速划过进度条时打爆后端；悬停位置移走后，在途请求完成时只入缓存，
-  // 不会把过期帧显示到新位置上。
-  const FRAME_PREVIEW_DEBOUNCE_MS = 90
+  // 指针进入一个整秒并停留满 FRAME_PREVIEW_DWELL_MS 后才请求该帧；同一秒内的微小
+  // 移动不重置计时（避免手抖导致永不加载），滑动跨越多个秒时不发请求并立即清掉旧图，
+  // 停稳到某一秒后才加载该秒画面。帧按整秒缓存为 objectURL，重复悬停直接命中缓存。
+  const FRAME_PREVIEW_DWELL_MS = 150
   const FRAME_PREVIEW_CACHE_LIMIT = 30
 
   const cancelFrameHover = useCallback(() => {
@@ -840,11 +847,13 @@ export default function PlayerModal({
     setFramePreview(null)
   }, [cancelFrameHover])
 
+  // 真正的抽帧请求：同一时刻至多一个在途请求（单飞）。完成或中止后都会触发
+  // scheduleForDesired，保证为最新悬停位置继续加载；失败记录到 frameFailedSecondRef，
+  // 悬停期间不无限重试，只有切换秒位后才重新尝试。
   const fetchFrameAt = useCallback(
     async (second) => {
       if (!video?.id || framePendingSecondRef.current != null) return
       framePendingSecondRef.current = second
-      frameAbortRef.current?.abort()
       const controller = new AbortController()
       frameAbortRef.current = controller
       try {
@@ -854,8 +863,6 @@ export default function PlayerModal({
           signal: controller.signal,
         })
         if (controller.signal.aborted) return
-        framePendingSecondRef.current = null
-        if (frameAbortRef.current === controller) frameAbortRef.current = null
         const url = URL.createObjectURL(blob)
         if (frameCacheRef.current.size >= FRAME_PREVIEW_CACHE_LIMIT) {
           const oldestKey = frameCacheRef.current.keys().next().value
@@ -863,50 +870,95 @@ export default function PlayerModal({
           frameCacheRef.current.delete(oldestKey)
         }
         frameCacheRef.current.set(second, url)
-        const desired = frameDesiredSecondRef.current
-        if (frameHoverActiveRef.current && desired === second) {
+        if (frameHoverActiveRef.current && frameDesiredSecondRef.current === second) {
           setFramePreview(url)
-        } else if (frameHoverActiveRef.current && desired != null) {
-          // 悬停位置已移走：为新位置继续请求（可能直接命中缓存）
-          framePreviewRequesterRef.current?.(desired)
         }
       } catch (err) {
-        framePendingSecondRef.current = null
+        // 预览尽力而为：提取失败（含中止）时静默，不打扰播放
+        if (!err || err.name !== 'AbortError') {
+          frameFailedSecondRef.current = second
+        }
+      } finally {
         if (frameAbortRef.current === controller) frameAbortRef.current = null
-        if (err && err.name === 'AbortError') return
-        // 预览尽力而为：提取失败时静默，不打扰播放
+        if (framePendingSecondRef.current === second) framePendingSecondRef.current = null
+        // 悬停位置可能已移走，或当前秒的帧刚就绪/失败：为最新位置续排
+        frameSchedulerRef.current?.()
       }
     },
     [video]
   )
 
+  // 为“当前悬停的整秒”安排加载：已有缓存立即显示；未缓存则悬停满
+  // FRAME_PREVIEW_DWELL_MS 后请求。同一时刻只保留一个排程。
+  const scheduleForDesired = useCallback(() => {
+    const desired = frameDesiredSecondRef.current
+    if (!frameHoverActiveRef.current || desired == null) return
+    const cached = frameCacheRef.current.get(desired)
+    if (cached) {
+      setFramePreview(cached)
+      return
+    }
+    if (frameFailedSecondRef.current === desired) return
+    if (framePendingSecondRef.current != null) return // 在途：其 finally 会续排
+    if (framePreviewTimerRef.current) return // 已有排程
+    framePreviewTimerRef.current = window.setTimeout(() => {
+      framePreviewTimerRef.current = null
+      frameFetcherRef.current?.(frameDesiredSecondRef.current)
+    }, FRAME_PREVIEW_DWELL_MS)
+  }, [])
+
+  // 悬停/拖拽入口：仅当整秒变化时才动作（同一秒内移动不重置计时，保持
+  // “悬停满 150ms”的语义）。进入新秒：立即清掉上一位置的预览图、取消其排程与
+  // 在途请求，再为该秒安排加载——滑动过程中不会一直停留在起始位置的那张旧图。
   const requestFramePreview = useCallback(
     (second) => {
       if (!video?.id || !duration || duration <= 0 || !Number.isFinite(second)) return
       const rounded = Math.min(Math.max(0, Math.round(second)), Math.floor(duration))
       frameHoverActiveRef.current = true
+      if (frameDesiredSecondRef.current === rounded) return
       frameDesiredSecondRef.current = rounded
-      const cached = frameCacheRef.current.get(rounded)
-      if (cached) {
-        setFramePreview(cached)
-        return
-      }
-      if (framePendingSecondRef.current === rounded) return
+      frameFailedSecondRef.current = null
+      setFramePreview(null)
       if (framePreviewTimerRef.current) {
         window.clearTimeout(framePreviewTimerRef.current)
-      }
-      framePreviewTimerRef.current = window.setTimeout(() => {
         framePreviewTimerRef.current = null
-        fetchFrameAt(rounded)
-      }, FRAME_PREVIEW_DEBOUNCE_MS)
+      }
+      frameAbortRef.current?.abort() // 中止上一秒的在途请求，释放服务端 ffmpeg
+      scheduleForDesired()
     },
-    [video, duration, fetchFrameAt]
+    [video, duration, scheduleForDesired]
   )
 
-  // fetchFrameAt 与 requestFramePreview 互相引用，用 ref 保存最新实现以打破依赖环
+  // fetchFrameAt 与 scheduleForDesired 经定时器互相调用，用 ref 保存最新实现以打破依赖环
   useEffect(() => {
-    framePreviewRequesterRef.current = requestFramePreview
+    frameFetcherRef.current = fetchFrameAt
+    frameSchedulerRef.current = scheduleForDesired
   })
+
+  // 悬停气泡贴边：气泡是绝对定位并以 left 百分比居中（-translate-x-1/2）。
+  // 记录气泡自身宽度后，将 left 的基准点 clamp 在 [半个气泡宽, 进度条宽-半个气泡宽]，
+  // 使悬停到进度条最左/最右端时气泡边缘不超出进度条（进而不会超出视频与屏幕）。
+  useLayoutEffect(() => {
+    const tooltip = seekTooltipRef.current
+    const bar = seekBarRef.current
+    if (!tooltip || !bar || !duration) return
+    const tooltipW = tooltip.offsetWidth
+    const barW = bar.clientWidth
+    if (!tooltipW || !barW) return
+    setTooltipBox((prev) =>
+      prev && prev.tooltipW === tooltipW && prev.barW === barW ? prev : { tooltipW, barW }
+    )
+  }, [duration])
+
+  // 悬停位置用 clamp 后的 left 百分比显示：0%..100% 对应进度条左右两端，
+  // 不让气泡超出进度条边界（此时元素实际中心与指针位置稍有偏差，属于预期取舍）
+  const tooltipOffsetPercent = (() => {
+    if (!tooltipBox) return tooltipPercent
+    const maxPx = Math.max(0, tooltipBox.barW - tooltipBox.tooltipW)
+    if (maxPx <= 0) return tooltipPercent
+    const leftPx = (tooltipPercent / 100) * tooltipBox.barW - tooltipBox.tooltipW / 2
+    return clampPercent((Math.min(Math.max(0, leftPx), maxPx) / tooltipBox.barW) * 100)
+  })()
 
   useEffect(() => {
     if (!video || !videoRef.current || !selectedSource?.src) return
@@ -1543,8 +1595,9 @@ export default function PlayerModal({
               >
                 {tooltipTime != null && duration > 0 ? (
                   <div
+                    ref={seekTooltipRef}
                     className="pointer-events-none absolute bottom-8 z-10 -translate-x-1/2 rounded-md bg-black/90 px-2 py-1 text-xs font-medium tabular-nums text-white shadow"
-                    style={{ left: `${tooltipPercent}%` }}
+                    style={{ left: `${tooltipOffsetPercent}%` }}
                   >
                     {framePreview ? (
                       <div className="mb-1 overflow-hidden rounded border border-white/20">
