@@ -33,7 +33,7 @@ func AssessPlaybackSupport(meta *VideoMetadata) PlaybackProbeResult {
 
 	switch result.Container {
 	case "mp4":
-		result.SupportsDirect = result.VideoCodec == "h264" && audioSafe
+		result.SupportsDirect = result.VideoCodec == "h264" && audioSafe && meta.ConstantFrameRate
 	case "webm":
 		result.SupportsDirect = (result.VideoCodec == "vp8" || result.VideoCodec == "vp9") && webmAudioSafe
 	default:

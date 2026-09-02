@@ -364,6 +364,8 @@ export default function App() {
   const [locationPickerAction, setLocationPickerAction] = useState('play')
   const [playerVideo, setPlayerVideo] = useState(null)
   const [playerStartTime, setPlayerStartTime] = useState(0)
+  // 浏览器播放器内“选集”：同番号多视频文件时，把可选文件列表随播放器一起带过去
+  const [playerEpisodes, setPlayerEpisodes] = useState([])
   const [screenshotsVideo, setScreenshotsVideo] = useState(null)
   const [screenshotsAllowSetCover, setScreenshotsAllowSetCover] = useState(true)
   const [scrapeSettingsVideo, setScrapeSettingsVideo] = useState(null)
@@ -664,10 +666,11 @@ export default function App() {
   }, [])
 
   const playVideoWith = useCallback(
-    (video, player) => {
+    (video, player, episodes) => {
       if (!video) return
       if (player === 'browser') {
         setPlayerStartTime(0)
+        setPlayerEpisodes(Array.isArray(episodes) ? episodes : [])
         setPlayerVideo(video)
         return
       }
@@ -771,6 +774,13 @@ export default function App() {
     },
     [defaultPlayer, getVideoLocationChoices, openLocationPicker, playVideoWith]
   )
+
+  // 播放器内“选集”切换：直接替换当前播放的浏览器视频
+  const handleSwitchPlayerVideo = useCallback((video) => {
+    if (!video) return
+    setPlayerStartTime(0)
+    setPlayerVideo(video)
+  }, [])
 
   const handleOpenAlternatePlayer = useCallback(
     (video) => {
@@ -1017,18 +1027,18 @@ export default function App() {
   const handleJavPlay = useCallback(
     (video, item) => {
       const videos = item?.videos || []
-      if (videos.length > 1) {
-        setJavVideoPickerAction('play')
-        setJavVideoPickerItem(item)
-        setJavVideoPickerOpen(true)
+      const target = video || videos[0]
+      if (!target) return
+      // 同番号多视频文件：直接进入浏览器播放器，选集功能放在播放器内
+      if (videos.length > 1 && defaultPlayer === 'browser') {
+        setPlayerEpisodes(videos)
+        setPlayerStartTime(0)
+        setPlayerVideo(target)
         return
       }
-      const target = video || videos[0]
-      if (target) {
-        handleOpenPlayer(target)
-      }
+      handleOpenPlayer(target)
     },
-    [handleOpenPlayer]
+    [defaultPlayer, handleOpenPlayer]
   )
 
   const handleJavOpenFile = useCallback(
@@ -4522,12 +4532,15 @@ export default function App() {
       <PlayerModal
         video={playerVideo}
         startTime={playerStartTime}
+        episodes={playerEpisodes}
+        onSwitchVideo={handleSwitchPlayerVideo}
         hotkeys={config?.player_hotkeys}
         showHotkeyHint={configFlag(config?.browser_player_show_hotkey_hint, true)}
         onPlaybackError={showCenterToast}
         onClose={() => {
           setPlayerVideo(null)
           setPlayerStartTime(0)
+          setPlayerEpisodes([])
         }}
       />
 

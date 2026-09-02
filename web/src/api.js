@@ -316,6 +316,23 @@ export async function fetchPlaybackInfo(id, { locationId } = {}) {
   return res.json()
 }
 
+// Extracts a single video frame at an arbitrary second and returns it as a
+// blob. The server does not persist the frame; the caller is responsible for
+// caching it (used for seek-bar hover previews).
+export async function fetchVideoFrame(id, { second, locationId, signal } = {}) {
+  const params = new URLSearchParams()
+  params.set('second', String(second))
+  if (locationId) params.set('location_id', String(locationId))
+  const res = await apiFetch(`/videos/${id}/frame?${params.toString()}`, {
+    signal,
+    cache: 'no-store',
+  })
+  if (!res.ok) {
+    throw await apiError(res)
+  }
+  return res.blob()
+}
+
 export async function fetchLocalSubtitles(id) {
   const res = await apiFetch(`/videos/${id}/subtitles`, { cache: 'no-store' })
   if (!res.ok) {

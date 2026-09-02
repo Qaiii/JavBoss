@@ -1502,6 +1502,54 @@ func readVideoScreenshotInfos(id int64, coverName, screenshotDir string) ([]vide
 	return items, nil
 }
 
+// getVideoFrame extracts a single frame at an arbitrary second and returns it
+// directly as an image, without persisting anything. The client keeps extracted
+// frames in a browser cache keyed by the second, so the same frame is not
+// re-extracted while it is still cached.
+func getVideoFrame(c *gin.Context) {
+	second := queryFloat(c, "second", -1)
+	if second < 0 {
+		respondLocalizedError(c, http.StatusBadRequest, "缺少有效的秒数参数", "Missing a valid second parameter")
+		return
+	}
+	if common.ScreenshotManager == nil {
+		respondLocalizedError(c, http.StatusServiceUnavailable, "截图服务不可用", "Screenshot service is unavailable")
+		return
+	}
+	video, fullPath, _, err := resolveVideoStreamTarget(c)
+	if err != nil {
+		respondPlaybackError(c, err)
+		return
+	}
+	if video.DurationSec > 0 && second > float64(video.DurationSec)+1 {
+		respondLocalizedError(c, http.StatusBadRequest, "秒数超出视频时长", "Second exceeds the video duration")
+		return
+	}
+
+	file, err := os.CreateTemp("", "javboss-frame-*.jpg")
+	if err != nil {
+		logging.Error("create frame temp file error: %v", err)
+		respondLocalizedError(c, http.StatusInternalServerError, "创建预览帧失败", "Failed to create preview frame")
+		return
+	}
+	tempPath := file.Name()
+	_ = file.Close()
+	defer func() { _ = os.Remove(tempPath) }()
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 30*time.Second)
+	defer cancel()
+	if err := common.ScreenshotManager.CaptureFile(ctx, fullPath, second, tempPath); err != nil {
+		logging.Error("capture preview frame error: %v", err)
+		if strings.Contains(err.Error(), "ffmpeg not found") || strings.Contains(err.Error(), "mpv not found") {
+			respondLocalizedError(c, http.StatusServiceUnavailable, "缺少预览帧所需的 FFmpeg 或 MPV 组件", "FFmpeg or MPV required for preview frames was not found")
+			return
+		}
+		respondLocalizedError(c, http.StatusInternalServerError, "生成预览帧失败", "Failed to generate preview frame")
+		return
+	}
+	c.File(tempPath)
+}
+
 func createVideoScreenshot(c *gin.Context) {
 	if common.ScreenshotManager == nil {
 		respondLocalizedError(c, http.StatusServiceUnavailable, "截图服务不可用", "Screenshot service is unavailable")

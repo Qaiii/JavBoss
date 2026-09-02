@@ -20,6 +20,17 @@ func queryInt(c *gin.Context, key string, def int) int {
 	return def
 }
 
+func queryFloat(c *gin.Context, key string, def float64) float64 {
+	value := c.Query(key)
+	if value == "" {
+		return def
+	}
+	if v, err := strconv.ParseFloat(value, 64); err == nil {
+		return v
+	}
+	return def
+}
+
 func queryBool(c *gin.Context, key string, def bool) bool {
 	value := strings.TrimSpace(strings.ToLower(c.Query(key)))
 	if value == "" {

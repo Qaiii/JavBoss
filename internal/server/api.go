@@ -22,6 +22,7 @@ func RegisterRoutes(router gin.IRoutes) {
 	router.GET("/videos/:id/stream.m3u8", streamHLSManifest)
 	router.GET("/videos/:id/stream.m3u8/:segment", streamHLSSegment)
 	router.GET("/videos/:id/thumbnail", getThumbnail)
+	router.GET("/videos/:id/frame", getVideoFrame)
 	router.PUT("/videos/:id/cover", updateVideoCover)
 	router.DELETE("/videos/:id/cover", resetVideoCover)
 	router.GET("/videos/:id/screenshots", listVideoScreenshots)

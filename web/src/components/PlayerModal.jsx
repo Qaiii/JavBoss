@@ -12,6 +12,7 @@ import PhotoCameraIcon from '@mui/icons-material/PhotoCamera'
 import PictureInPictureAltIcon from '@mui/icons-material/PictureInPictureAlt'
 import PictureInPictureAltOutlinedIcon from '@mui/icons-material/PictureInPictureAltOutlined'
 import PlayArrowIcon from '@mui/icons-material/PlayArrow'
+import PlaylistPlayIcon from '@mui/icons-material/PlaylistPlay'
 import PreviewIcon from '@mui/icons-material/Preview'
 import Replay10Icon from '@mui/icons-material/Replay10'
 import ReplayIcon from '@mui/icons-material/Replay'
@@ -25,10 +26,11 @@ import {
   fetchJavSubtitleDetail,
   fetchLocalSubtitles,
   fetchPlaybackInfo,
+  fetchVideoFrame,
   saveJavSubtitle,
   searchJavSubtitles,
 } from '@/api'
-import { getVideoDisplayName } from '@/utils/display'
+import { buildVideoFullPath, getVideoDisplayName } from '@/utils/display'
 import {
   PLAYER_HOTKEY_ACTIONS,
   formatPlayerHotkeyKey,
@@ -42,6 +44,11 @@ const VOLUME_STORAGE_KEY = 'javboss.player.volume'
 const CONTROLS_HIDE_DELAY_MS = 3000
 const SEEK_STEP_SECONDS = 10
 const PLAYBACK_RATES = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2]
+// 方向键：左右点按快退/快进、上下点按调音量；长按先短暂停顿再进入持续调节
+const ARROW_SEEK_STEP_SECONDS = 5
+const ARROW_VOLUME_STEP = 0.05
+const ARROW_HOLD_DELAY_MS = 350
+const ARROW_HOLD_INTERVAL_MS = 100
 
 function formatTime(seconds) {
   if (!Number.isFinite(seconds) || seconds < 0) seconds = 0
@@ -73,6 +80,8 @@ function formatSignedAmount(amount) {
 export default function PlayerModal({
   video,
   startTime = 0,
+  episodes = [],
+  onSwitchVideo,
   onClose,
   hotkeys = null,
   showHotkeyHint = true,
@@ -96,6 +105,18 @@ export default function PlayerModal({
   const dismissedWhilePipRef = useRef(false)
   const subNoticeTimerRef = useRef(null)
   const subRetryRef = useRef(null)
+  // 当前 playbackInfo 对应的播放标识（video.id:location_id）。选集/切换文件时，
+  // 播放信息尚未加载完成前禁止用旧 source 重建播放器，避免闪现旧视频。
+  const playbackInfoKeyRef = useRef('')
+  // 进度条悬停预览：按整秒缓存的抽帧 objectURL、在途请求/定时器/悬停状态
+  const frameCacheRef = useRef(new Map())
+  const framePreviewTimerRef = useRef(null)
+  const frameAbortRef = useRef(null)
+  const framePendingSecondRef = useRef(null)
+  const frameDesiredSecondRef = useRef(null)
+  const frameHoverActiveRef = useRef(false)
+  // 保存最新的 requestFramePreview，供 fetchFrameAt 在帧就绪后按最新悬停位置续取
+  const framePreviewRequesterRef = useRef(null)
 
   // 乐观 seek：设置播放器时间后立即更新 UI，并启动兑底定时器——若 5 秒内
   // 仍未定位完成（HLS 转码流定位慢），回落到播放器真实时间，避免永久卡住。
@@ -164,9 +185,10 @@ export default function PlayerModal({
   const [muted, setMuted] = useState(false)
   const [playbackRate, setPlaybackRate] = useState(1)
   const [controlsVisible, setControlsVisible] = useState(true)
-  const [menuOpen, setMenuOpen] = useState(null) // null | 'speed'
+  const [menuOpen, setMenuOpen] = useState(null) // null | 'speed' | 'episodes'
   const [seekHoverTime, setSeekHoverTime] = useState(null)
   const [dragTime, setDragTime] = useState(null)
+  const [framePreview, setFramePreview] = useState(null) // 悬停预览帧的 objectURL
   // 乐观 seek：点击进度条后立即把 UI 钉在目标位置，避免 HLS 等流定位期间
   // 进度条先退回旧位置再跳过去的视觉抖动；定位完成（seeked/追平）后清除。
   const [pendingSeekTime, setPendingSeekTime] = useState(null)
@@ -207,6 +229,8 @@ export default function PlayerModal({
     })
     lines.push(zh('空格：暂停/继续', 'Space: Pause/Resume'))
     lines.push(zh('ESC：退出播放器', 'ESC: Close player'))
+    lines.push(zh('方向键：左右快退/快进 5 秒，上下调节音量', 'Arrow keys: seek 5s, volume'))
+    lines.push(zh('长按方向键可持续调节', 'Hold arrow keys to repeat'))
     lines.push(
       zh(
         '你可在「设置 → 播放器 → 浏览器播放器」里关闭此信息显示',
@@ -222,6 +246,29 @@ export default function PlayerModal({
       playbackInfo.sources[0]
     )
   }, [playbackInfo])
+  // 播放标识：切换集数/文件时用于判断“当前正在播哪一部”
+  const playbackKey = `${video?.id || 0}:${video?.location_id || 0}`
+  // 同番号多文件：选集列表（去重后的可播文件）
+  const episodeList = useMemo(() => {
+    const seen = new Set()
+    return (Array.isArray(episodes) ? episodes : []).filter((ep) => {
+      if (!ep?.id) return false
+      const key = ep.location_id ? String(ep.location_id) : `id:${ep.id}`
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+  }, [episodes])
+  const activeEpisodeKey = video?.location_id ? String(video.location_id) : `id:${video?.id || 0}`
+
+  // 切换播放文件（选集/换源）时，清除上一部视频遗留的字幕选择与菜单状态
+  useEffect(() => {
+    setActiveSubtitle(null)
+    setSubMenu(null)
+    setSubPreview(null)
+    setSubNotice('')
+    setMenuOpen(null)
+  }, [playbackKey])
 
   useEffect(() => {
     setHotkeyHintVisible(false)
@@ -384,6 +431,7 @@ export default function PlayerModal({
       if (target == null) {
         setActiveSubtitle(null)
         setSubMenu(null)
+        setMenuOpen(null)
         applyActiveSubtitleToTracks(player, null)
         return
       }
@@ -394,6 +442,7 @@ export default function PlayerModal({
         if (existing) {
           setActiveSubtitle(target)
           setSubMenu(null)
+          setMenuOpen(null)
           applyActiveSubtitleToTracks(player, target)
           return
         }
@@ -410,6 +459,7 @@ export default function PlayerModal({
         )
         setActiveSubtitle(target)
         setSubMenu(null)
+        setMenuOpen(null)
       } else if (target.kind === 'online') {
         const base = `/videos/${video.id}/subtitles/vtt?code=${encodeURIComponent(
           target.code
@@ -419,6 +469,7 @@ export default function PlayerModal({
         if (existing) {
           setActiveSubtitle(target)
           setSubMenu(null)
+          setMenuOpen(null)
           applyActiveSubtitleToTracks(player, target)
           return
         }
@@ -435,6 +486,7 @@ export default function PlayerModal({
         )
         setActiveSubtitle(target)
         setSubMenu(null)
+        setMenuOpen(null)
       }
     },
     [video, applyActiveSubtitleToTracks]
@@ -688,6 +740,7 @@ export default function PlayerModal({
 
   useEffect(() => {
     if (!video?.id) {
+      playbackInfoKeyRef.current = ''
       setPlaybackInfo(null)
       setPlaybackError('')
       setLoadingPlayback(false)
@@ -709,6 +762,8 @@ export default function PlayerModal({
     }
 
     let cancelled = false
+    const fetchKey = `${video.id}:${video.location_id || ''}`
+    playbackInfoKeyRef.current = ''
     setLoadingPlayback(true)
     setPlaybackError('')
     setPlaybackInfo(null)
@@ -721,6 +776,7 @@ export default function PlayerModal({
     fetchPlaybackInfo(video.id, { locationId: video.location_id })
       .then((info) => {
         if (cancelled) return
+        playbackInfoKeyRef.current = fetchKey
         setPlaybackInfo(info)
       })
       .catch((err) => {
@@ -739,8 +795,105 @@ export default function PlayerModal({
     }
   }, [video])
 
+  // ---- 进度条悬停预览 ----
+  // 悬停进度条时按整秒请求该时间点的一帧画面（GET /videos/:id/frame，后端不落盘）。
+  // 帧按整秒缓存为 objectURL：重复悬停同一秒直接命中缓存；debounce + 在途请求
+  // 守卫避免快速划过进度条时打爆后端；悬停位置移走后，在途请求完成时只入缓存，
+  // 不会把过期帧显示到新位置上。
+  const FRAME_PREVIEW_DEBOUNCE_MS = 90
+  const FRAME_PREVIEW_CACHE_LIMIT = 30
+
+  const cancelFrameHover = useCallback(() => {
+    frameHoverActiveRef.current = false
+    frameDesiredSecondRef.current = null
+    if (framePreviewTimerRef.current) {
+      window.clearTimeout(framePreviewTimerRef.current)
+      framePreviewTimerRef.current = null
+    }
+  }, [])
+
+  const clearFrameCache = useCallback(() => {
+    cancelFrameHover()
+    frameAbortRef.current?.abort()
+    frameAbortRef.current = null
+    framePendingSecondRef.current = null
+    frameCacheRef.current.forEach((url) => URL.revokeObjectURL(url))
+    frameCacheRef.current.clear()
+    setFramePreview(null)
+  }, [cancelFrameHover])
+
+  const fetchFrameAt = useCallback(
+    async (second) => {
+      if (!video?.id || framePendingSecondRef.current != null) return
+      framePendingSecondRef.current = second
+      frameAbortRef.current?.abort()
+      const controller = new AbortController()
+      frameAbortRef.current = controller
+      try {
+        const blob = await fetchVideoFrame(video.id, {
+          second,
+          locationId: video.location_id,
+          signal: controller.signal,
+        })
+        if (controller.signal.aborted) return
+        framePendingSecondRef.current = null
+        if (frameAbortRef.current === controller) frameAbortRef.current = null
+        const url = URL.createObjectURL(blob)
+        if (frameCacheRef.current.size >= FRAME_PREVIEW_CACHE_LIMIT) {
+          const oldestKey = frameCacheRef.current.keys().next().value
+          URL.revokeObjectURL(frameCacheRef.current.get(oldestKey))
+          frameCacheRef.current.delete(oldestKey)
+        }
+        frameCacheRef.current.set(second, url)
+        const desired = frameDesiredSecondRef.current
+        if (frameHoverActiveRef.current && desired === second) {
+          setFramePreview(url)
+        } else if (frameHoverActiveRef.current && desired != null) {
+          // 悬停位置已移走：为新位置继续请求（可能直接命中缓存）
+          framePreviewRequesterRef.current?.(desired)
+        }
+      } catch (err) {
+        framePendingSecondRef.current = null
+        if (frameAbortRef.current === controller) frameAbortRef.current = null
+        if (err && err.name === 'AbortError') return
+        // 预览尽力而为：提取失败时静默，不打扰播放
+      }
+    },
+    [video]
+  )
+
+  const requestFramePreview = useCallback(
+    (second) => {
+      if (!video?.id || !duration || duration <= 0 || !Number.isFinite(second)) return
+      const rounded = Math.min(Math.max(0, Math.round(second)), Math.floor(duration))
+      frameHoverActiveRef.current = true
+      frameDesiredSecondRef.current = rounded
+      const cached = frameCacheRef.current.get(rounded)
+      if (cached) {
+        setFramePreview(cached)
+        return
+      }
+      if (framePendingSecondRef.current === rounded) return
+      if (framePreviewTimerRef.current) {
+        window.clearTimeout(framePreviewTimerRef.current)
+      }
+      framePreviewTimerRef.current = window.setTimeout(() => {
+        framePreviewTimerRef.current = null
+        fetchFrameAt(rounded)
+      }, FRAME_PREVIEW_DEBOUNCE_MS)
+    },
+    [video, duration, fetchFrameAt]
+  )
+
+  // fetchFrameAt 与 requestFramePreview 互相引用，用 ref 保存最新实现以打破依赖环
+  useEffect(() => {
+    framePreviewRequesterRef.current = requestFramePreview
+  })
+
   useEffect(() => {
     if (!video || !videoRef.current || !selectedSource?.src) return
+    // 切换文件后播放信息未加载完前，不基于旧 source 重建播放器
+    if (playbackInfoKeyRef.current !== playbackKey) return
 
     const player = videojs(videoRef.current, {
       controls: false, // 使用自绘 YouTube 风格控制条
@@ -925,6 +1078,27 @@ export default function PlayerModal({
       handleDimensions()
     }
 
+    // 方向键长按：keydown 首次立即生效一次，短暂延迟后开始按固定间隔持续调节，
+    // keyup / 离开播放器时停止（holdAction 存最新动作，避免闭包里的过期引用）
+    let holdTimer = null
+    let holdAction = null
+    const stopArrowHold = () => {
+      if (holdTimer != null) {
+        window.clearTimeout(holdTimer)
+        holdTimer = null
+      }
+      holdAction = null
+    }
+    const startArrowHold = (action) => {
+      stopArrowHold()
+      holdAction = action
+      holdTimer = window.setTimeout(() => {
+        holdTimer = window.setInterval(() => {
+          holdAction?.()
+        }, ARROW_HOLD_INTERVAL_MS)
+      }, ARROW_HOLD_DELAY_MS)
+    }
+
     const handleKeyDown = (event) => {
       // 画中画播放中播放器已移出视口：播放器快捷键不应再接管页面按键
       if (dismissedWhilePipRef.current) return
@@ -978,8 +1152,35 @@ export default function PlayerModal({
           markHandled()
           handleClose()
           break
+        case 'ArrowLeft':
+        case 'ArrowRight':
+        case 'ArrowUp':
+        case 'ArrowDown': {
+          // 焦点在进度条（role="slider"）上时保留其自身的左右键定位，不重复处理
+          if (target instanceof Element && target.closest('[role="slider"]')) return
+          markHandled()
+          pokeControls()
+          if (event.repeat) return // 系统自动连发由长按定时器接管，避免重复触发
+          if (key === 'ArrowLeft' || key === 'ArrowRight') {
+            const step = (key === 'ArrowLeft' ? -1 : 1) * ARROW_SEEK_STEP_SECONDS
+            seekBy(step)
+            startArrowHold(() => seekBy(step))
+          } else {
+            const step = (key === 'ArrowDown' ? -1 : 1) * ARROW_VOLUME_STEP
+            adjustVolume(step)
+            startArrowHold(() => adjustVolume(step))
+          }
+          break
+        }
         default:
           return
+      }
+    }
+
+    const handleKeyUp = (event) => {
+      const key = normalizePlayerHotkeyKey(event.key || '')
+      if (key === 'ArrowLeft' || key === 'ArrowRight' || key === 'ArrowUp' || key === 'ArrowDown') {
+        stopArrowHold()
       }
     }
 
@@ -1007,6 +1208,7 @@ export default function PlayerModal({
     }
 
     window.addEventListener('keydown', handleKeyDown, true)
+    window.addEventListener('keyup', handleKeyUp, true)
 
     const handleVolumeChange = () => {
       try {
@@ -1069,6 +1271,8 @@ export default function PlayerModal({
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown, true)
+      window.removeEventListener('keyup', handleKeyUp, true)
+      stopArrowHold()
       if (techEl) {
         techEl.removeEventListener('enterpictureinpicture', handleEnterPiP)
         techEl.removeEventListener('leavepictureinpicture', handleLeavePiP)
@@ -1091,6 +1295,8 @@ export default function PlayerModal({
       player.off('fullscreenchange', focusPlayer)
       player.off('resize', handleDimensions)
       setPendingSeekTime(null)
+      // 清理悬停预览：取消在途请求、释放抽帧缓存
+      clearFrameCache()
       playerRef.current?.dispose()
       playerRef.current = null
     }
@@ -1098,11 +1304,13 @@ export default function PlayerModal({
     video,
     startTime,
     selectedSource,
+    playbackKey,
     pokeControls,
     applySeek,
     showControls,
     showPipNotice,
     handleClose,
+    clearFrameCache,
   ])
 
   // ---- 进度条交互 ----
@@ -1117,8 +1325,10 @@ export default function PlayerModal({
   const handleSeekPointerDown = (event) => {
     if (!duration) return
     dragRef.current.active = true
-    setDragTime(seekTimeFromEvent(event))
+    const time = seekTimeFromEvent(event)
+    setDragTime(time)
     setSeekHoverTime(null)
+    requestFramePreview(time)
     showControls()
     try {
       seekBarRef.current?.setPointerCapture?.(event.pointerId)
@@ -1136,6 +1346,7 @@ export default function PlayerModal({
     } else {
       setSeekHoverTime(time)
     }
+    requestFramePreview(time)
   }
 
   const handleSeekPointerUp = (event) => {
@@ -1144,6 +1355,7 @@ export default function PlayerModal({
     const time = dragTime ?? seekTimeFromEvent(event)
     setDragTime(null)
     setSeekHoverTime(null)
+    cancelFrameHover()
     applySeek(time)
     try {
       seekBarRef.current?.releasePointerCapture?.(event.pointerId)
@@ -1305,14 +1517,27 @@ export default function PlayerModal({
                 onPointerMove={handleSeekPointerMove}
                 onPointerUp={handleSeekPointerUp}
                 onPointerCancel={handleSeekPointerUp}
-                onPointerLeave={() => setSeekHoverTime(null)}
+                onPointerLeave={() => {
+                  setSeekHoverTime(null)
+                  cancelFrameHover()
+                }}
                 onKeyDown={handleSeekBarKeyDown}
               >
                 {tooltipTime != null && duration > 0 ? (
                   <div
-                    className="pointer-events-none absolute -top-8 z-10 -translate-x-1/2 rounded-md bg-black/90 px-2 py-0.5 text-xs font-medium tabular-nums text-white shadow"
+                    className="pointer-events-none absolute bottom-8 z-10 -translate-x-1/2 rounded-md bg-black/90 px-2 py-1 text-xs font-medium tabular-nums text-white shadow"
                     style={{ left: `${tooltipPercent}%` }}
                   >
+                    {framePreview ? (
+                      <div className="mb-1 overflow-hidden rounded border border-white/20">
+                        <img
+                          src={framePreview}
+                          alt=""
+                          draggable={false}
+                          className="block max-h-[16vh] max-w-[26vw] object-contain"
+                        />
+                      </div>
+                    ) : null}
                     {formatTime(tooltipTime)}
                   </div>
                 ) : null}
@@ -1420,12 +1645,91 @@ export default function PlayerModal({
                     <PhotoCameraIcon />
                   </button>
 
+                  {/* 选集：同番号多文件时在播放器内切换视频 */}
+                  {episodeList.length > 1 ? (
+                    <div className="relative">
+                      <button
+                        type="button"
+                        aria-label={zh('选集', 'Select episode')}
+                        title={zh('选集', 'Select episode')}
+                        onClick={() => {
+                          setMenuOpen(menuOpen === 'episodes' ? null : 'episodes')
+                          setSubMenu(null)
+                          showControls()
+                        }}
+                        className={`flex h-9 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-medium text-white transition-colors hover:bg-white/15 pointer-coarse:h-8 ${
+                          menuOpen === 'episodes' ? 'bg-white/15 text-yellow-300' : ''
+                        }`}
+                      >
+                        <PlaylistPlayIcon style={{ fontSize: 18 }} />
+                        <span>{zh('选集', 'Episodes')}</span>
+                        <span className="rounded-full bg-white/20 px-1.5 text-[10px] font-semibold tabular-nums leading-4">
+                          {episodeList.length}
+                        </span>
+                      </button>
+                      {menuOpen === 'episodes' ? (
+                        <div className="absolute bottom-12 right-0 z-30 w-72 overflow-hidden rounded-xl border border-white/10 bg-black/90 shadow-2xl backdrop-blur-sm">
+                          <div className="flex items-center justify-between border-b border-white/10 px-3 py-2">
+                            <span className="text-xs font-semibold uppercase tracking-wider text-white/60">
+                              {zh('选集', 'Episodes')}
+                            </span>
+                            <button
+                              type="button"
+                              aria-label={zh('关闭选集菜单', 'Close episode menu')}
+                              onClick={() => setMenuOpen(null)}
+                              className="rounded px-1.5 text-sm text-white/60 hover:text-white"
+                            >
+                              ×
+                            </button>
+                          </div>
+                          <div className="max-h-72 overflow-y-auto py-1">
+                            {episodeList.map((ep, index) => {
+                              const fullPath = buildVideoFullPath(ep)
+                              const label =
+                                fullPath ||
+                                ep.filename ||
+                                ep.path ||
+                                zh('未命名文件', 'Untitled file')
+                              const active = String(ep.location_id) === activeEpisodeKey
+                              return (
+                                <button
+                                  key={ep.location_id || `${ep.id}-${index}`}
+                                  type="button"
+                                  onClick={() => {
+                                    setMenuOpen(null)
+                                    scheduleHideControls()
+                                    onSwitchVideo?.(ep)
+                                  }}
+                                  title={label}
+                                  className={`flex w-full items-center gap-2 px-3.5 py-1.5 text-left text-xs transition-colors hover:bg-white/10 ${
+                                    active ? 'font-semibold text-white' : 'text-white/80'
+                                  }`}
+                                >
+                                  {active ? (
+                                    <CheckIcon
+                                      style={{ fontSize: 14 }}
+                                      className="shrink-0 text-yellow-300"
+                                    />
+                                  ) : (
+                                    <span className="inline-block w-3.5 shrink-0" />
+                                  )}
+                                  <span className="min-w-0 flex-1 truncate">{label}</span>
+                                </button>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+
                   {/* 字幕：关闭 / 本地字幕 / 在线搜索 / 预览 / 保存 */}
                   <div className="relative">
                     <button
                       type="button"
                       aria-label={zh('字幕', 'Subtitles')}
                       onClick={() => {
+                        setMenuOpen(null)
                         setSubMenu(subMenu === 'local' ? null : 'local')
                         showControls()
                       }}
@@ -1683,6 +1987,7 @@ export default function PlayerModal({
                       type="button"
                       aria-label={zh('播放速度', 'Playback speed')}
                       onClick={() => {
+                        setSubMenu(null)
                         setMenuOpen(menuOpen === 'speed' ? null : 'speed')
                         showControls()
                       }}

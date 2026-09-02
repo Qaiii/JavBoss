@@ -36,6 +36,11 @@ type VideoMetadata struct {
 	FormatBitRate   int64
 	VideoBitRate    int64
 	AudioBitRate    int64
+	// ConstantFrameRate reports whether the container's frame timing is uniform
+	// (single stts delta for the video track). Non-CFR sources cause browsers'
+	// CFR video renderers to periodically drop frames, so they should not be
+	// served through the direct MP4 path.
+	ConstantFrameRate bool
 }
 
 func (m *VideoMetadata) Fingerprint(size int64) string {
@@ -345,7 +350,27 @@ func ProbeVideoContext(ctx context.Context, path string) (*VideoMetadata, error)
 	if err != nil {
 		return nil, err
 	}
+	// 浏览器直接播放依赖 CFR（恒定帧率）帧时序：非 CFR 源（如重编码时
+	// 时间基取整不当的 MP4）会被 Chrome 的 CFR 渲染器周期性丢帧，导致
+	// 观感卡顿。仅对浏览器可直放的 MP4 家族探测帧时序均匀性。
+	if isDirectPlayableContainer(meta.Container) {
+		meta.ConstantFrameRate = probeConstantFrameRate(path)
+	} else {
+		// 非 MP4 家族无法直放，必然走转码通道；转码会重建 CFR 时序。
+		meta.ConstantFrameRate = true
+	}
 	return meta, nil
+}
+
+// isDirectPlayableContainer reports whether the container can be played
+// directly by browsers without transcoding.
+func isDirectPlayableContainer(container string) bool {
+	switch container {
+	case "mp4", "mov", "m4v", "3gp", "3g2":
+		return true
+	default:
+		return false
+	}
 }
 
 type ffprobeStream struct {
