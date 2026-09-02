@@ -950,16 +950,6 @@ export default function PlayerModal({
     )
   }, [duration])
 
-  // 悬停位置用 clamp 后的 left 百分比显示：0%..100% 对应进度条左右两端，
-  // 不让气泡超出进度条边界（此时元素实际中心与指针位置稍有偏差，属于预期取舍）
-  const tooltipOffsetPercent = (() => {
-    if (!tooltipBox) return tooltipPercent
-    const maxPx = Math.max(0, tooltipBox.barW - tooltipBox.tooltipW)
-    if (maxPx <= 0) return tooltipPercent
-    const leftPx = (tooltipPercent / 100) * tooltipBox.barW - tooltipBox.tooltipW / 2
-    return clampPercent((Math.min(Math.max(0, leftPx), maxPx) / tooltipBox.barW) * 100)
-  })()
-
   useEffect(() => {
     if (!video || !videoRef.current || !selectedSource?.src) return
     // 切换文件后播放信息未加载完前，不基于旧 source 重建播放器
@@ -1462,6 +1452,16 @@ export default function PlayerModal({
   const tooltipTime = dragTime ?? seekHoverTime
   const tooltipPercent =
     duration > 0 && tooltipTime != null ? clampPercent((tooltipTime / duration) * 100) : 0
+
+  // 悬停位置用 clamp 后的 left 百分比显示：0%..100% 对应进度条左右两端，
+  // 不让气泡超出进度条边界（此时元素实际中心与指针位置稍有偏差，属于预期取舍）
+  const tooltipOffsetPercent = (() => {
+    if (!tooltipBox) return tooltipPercent
+    const maxPx = Math.max(0, tooltipBox.barW - tooltipBox.tooltipW)
+    if (maxPx <= 0) return tooltipPercent
+    const leftPx = (tooltipPercent / 100) * tooltipBox.barW - tooltipBox.tooltipW / 2
+    return clampPercent((Math.min(Math.max(0, leftPx), maxPx) / tooltipBox.barW) * 100)
+  })()
 
   return (
     <div
