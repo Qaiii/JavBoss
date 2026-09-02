@@ -246,6 +246,12 @@ export default function PlayerModal({
       playbackInfo.sources[0]
     )
   }, [playbackInfo])
+  // 当前视频的 JAV 番号（如 SSIS-480）；无则空。用于搜索字幕时预填关键词。
+  const videoJavCode = useMemo(
+    () =>
+      String(video?.jav?.code || video?.locations?.[0]?.jav?.code || video?.jav_code || '').trim(),
+    [video]
+  )
   // 播放标识：切换集数/文件时用于判断“当前正在播哪一部”
   const playbackKey = `${video?.id || 0}:${video?.location_id || 0}`
   // 同番号多文件：选集列表（去重后的可播文件）
@@ -496,7 +502,10 @@ export default function PlayerModal({
   const runSubtitleSearch = useCallback(
     async (overrideQuery) => {
       if (!video?.id) return
-      const query = (overrideQuery ?? subSearchQuery ?? '').trim()
+      let query = (overrideQuery ?? subSearchQuery ?? '').trim()
+      if (!query && videoJavCode) {
+        query = videoJavCode // 输入为空时回退到番号，方便直接回车搜索
+      }
       if (!query) {
         showSubNotice(zh('请输入番号或关键词', 'Enter a movie code or keyword'))
         return
@@ -520,8 +529,17 @@ export default function PlayerModal({
         setSubSearchBusy(false)
       }
     },
-    [video, subSearchQuery, showSubNotice]
+    [video, subSearchQuery, videoJavCode, showSubNotice]
   )
+
+  // 打开搜索字幕 tab：把输入框预填为当前视频番号（若已填别的内容则保留）
+  const openSubtitleSearch = useCallback(() => {
+    setSubMenu('search')
+    setSubSearchQuery((prev) => {
+      const trimmed = String(prev ?? '').trim()
+      return trimmed || videoJavCode
+    })
+  }, [videoJavCode])
 
   // 加载某部影片的语言轨道列表
   const openSubtitleDetail = useCallback(
@@ -1534,7 +1552,7 @@ export default function PlayerModal({
                           src={framePreview}
                           alt=""
                           draggable={false}
-                          className="block max-h-[16vh] max-w-[26vw] object-contain"
+                          className="block max-h-[8vh] max-w-[13vw] object-contain"
                         />
                       </div>
                     ) : null}
@@ -1755,7 +1773,7 @@ export default function PlayerModal({
                             </button>
                             <button
                               type="button"
-                              onClick={() => setSubMenu('search')}
+                              onClick={() => openSubtitleSearch()}
                               className={`rounded px-2 py-1 text-xs transition-colors ${
                                 subMenu === 'search'
                                   ? 'bg-white/15 font-semibold text-white'
