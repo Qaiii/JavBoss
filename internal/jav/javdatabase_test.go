@@ -107,8 +107,8 @@ func TestParseJavDatabaseMovieInfo(t *testing.T) {
 }
 
 func TestJavDatabaseRateLimiterInterval(t *testing.T) {
-	if javDatabaseRequestInterval != 500*time.Millisecond {
-		t.Fatalf("javdatabase interval = %s, want 500ms", javDatabaseRequestInterval)
+	if javDatabaseRequestInterval != 1500*time.Millisecond {
+		t.Fatalf("javdatabase interval = %s, want 1.5s", javDatabaseRequestInterval)
 	}
 }
 
@@ -288,5 +288,127 @@ func TestFindJavDatabaseActressLinkIgnoresGenreNames(t *testing.T) {
 	}
 	if link != "https://www.javdatabase.com/idols/sora-inoue/" {
 		t.Fatalf("unexpected actress link: %q", link)
+	}
+}
+
+func TestParseJavDatabaseIdolWorksPage(t *testing.T) {
+	doc, err := html.Parse(strings.NewReader(`
+<!doctype html>
+<html>
+<body>
+  <div class="facetwp-template">
+    <div class="row">
+      <div class="col-md-3 col-lg-2 col-xxl-2 col-4">
+        <div class="card h-100 borderlesscard">
+          <div class="card-body d-flex flex-column">
+            <p class="display-6 pcard"><a href="https://www.javdatabase.com/movies/sods-062/" class="cut-text">SODS-062</a></p>
+            <div class="movie-cover-thumb"><a href="https://www.javdatabase.com/movies/sods-062/"><img src="https://www.javdatabase.com/covers/thumb/1s/1sods00062ps.webp" alt="SODS-062 JAV Movie"></a></div>
+            <div class="mt-auto" style="text-align: center;"><a href="https://www.javdatabase.com/movies/sods-062/" class="cut-text">Soft on Demand 2025 Annual Business Report, Part 2: 600 Minutes</a> 2026-08-25 <br><b>Age:</b> 20</div>
+            <span class="btn btn-primary btn-sm cut-text"><a href="https://www.javdatabase.com/studios/sod-create/" rel="tag">SOD Create</a></span>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3 col-lg-2 col-xxl-2 col-4">
+        <div class="card h-100 borderlesscard">
+          <div class="card-body d-flex flex-column">
+            <p class="display-6 pcard"><a href="https://www.javdatabase.com/movies/hdrt-008/" class="cut-text">HDRT-008</a></p>
+            <div class="movie-cover-thumb"><a href="https://www.javdatabase.com/movies/hdrt-008/"><img data-src="https://www.javdatabase.com/covers/thumb/hd/hdrt00008ps.webp" src="https://www.javdatabase.com/covers/blank.gif" alt="HDRT-008 JAV Movie"></a></div>
+            <div class="mt-auto" style="text-align: center;"><a href="https://www.javdatabase.com/movies/hdrt-008/" class="cut-text">A College Girl's Way-Too-Sexy Pantyhose</a> 2026-07-14 <br><b>Age:</b> 19</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3 col-lg-2 col-xxl-2 col-4">
+        <div class="card h-100 borderlesscard">
+          <div class="card-body d-flex flex-column">
+            <p class="display-6 pcard"><a href="https://www.spermmania.com/type/Facial-Bukkake?ref=abc" class="cut-text" rel="sponsored">Facial Flood</a></p>
+            <div class="movie-cover-thumb"><a href="https://www.spermmania.com/type/Facial-Bukkake?ref=abc" rel="sponsored"><img src="https://www.javdatabase.com/vertical/spermmania/sperm05.jpg" alt="Facial Flood"></a></div>
+            <div class="mt-auto" style="text-align: center;">2026-09-03</div>
+            <span class="btn btn-primary btn-sm cut-text"><a href="https://www.spermmania.com/type/Facial-Bukkake?ref=abc" rel="tag">Sperm Mania</a></span>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3 col-lg-2 col-xxl-2 col-4">
+        <div class="card h-100 borderlesscard">
+          <div class="card-body d-flex flex-column">
+            <p class="display-6 pcard"><a href="https://www.javdatabase.com/movies/hdrt-00802/" class="cut-text">HDRT-00802</a></p>
+            <div class="movie-cover-thumb"><a href="https://www.javdatabase.com/movies/hdrt-00802/"><img src="https://www.javdatabase.com/covers/thumb/hd/hdrt00802ps.webp" alt="HDRT-00802 JAV Movie"></a></div>
+            <div class="mt-auto" style="text-align: center;"><a href="https://www.javdatabase.com/movies/hdrt-00802/" class="cut-text">A College Girl's Way-Too-Sexy Pantyhose. Kanna</a> 2026-07-15 <br><b>Age:</b> 20</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <nav aria-label="Page navigation" role="navigation"><span class="sr-only">Page navigation</span><ul class="pagination justify-content-center ft-wpbs mb-4"><li class="page-item active"><span class="page-link">1</span></li><li class="page-item"><a class="page-link" href="https://www.javdatabase.com/idols/kanna-sasaki/?ipage=2">2</a></li></ul></nav>
+</body>
+</html>`))
+	if err != nil {
+		t.Fatalf("parse html: %v", err)
+	}
+
+	items := parseJavDatabaseIdolWorksPage(doc, "https://www.javdatabase.com/idols/kanna-sasaki/")
+	if len(items) != 3 {
+		t.Fatalf("parseJavDatabaseIdolWorksPage() = %d items, want 3 (sponsored card skipped)", len(items))
+	}
+	if items[0].Code != "SODS-062" {
+		t.Fatalf("items[0].Code = %q, want SODS-062", items[0].Code)
+	}
+	if items[0].Title != "Soft on Demand 2025 Annual Business Report, Part 2: 600 Minutes" {
+		t.Fatalf("items[0].Title = %q", items[0].Title)
+	}
+	if items[0].CoverURL != "https://www.javdatabase.com/covers/thumb/1s/1sods00062ps.webp" {
+		t.Fatalf("items[0].CoverURL = %q", items[0].CoverURL)
+	}
+	// Release date parsed from footer text.
+	wantUnix := time.Date(2026, 8, 25, 0, 0, 0, 0, time.UTC).Unix()
+	if items[0].ReleaseUnix != wantUnix {
+		t.Fatalf("items[0].ReleaseUnix = %d, want %d", items[0].ReleaseUnix, wantUnix)
+	}
+	// Lazy cover (data-src) resolved.
+	if items[1].Code != "HDRT-008" || items[1].CoverURL != "https://www.javdatabase.com/covers/thumb/hd/hdrt00008ps.webp" {
+		t.Fatalf("items[1] = code %q cover %q", items[1].Code, items[1].CoverURL)
+	}
+	if items[2].Code != "HDRT-00802" {
+		t.Fatalf("items[2].Code = %q, want HDRT-00802 (codes with inner zeros must not collide)", items[2].Code)
+	}
+}
+
+func TestParseJavDatabaseIdolWorksPageNil(t *testing.T) {
+	items := parseJavDatabaseIdolWorksPage(nil, "https://www.javdatabase.com/idols/x")
+	if len(items) != 0 {
+		t.Fatalf("parseJavDatabaseIdolWorksPage(nil) = %d items, want 0", len(items))
+	}
+}
+
+func TestHasJavDatabaseNextIdolPage(t *testing.T) {
+	doc, err := html.Parse(strings.NewReader(`
+<html><body>
+  <nav aria-label="Page navigation"><ul class="pagination justify-content-center ft-wpbs mb-4">
+    <li class="page-item active"><span class="page-link">1</span></li>
+    <li class="page-item"><a class="page-link" href="https://www.javdatabase.com/idols/kanna-sasaki/?ipage=2">2</a></li>
+  </ul></nav>
+</body></html>`))
+	if err != nil {
+		t.Fatalf("parse html: %v", err)
+	}
+	if !hasJavDatabaseNextIdolPage(doc) {
+		t.Fatal("hasJavDatabaseNextIdolPage() = false, want true")
+	}
+
+	last, _ := html.Parse(strings.NewReader(`<html><body><div class="row"></div></body></html>`))
+	if hasJavDatabaseNextIdolPage(last) {
+		t.Fatal("hasJavDatabaseNextIdolPage() = true for last page, want false")
+	}
+}
+
+func TestJavDatabaseIdolWorksPageURL(t *testing.T) {
+	base := "https://www.javdatabase.com/idols/kanna-sasaki/"
+	if got := javDatabaseIdolWorksPageURL(base, 1); got != base {
+		t.Fatalf("page1 url = %q", got)
+	}
+	if got := javDatabaseIdolWorksPageURL(base, 2); got != base+"?ipage=2" {
+		t.Fatalf("page2 url = %q", got)
+	}
+	if got := javDatabaseIdolWorksPageURL(base+"?foo=1", 2); got != base+"?foo=1&ipage=2" {
+		t.Fatalf("page2 url with existing query = %q", got)
 	}
 }

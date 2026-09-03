@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand"
 	"strings"
 	"sync"
 	"time"
@@ -14,24 +15,33 @@ import (
 	"javboss/internal/models"
 )
 
-// IdolWorksManager owns the background queue that scrapes the full JavDB works
-// list for tracked idols. It runs a single worker so requests stay serialized
-// and rate-limited (JavDB itself throttles to one request per 500ms, and an
-// extra per-page delay keeps bursts low).
+// IdolWorksManager owns the background queue that scrapes the full works list
+// for tracked idols. It runs a single worker so requests stay serialized and
+// rate-limited, and the chosen provider changes between runs (and falls back
+// to another provider on failure) so no single site is hammered.
 type IdolWorksManager struct {
-	tasks     chan int64
-	mu        sync.Mutex
-	scheduled map[int64]struct{}
-	pageDelay time.Duration
+	tasks              chan int64
+	mu                 sync.Mutex
+	scheduled          map[int64]struct{}
+	pageDelay          time.Duration
+	pageDelayJitter    time.Duration
+	sourceSwitchDelay  time.Duration
+	sourceSwitchJitter time.Duration
 }
 
 const (
 	idolWorksQueueSize = 5000
-	// idolWorksPageDelay is the extra pause between consecutive pages of one
-	// idol's works listing, on top of the provider rate limiter.
-	idolWorksPageDelay = 2 * time.Second
+	// idolWorksPageDelayBase is the base pause between consecutive pages of one
+	// idol's works listing. A random jitter of up to idolWorksPageDelayJitter is
+	// added so request timing does not look like a fixed-interval crawler.
+	idolWorksPageDelayBase   = 3 * time.Second
+	idolWorksPageDelayJitter = 4 * time.Second
+	// sourceSwitchDelayBase / Jitter pause before retrying on another provider
+	// after one fails, again with a random jitter.
+	sourceSwitchDelayBase   = 4 * time.Second
+	sourceSwitchDelayJitter = 6 * time.Second
 	// maxProfileCodes caps how many library codes are tried when resolving the
-	// idol's JavDB profile URL.
+	// idol's profile URL on any provider.
 	maxProfileCodes = 6
 )
 
@@ -42,6 +52,13 @@ var (
 	// Injectable for tests.
 	lookupActressURLByCodeAndName = jav.LookupActressURLByCodeAndName
 	listJavWorksByActressURL      = jav.ListJavWorksByActressURL
+	// resolveJavDatabaseProfileURL resolves a JavDatabase profile URL for an
+	// idol from one of her in-library codes (its lookup is code-driven rather
+	// than code+name driven). Injectable for tests.
+	resolveJavDatabaseProfileURL = lookupJavDatabaseProfileURL
+	// listJavDatabaseWorksByActressURL lists one page of an idol's works from
+	// her JavDatabase profile page. Injectable for tests.
+	listJavDatabaseWorksByActressURL = jav.ListJavDatabaseWorksByActressURL
 )
 
 // OverrideLookupActressURL replaces the JavDB profile-URL resolver (tests only).
@@ -58,13 +75,32 @@ func OverrideListJavWorks(fn func(ctx context.Context, profileURL string, page i
 	}
 }
 
+// OverrideJavDatabaseProfileResolver replaces the JavDatabase profile-URL
+// resolver (tests only).
+func OverrideJavDatabaseProfileResolver(fn func(ctx context.Context, item *models.JavIdol) (string, error)) {
+	if fn != nil {
+		resolveJavDatabaseProfileURL = fn
+	}
+}
+
+// OverrideJavDatabaseWorksList replaces the JavDatabase works-list fetcher
+// (tests only).
+func OverrideJavDatabaseWorksList(fn func(ctx context.Context, profileURL string, page int) ([]*jav.JavInfo, bool, error)) {
+	if fn != nil {
+		listJavDatabaseWorksByActressURL = fn
+	}
+}
+
 // InitIdolWorksManager creates the process-wide works manager.
 func InitIdolWorksManager() *IdolWorksManager {
 	idolWorksManagerOnce.Do(func() {
 		idolWorksMgr = &IdolWorksManager{
-			tasks:     make(chan int64, idolWorksQueueSize),
-			scheduled: make(map[int64]struct{}),
-			pageDelay: idolWorksPageDelay,
+			tasks:              make(chan int64, idolWorksQueueSize),
+			scheduled:          make(map[int64]struct{}),
+			pageDelay:          idolWorksPageDelayBase,
+			pageDelayJitter:    idolWorksPageDelayJitter,
+			sourceSwitchDelay:  sourceSwitchDelayBase,
+			sourceSwitchJitter: sourceSwitchDelayJitter,
 		}
 	})
 	return idolWorksMgr
@@ -156,9 +192,52 @@ func EnqueueIdolWorksForActors(ctx context.Context, actorNames []string) {
 	}
 }
 
-// ScrapeIdolWorks resolves the idol's JavDB profile URL (when needed) and
-// fetches every page of her works list, persisting the result. Failures update
-// the track row's last_error so the next scheduled refresh retries.
+// idolWorksSource describes one provider that can scrape an idol's full works
+// list. resolveProfile turns a library idol into that provider's profile page
+// URL; listWorks fetches one page of the works listing (the bool reports
+// whether a later page exists). A single scrape pins one source so a whole run
+// is self-consistent; the next refresh may pick another source.
+type idolWorksSource struct {
+	provider       jav.Provider
+	resolveProfile func(ctx context.Context, item *models.JavIdol) (string, error)
+	listWorks      func(ctx context.Context, profileURL string, page int) ([]*jav.JavInfo, bool, error)
+}
+
+// idolWorksSources lists the providers the works scraper may use, in fallback
+// order. JavDB is the richest source; JavDatabase is a code-driven fallback
+// that stays useful when JavDB is blocked. A single scrape picks one of these
+// (preferring the one that already produced a profile URL), and on failure
+// moves to the next in a random order so traffic is spread.
+//
+// The listWorks/resolveProfile closures dereference the package-level test
+// hooks on every call so tests can swap the underlying fetchers at runtime.
+var idolWorksSources = []idolWorksSource{
+	{
+		provider: jav.ProviderJavDB,
+		resolveProfile: func(ctx context.Context, item *models.JavIdol) (string, error) {
+			return lookupJavDBProfileURL(ctx, item)
+		},
+		listWorks: func(ctx context.Context, profileURL string, page int) ([]*jav.JavInfo, bool, error) {
+			return listJavWorksByActressURL(ctx, profileURL, page)
+		},
+	},
+	{
+		provider: jav.ProviderJavDatabase,
+		resolveProfile: func(ctx context.Context, item *models.JavIdol) (string, error) {
+			return resolveJavDatabaseProfileURL(ctx, item)
+		},
+		listWorks: func(ctx context.Context, profileURL string, page int) ([]*jav.JavInfo, bool, error) {
+			return listJavDatabaseWorksByActressURL(ctx, profileURL, page)
+		},
+	},
+}
+
+// ScrapeIdolWorks resolves the idol's profile URL on a works provider and
+// fetches every page of her works list, persisting the result. The provider is
+// chosen so that a known profile URL is reused, otherwise the source list is
+// walked in random order; when one provider fails the next is tried after a
+// short randomized pause. Failures update the track row's last_error so the
+// next scheduled refresh retries.
 func ScrapeIdolWorks(ctx context.Context, idolID int64) error {
 	item, err := dbpkg.GetJavIdolBasic(ctx, idolID)
 	if err != nil {
@@ -170,25 +249,71 @@ func ScrapeIdolWorks(ctx context.Context, idolID int64) error {
 		return err
 	}
 
-	profileURL := strings.TrimSpace(track.JavdbURL)
-	if profileURL == "" {
-		profileURL, err = lookupJavDBProfileURL(ctx, item)
-		if err != nil {
-			_ = dbpkg.MarkJavIdolTrackError(ctx, idolID, err)
-			return fmt.Errorf("resolve javdb profile url: %w", err)
+	knownProfile := strings.TrimSpace(track.JavdbURL)
+	knownSource := sourceForProfileURL(knownProfile)
+
+	// Walk the sources in a random order (a random shuffle of all but the known
+	// one, with the known one first) so repeated scrapes do not always hammer
+	// the same provider first.
+	sources := shuffledWorksSources(knownSource)
+	var lastErr error
+	for _, src := range sources {
+		profileURL := knownProfile
+		if knownProfile == "" || sourceForProfileURL(profileURL) != src.provider {
+			profileURL, err = src.resolveProfile(ctx, item)
+			if err != nil {
+				lastErr = err
+				logging.Error("resolve %s profile url idol_id=%d: %v", src.provider.String(), idolID, err)
+				if !sleepBeforeSourceSwitch(ctx, len(sources) > 1) {
+					return ctx.Err()
+				}
+				continue
+			}
 		}
+		profileURL = strings.TrimSpace(profileURL)
+		if profileURL == "" {
+			lastErr = jav.ResourceNotFonud
+			if !sleepBeforeSourceSwitch(ctx, len(sources) > 1) {
+				return ctx.Err()
+			}
+			continue
+		}
+
+		works, err := scrapeAllWorksPages(ctx, idolID, src.provider, profileURL)
+		if err != nil {
+			lastErr = err
+			logging.Error("scrape %s works idol_id=%d: %v", src.provider.String(), idolID, err)
+			if !sleepBeforeSourceSwitch(ctx, len(sources) > 1) {
+				return ctx.Err()
+			}
+			continue
+		}
+
+		if err := dbpkg.ReplaceJavIdolWorks(ctx, idolID, works); err != nil {
+			return err
+		}
+		return dbpkg.MarkJavIdolTrackScraped(ctx, idolID, profileURL, len(works), time.Now())
 	}
 
+	if lastErr == nil {
+		lastErr = jav.ResourceNotFonud
+	}
+	_ = dbpkg.MarkJavIdolTrackError(ctx, idolID, lastErr)
+	return fmt.Errorf("scrape idol works: %w", lastErr)
+}
+
+// scrapeAllWorksPages fetches every page of one provider's works listing for an
+// idol, returning the flattened JavIdolWork rows tagged with the provider.
+func scrapeAllWorksPages(ctx context.Context, idolID int64, provider jav.Provider, profileURL string) ([]models.JavIdolWork, error) {
 	works := make([]models.JavIdolWork, 0, 96)
 	page := 1
 	for {
 		if err := ctx.Err(); err != nil {
-			return err
+			return nil, err
 		}
-		items, hasNext, err := listJavWorksByActressURL(ctx, profileURL, page)
+		items, hasNext, err := listWorksForSource(provider, ctx, profileURL, page)
 		if err != nil {
-			_ = dbpkg.MarkJavIdolTrackError(ctx, idolID, err)
-			return fmt.Errorf("list javdb works page %d: %w", page, err)
+			return nil, fmt.Errorf("list works page %d: %w", page, err)
 		}
 		for _, w := range items {
 			if w == nil || strings.TrimSpace(w.Code) == "" {
@@ -205,6 +330,7 @@ func ScrapeIdolWorks(ctx context.Context, idolID int64) error {
 				CoverURL:    w.CoverURL,
 				ReleaseUnix: w.ReleaseUnix,
 				DurationMin: w.DurationMin,
+				Source:      int(provider),
 				SourceURL:   sourceURL,
 			})
 		}
@@ -212,21 +338,121 @@ func ScrapeIdolWorks(ctx context.Context, idolID int64) error {
 			break
 		}
 		page++
-		pageDelay := idolWorksPageDelay
-		if idolWorksMgr != nil && idolWorksMgr.pageDelay > 0 {
-			pageDelay = idolWorksMgr.pageDelay
+		if !sleepBetweenWorksPages(ctx) {
+			return nil, ctx.Err()
 		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(pageDelay):
+	}
+	return works, nil
+}
+
+func listWorksForSource(provider jav.Provider, ctx context.Context, profileURL string, page int) ([]*jav.JavInfo, bool, error) {
+	for _, src := range idolWorksSources {
+		if src.provider == provider {
+			return src.listWorks(ctx, profileURL, page)
 		}
+	}
+	return nil, false, fmt.Errorf("no works source for provider %s", provider.String())
+}
+
+// sourceForProfileURL returns the provider whose profile URL form matches the
+// given stored URL, or ProviderUnknown. Stored profile URLs are reused only
+// when they belong to a provider we still know how to scrape.
+func sourceForProfileURL(profileURL string) jav.Provider {
+	if strings.Contains(strings.ToLower(profileURL), "/actors/") {
+		return jav.ProviderJavDB
+	}
+	if strings.Contains(strings.ToLower(profileURL), "/idols/") {
+		return jav.ProviderJavDatabase
+	}
+	return jav.ProviderUnknown
+}
+
+// shuffledWorksSources returns the sources to try for one scrape, most
+// preferred first. When a stored profile URL pins a provider that provider
+// goes first; otherwise JavDB leads as the richest source. The remaining
+// sources are shuffled so a scrape that must move past the leader does not
+// always fall to the same second site.
+func shuffledWorksSources(preferred jav.Provider) []idolWorksSource {
+	if preferred != jav.ProviderUnknown {
+		lead := []idolWorksSource{}
+		rest := make([]idolWorksSource, 0, len(idolWorksSources))
+		for _, src := range idolWorksSources {
+			if src.provider == preferred {
+				lead = append(lead, src)
+			} else {
+				rest = append(rest, src)
+			}
+		}
+		rand.Shuffle(len(rest), func(i, j int) { rest[i], rest[j] = rest[j], rest[i] })
+		return append(lead, rest...)
 	}
 
-	if err := dbpkg.ReplaceJavIdolWorks(ctx, idolID, works); err != nil {
-		return err
+	// No stored profile: JavDB keeps the primary slot (data richest and the
+	// historical default); the fallback order after it is randomized.
+	lead := []idolWorksSource{}
+	rest := make([]idolWorksSource, 0, len(idolWorksSources))
+	for _, src := range idolWorksSources {
+		if src.provider == jav.ProviderJavDB {
+			lead = append(lead, src)
+		} else {
+			rest = append(rest, src)
+		}
 	}
-	return dbpkg.MarkJavIdolTrackScraped(ctx, idolID, profileURL, len(works), time.Now())
+	rand.Shuffle(len(rest), func(i, j int) { rest[i], rest[j] = rest[j], rest[i] })
+	return append(lead, rest...)
+}
+
+// sleepBetweenWorksPages pauses between consecutive pages of one idol's works
+// listing, using the manager's configured base delay plus a random jitter.
+func sleepBetweenWorksPages(ctx context.Context) bool {
+	base := idolWorksPageDelayBase
+	jitter := idolWorksPageDelayJitter
+	if idolWorksMgr != nil {
+		if idolWorksMgr.pageDelay > 0 {
+			base = idolWorksMgr.pageDelay
+		}
+		if idolWorksMgr.pageDelayJitter > 0 {
+			jitter = idolWorksMgr.pageDelayJitter
+		}
+	}
+	return sleepWithJitter(ctx, base, jitter)
+}
+
+// sleepBeforeSourceSwitch pauses before retrying on another provider after one
+// failed. It is skipped when there is only one provider in the pool (the
+// previous behaviour, no delay on failure).
+func sleepBeforeSourceSwitch(ctx context.Context, multipleSources bool) bool {
+	if !multipleSources {
+		return true
+	}
+	base := sourceSwitchDelayBase
+	jitter := sourceSwitchDelayJitter
+	if idolWorksMgr != nil {
+		if idolWorksMgr.sourceSwitchDelay > 0 {
+			base = idolWorksMgr.sourceSwitchDelay
+		}
+		if idolWorksMgr.sourceSwitchJitter > 0 {
+			jitter = idolWorksMgr.sourceSwitchJitter
+		}
+	}
+	return sleepWithJitter(ctx, base, jitter)
+}
+
+// sleepWithJitter waits a random duration in [base, base+jitter), aborting if
+// the context is cancelled. It reports whether the full pause elapsed.
+func sleepWithJitter(ctx context.Context, base, jitter time.Duration) bool {
+	delay := base
+	if jitter > 0 {
+		delay += time.Duration(rand.Int63n(int64(jitter)))
+	}
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+		return true
+	}
 }
 
 // StartIdolWorksRefreshScheduler periodically enqueues every tracked idol
@@ -302,6 +528,46 @@ func lookupJavDBProfileURL(ctx context.Context, item *models.JavIdol) (string, e
 				return "", err
 			}
 		}
+	}
+	return "", jav.ResourceNotFonud
+}
+
+// lookupJavDatabaseProfileURL resolves the idol's JavDatabase profile URL by
+// trying each in-library code. JavDatabase's actress lookup is code-driven: it
+// reads a movie page, finds the idol link and follows it, returning the profile
+// URL on ActressInfo. The first code that resolves wins. This resolver is only
+// consulted as a fallback when JavDB is unavailable, so its extra per-code
+// requests are acceptable.
+func lookupJavDatabaseProfileURL(ctx context.Context, item *models.JavIdol) (string, error) {
+	codes, err := dbpkg.ListIdolCoverCodes(ctx, item.ID, nil)
+	if err != nil {
+		return "", err
+	}
+	if len(codes) == 0 {
+		return "", jav.ResourceNotFonud
+	}
+	if len(codes) > maxProfileCodes {
+		codes = codes[:maxProfileCodes]
+	}
+
+	for _, code := range codes {
+		actress, err := jav.LookupActressByCode(code, jav.ProviderJavDatabase)
+		if err != nil {
+			if errors.Is(err, jav.ResourceNotFonud) {
+				continue
+			}
+			// Network/HTTP errors: fail fast rather than multiplying requests
+			// against an unhealthy provider.
+			return "", err
+		}
+		if actress == nil {
+			continue
+		}
+		profileURL := strings.TrimSpace(actress.ProfileURL)
+		if profileURL == "" {
+			continue
+		}
+		return profileURL, nil
 	}
 	return "", jav.ResourceNotFonud
 }

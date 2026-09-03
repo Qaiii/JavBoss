@@ -235,9 +235,10 @@ func (JavIdolTrack) TableName() string {
 	return "jav_idol_track"
 }
 
-// JavIdolWork is one work scraped from an idol's JavDB profile page. The
-// library membership of a code is not stored here; it is derived at read time
-// against the jav table.
+// JavIdolWork is one work scraped from an idol's profile page (JavDB or a
+// fallback provider). Source holds the jav.Provider value the row came from
+// (0 = unknown/legacy). The library membership of a code is not stored here;
+// it is derived at read time against the jav table.
 type JavIdolWork struct {
 	ID          int64     `json:"id" gorm:"primaryKey"`
 	JavIdolID   int64     `json:"jav_idol_id" gorm:"not null;uniqueIndex:idx_jav_idol_work_jav_idol_id_code,priority:1"`
@@ -250,6 +251,9 @@ type JavIdolWork struct {
 	SourceURL   string    `json:"source_url" gorm:"type:text"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
+	// Source is appended after the timestamps so the column order matches the
+	// ALTER TABLE that adds it to databases created before this field existed.
+	Source int `json:"source" gorm:"not null;default:0"`
 }
 
 func (JavIdolWork) TableName() string {

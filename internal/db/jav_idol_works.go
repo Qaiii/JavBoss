@@ -95,6 +95,7 @@ type JavIdolWorksSummary struct {
 	CoverURL    string `json:"cover_url"`
 	ReleaseUnix int64  `json:"release_unix"`
 	DurationMin int    `json:"duration_min"`
+	Source      int    `json:"source"`
 	SourceURL   string `json:"source_url"`
 	InLibrary   bool   `json:"in_library"`
 }
@@ -303,6 +304,7 @@ func ListJavIdolWorks(ctx context.Context, idolID int64, limit, offset int) ([]J
 			CoverURL:    work.CoverURL,
 			ReleaseUnix: work.ReleaseUnix,
 			DurationMin: work.DurationMin,
+			Source:      work.Source,
 			SourceURL:   work.SourceURL,
 			InLibrary:   work.Code != "" && inLibrary[strings.ToUpper(strings.TrimSpace(work.Code))] != nil,
 		})

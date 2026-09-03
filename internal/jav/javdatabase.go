@@ -29,7 +29,7 @@ var javDatabaseProvider lookupProvider = javDatabase{}
 
 var errNoActressLink = errors.New("javdatabase: actress link not found")
 
-const javDatabaseRequestInterval = 500 * time.Millisecond
+const javDatabaseRequestInterval = 1500 * time.Millisecond
 
 var javDatabaseRateLimiter = struct {
 	sync.Mutex
@@ -148,6 +148,175 @@ func lookupActressByCode(code string) (*ActressInfo, error) {
 	}
 	info.ProfileURL = actressURL
 	return info, nil
+}
+
+// javDatabaseWorksPage is the cached unit for a single idol works listing page.
+type javDatabaseWorksPage struct {
+	Items   []*JavInfo
+	HasNext bool
+}
+
+// ListJavDatabaseWorksByActressURL fetches one page of an idol's works from her
+// JavDatabase profile page. Page 1 is the bare profile URL; later pages append
+// the ?ipage=N query used by the site's FacetWP listing. The returned bool
+// reports whether a later page exists.
+func ListJavDatabaseWorksByActressURL(ctx context.Context, profileURL string, page int) ([]*JavInfo, bool, error) {
+	profileURL = strings.TrimSpace(profileURL)
+	if profileURL == "" || !strings.Contains(strings.ToLower(profileURL), "/idols/") {
+		return nil, false, ResourceNotFonud
+	}
+	if page < 1 {
+		page = 1
+	}
+
+	targetURL := javDatabaseIdolWorksPageURL(profileURL, page)
+	cacheKey := lookupCacheKey(ProviderJavDatabase, "list_idol_works", fmt.Sprintf("%s|%d", profileURL, page))
+	if cached, ok, err := lookupCacheGet[javDatabaseWorksPage](cacheKey); ok {
+		if err != nil {
+			return nil, false, err
+		}
+		return cached.Items, cached.HasNext, nil
+	}
+
+	doc, status, err := fetchJavDatabaseHTML(ctx, targetURL, profileURL)
+	if err != nil {
+		return nil, false, err
+	}
+	if status == http.StatusNotFound || doc == nil {
+		cacheableLookupResult(cacheKey, nil, ResourceNotFonud)
+		return nil, false, ResourceNotFonud
+	}
+
+	result := javDatabaseWorksPage{
+		Items:   parseJavDatabaseIdolWorksPage(doc, targetURL),
+		HasNext: hasJavDatabaseNextIdolPage(doc),
+	}
+	cacheableLookupResult(cacheKey, result, nil)
+	return result.Items, result.HasNext, nil
+}
+
+// javDatabaseIdolWorksPageURL appends the ipage query param. Page 1 uses the
+// bare profile URL, matching the default first page served by JavDatabase.
+func javDatabaseIdolWorksPageURL(profileURL string, page int) string {
+	if page <= 1 {
+		return strings.TrimSpace(profileURL)
+	}
+	sep := "?"
+	if strings.Contains(profileURL, "?") {
+		sep = "&"
+	}
+	return fmt.Sprintf("%s%sipage=%d", profileURL, sep, page)
+}
+
+// parseJavDatabaseIdolWorksPage extracts works from an idol's profile listing.
+// Every work card (div.card.h-100.borderlesscard) carries the code as the
+// p.display-6.pcard link text with an href of /movies/<code>/; the title sits
+// next to the release date in the mt-auto footer.
+func parseJavDatabaseIdolWorksPage(root *html.Node, pageURL string) []*JavInfo {
+	if root == nil {
+		return nil
+	}
+
+	seen := make(map[string]struct{})
+	var items []*JavInfo
+	documentSelection(root).
+		Find("div.card.h-100.borderlesscard, div.card.borderlesscard").
+		Each(func(_ int, card *goquery.Selection) {
+			code := ""
+			card.Find("p.display-6.pcard a, p.display-6 a, p.pcard a").EachWithBreak(func(_ int, link *goquery.Selection) bool {
+				href := selectionAttr(link, "href")
+				if idx := strings.Index(strings.ToLower(href), "/movies/"); idx >= 0 {
+					rest := href[idx+len("/movies/"):]
+					rest = strings.TrimSuffix(rest, "/")
+					if rest != "" {
+						code = rest
+						return false
+					}
+				}
+				return true
+			})
+			if code == "" {
+				return
+			}
+
+			info := &JavInfo{
+				Code:     strings.ToUpper(strings.TrimSpace(code)),
+				Title:    javDatabaseCardTitle(card),
+				CoverURL: javDatabaseCardCoverURL(card, pageURL),
+				Provider: ProviderJavDatabase,
+			}
+			info.ReleaseUnix = parseDateUnix(javDatabaseCardFooterText(card))
+			if strings.TrimSpace(info.Title) == "" {
+				info.Title = info.Code
+			}
+
+			key := normalizeJavDatabaseCode(info.Code)
+			if _, exists := seen[key]; exists {
+				return
+			}
+			seen[key] = struct{}{}
+			items = append(items, info)
+		})
+	return items
+}
+
+// javDatabaseCardCoverURL resolves the cover of a work card. The image sits in
+// div.movie-cover-thumb img; honor lazy-load attributes like the other
+// providers do.
+func javDatabaseCardCoverURL(card *goquery.Selection, pageURL string) string {
+	if card == nil {
+		return ""
+	}
+	img := card.Find("div.movie-cover-thumb img, a img, img").First()
+	return firstResolvedSampleURL(
+		pageURL,
+		selectionAttr(img, "data-src"),
+		selectionAttr(img, "data-original"),
+		selectionAttr(img, "data-lazy-src"),
+		selectionAttr(img, "src"),
+	)
+}
+
+// javDatabaseCardTitle extracts the work title from the mt-auto footer link.
+// The code link in p.display-6.pcard is skipped; the title is the first link
+// inside the footer (plain text, no embedded date markup).
+func javDatabaseCardTitle(card *goquery.Selection) string {
+	if card == nil {
+		return ""
+	}
+	title := cleanSelectionText(card.Find("div.mt-auto a").First())
+	if title == "" {
+		title = cleanSelectionText(card.Find("div.mt-auto").First())
+	}
+	return strings.TrimSpace(title)
+}
+
+// javDatabaseCardFooterText returns the plain footer text of a work card. It is
+// only used as a date source (the card prints "<release date><br><b>Age:</b>…").
+func javDatabaseCardFooterText(card *goquery.Selection) string {
+	if card == nil {
+		return ""
+	}
+	return cleanSelectionText(card.Find("div.mt-auto").First())
+}
+
+// hasJavDatabaseNextIdolPage reports whether the idol listing has pagination
+// pointing to another ipage (i.e. this is not the last page).
+func hasJavDatabaseNextIdolPage(root *html.Node) bool {
+	if root == nil {
+		return false
+	}
+	found := false
+	documentSelection(root).
+		Find("div.pagination a, nav.pagination a, ul.pagination a, .pagination a").
+		EachWithBreak(func(_ int, link *goquery.Selection) bool {
+			if strings.Contains(selectionAttr(link, "href"), "ipage=") {
+				found = true
+				return false
+			}
+			return true
+		})
+	return found
 }
 
 func fetchJavDatabaseHTML(ctx context.Context, targetURL, referer string) (*html.Node, int, error) {
