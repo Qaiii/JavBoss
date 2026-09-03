@@ -1162,6 +1162,9 @@ export default function PlayerModal({
     const handleKeyDown = (event) => {
       // 画中画播放中播放器已移出视口：播放器快捷键不应再接管页面按键
       if (dismissedWhilePipRef.current) return
+      // 带系统组合键（Ctrl/Cmd/Alt）时不触发播放器单键热键：否则 Ctrl+C 复制、
+      // Ctrl+A 全选等会被 'c'（快进）/ 'a'（快退）等热键 preventDefault 拦掉。
+      if (event.ctrlKey || event.metaKey || event.altKey) return
       const target = event.target
       if (
         target instanceof Element &&
