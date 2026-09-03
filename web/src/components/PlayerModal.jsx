@@ -942,17 +942,20 @@ export default function PlayerModal({
   // 悬停气泡贴边：气泡是绝对定位并以 left 百分比居中（-translate-x-1/2）。
   // 记录气泡自身宽度后，将 left 的基准点 clamp 在 [半个气泡宽, 进度条宽-半个气泡宽]，
   // 使悬停到进度条最左/最右端时气泡边缘不超出进度条（进而不会超出视频与屏幕）。
+  // 气泡是悬停时才渲染、预览帧异步加载后才变宽，因此须在这些时机重新测量：
+  // 否则按旧（窄）宽度 clamp，预览图加载后实际更宽，最左端时左侧会溢出被裁切。
+  const tooltipVisible = (seekHoverTime != null || dragTime != null) && duration > 0
   useLayoutEffect(() => {
     const tooltip = seekTooltipRef.current
     const bar = seekBarRef.current
-    if (!tooltip || !bar || !duration) return
+    if (!tooltip || !bar || !tooltipVisible) return
     const tooltipW = tooltip.offsetWidth
     const barW = bar.clientWidth
     if (!tooltipW || !barW) return
     setTooltipBox((prev) =>
       prev && prev.tooltipW === tooltipW && prev.barW === barW ? prev : { tooltipW, barW }
     )
-  }, [duration])
+  }, [duration, tooltipVisible, framePreview])
 
   useEffect(() => {
     if (!video || !videoRef.current || !selectedSource?.src) return
