@@ -33,7 +33,8 @@ func TestListLocalSubtitlesOrdering(t *testing.T) {
 	for _, sub := range subs {
 		got = append(got, sub.Name)
 	}
-	want := []string{"SSIS-480.srt", "SSIS-480.vtt", "SSIS-480-1.srt", "SSIS-480.cht.srt", "another-movie.srt"}
+	// 无番号时回退为按视频文件名过滤：another-movie.srt 与 SSIS-480 无关，被滤掉
+	want := []string{"SSIS-480.srt", "SSIS-480.vtt", "SSIS-480-1.srt", "SSIS-480.cht.srt"}
 	if len(got) != len(want) {
 		t.Fatalf("got %v, want %v", got, want)
 	}
@@ -174,6 +175,42 @@ func TestNormalizeName(t *testing.T) {
 	for input, want := range cases {
 		if got := normalizeName(input); got != want {
 			t.Fatalf("normalizeName(%q) = %q, want %q", input, got, want)
+		}
+	}
+}
+
+func TestListLocalSubtitlesFallsBackToVideoNameWhenNoCode(t *testing.T) {
+	// 视频未关联 JAV 元数据（code 为空）：仍应只显示与视频文件同名的字幕，
+	// 目录里其他视频的字幕（如 JUR-287）不得混入。
+	dir := t.TempDir()
+	files := []string{
+		"JUR-097.mp4",
+		"JUR-097.srt",   // 与视频同名：应显示
+		"JUR-097-2.srt", // 版本字幕：应显示
+		"JUR-287.srt",   // 其他视频的字幕：不该显示
+		"random.srt",    // 无关：不该显示
+	}
+	for _, name := range files {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("x"), 0o644); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
+	}
+
+	subs, err := ListLocalSubtitles(filepath.Join(dir, "JUR-097.mp4"), "")
+	if err != nil {
+		t.Fatalf("ListLocalSubtitles: %v", err)
+	}
+	got := make([]string, 0, len(subs))
+	for _, sub := range subs {
+		got = append(got, sub.Name)
+	}
+	want := []string{"JUR-097.srt", "JUR-097-2.srt"}
+	if len(got) != len(want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("fallback mismatch at %d: got %v, want %v", i, got, want)
 		}
 	}
 }

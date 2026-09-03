@@ -26,7 +26,8 @@ type LocalSubtitle struct {
 // ListLocalSubtitles scans the video's directory for subtitle files and returns
 // them ordered by how closely their name matches the video file name. When code
 // is non-empty, only subtitle files whose name contains that code (the JAV 番号)
-// are returned, so unrelated subtitles in the same directory are hidden.
+// are returned. When code is empty the filter falls back to the video file name,
+// so unrelated subtitles in the same directory are hidden either way.
 func ListLocalSubtitles(videoPath, code string) ([]LocalSubtitle, error) {
 	dir := filepath.Dir(videoPath)
 	entries, err := os.ReadDir(dir)
@@ -46,10 +47,16 @@ func ListLocalSubtitles(videoPath, code string) ([]LocalSubtitle, error) {
 			continue
 		}
 		subBase := normalizeName(entry.Name())
-		// 字幕名必须完整包含番号的每个词元（如 "WAAA-366" -> waaa + 366），
-		// 且作为连续片段出现——"WAAA-36.srt"、同系列的 "ABC-123"（番号为
-		// ABC-12）这类部分/粘连编号不会被误判为匹配。
-		if len(codeTokens) > 0 && !containsTokenSeq(strings.Fields(subBase), codeTokens) {
+		if len(codeTokens) > 0 {
+			// 有番号：字幕名必须完整包含番号的每个词元（如 "WAAA-366" -> waaa + 366），
+			// 且作为连续片段出现——"WAAA-36.srt"、同系列的 "ABC-123"（番号为
+			// ABC-12）这类部分/粘连编号不会被误判为匹配。
+			if !containsTokenSeq(strings.Fields(subBase), codeTokens) {
+				continue
+			}
+		} else if matchScore(videoBase, subBase) <= 0 {
+			// 无番号可依（视频未关联 JAV 元数据）：退化为按视频文件名过滤，
+			// 只显示与本视频文件有关联的字幕，避免同目录其他视频的字幕混入。
 			continue
 		}
 		subs = append(subs, LocalSubtitle{
