@@ -383,6 +383,11 @@ func attachJavLocationVideos(ctx context.Context, items []models.Jav, directoryI
 		Find(&locations).Error; err != nil {
 		return fmt.Errorf("load jav video locations: %w", err)
 	}
+	// 回填每个 location 的 Jav（含番号 code），使播放器拿到的 video 对象
+	// 携带 jav 信息，字幕搜索才能自动预填当前番号。
+	if err := hydrateLocationJavs(ctx, locations); err != nil {
+		return fmt.Errorf("hydrate jav video location javs: %w", err)
+	}
 
 	byJavID := make(map[int64][]models.Video, len(ids))
 	for _, loc := range locations {
