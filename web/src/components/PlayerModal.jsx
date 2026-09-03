@@ -1809,14 +1809,14 @@ export default function PlayerModal({
                       <ClosedCaptionIcon />
                     </button>
                     {subMenu != null ? (
-                      <div className="absolute bottom-12 right-0 z-30 w-72 overflow-hidden rounded-xl border border-white/10 bg-black/90 shadow-2xl backdrop-blur-sm">
+                      <div className="absolute bottom-12 right-0 z-30 w-96 overflow-hidden rounded-xl border border-white/10 bg-black/90 shadow-2xl backdrop-blur-sm">
                         {/* 顶栏：本地 / 搜索 切换 */}
-                        <div className="flex items-center justify-between border-b border-white/10 px-3 py-2">
+                        <div className="flex items-center justify-between border-b border-white/10 px-3 py-2.5">
                           <div className="flex gap-1">
                             <button
                               type="button"
                               onClick={() => setSubMenu('local')}
-                              className={`rounded px-2 py-1 text-xs transition-colors ${
+                              className={`rounded px-2.5 py-1.5 text-sm transition-colors ${
                                 subMenu === 'local'
                                   ? 'bg-white/15 font-semibold text-white'
                                   : 'text-white/60 hover:text-white'
@@ -1827,7 +1827,7 @@ export default function PlayerModal({
                             <button
                               type="button"
                               onClick={() => openSubtitleSearch()}
-                              className={`rounded px-2 py-1 text-xs transition-colors ${
+                              className={`rounded px-2.5 py-1.5 text-sm transition-colors ${
                                 subMenu === 'search'
                                   ? 'bg-white/15 font-semibold text-white'
                                   : 'text-white/60 hover:text-white'
@@ -1840,14 +1840,14 @@ export default function PlayerModal({
                             type="button"
                             aria-label={zh('关闭字幕菜单', 'Close subtitle menu')}
                             onClick={() => setSubMenu(null)}
-                            className="rounded px-1.5 text-sm text-white/60 hover:text-white"
+                            className="rounded px-2 py-0.5 text-lg text-white/60 hover:text-white"
                           >
                             ×
                           </button>
                         </div>
 
                         {subMenu === 'local' ? (
-                          <div className="max-h-72 overflow-y-auto py-1">
+                          <div className="max-h-96 overflow-y-auto py-1.5">
                             <SubMenuItem
                               active={activeSubtitle == null}
                               label={zh('关闭字幕', 'Off')}
@@ -1856,7 +1856,7 @@ export default function PlayerModal({
                               }}
                             />
                             {localSubtitles.length === 0 ? (
-                              <div className="px-3.5 py-2 text-xs text-white/50">
+                              <div className="px-4 py-3 text-sm text-white/50">
                                 {zh(
                                   '未找到同目录字幕，可前往「搜索字幕」在线查找',
                                   'No local subtitles found. Try the online search tab.'
@@ -1882,8 +1882,8 @@ export default function PlayerModal({
                         ) : null}
 
                         {subMenu === 'search' ? (
-                          <div className="max-h-72 overflow-y-auto">
-                            <div className="flex gap-1.5 p-2">
+                          <div className="max-h-96 overflow-y-auto">
+                            <div className="flex gap-2 p-2.5">
                               <input
                                 value={subSearchQuery}
                                 onChange={(event) => setSubSearchQuery(event.target.value)}
@@ -1893,24 +1893,24 @@ export default function PlayerModal({
                                   }
                                 }}
                                 placeholder={zh('番号，如 SSIS-480', 'Movie code, e.g. SSIS-480')}
-                                className="min-w-0 flex-1 rounded bg-white/10 px-2 py-1 text-xs text-white placeholder:text-white/40 focus:outline-none"
+                                className="min-w-0 flex-1 rounded bg-white/10 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:outline-none"
                               />
                               <button
                                 type="button"
                                 disabled={subSearchBusy}
                                 onClick={() => runSubtitleSearch()}
-                                className="rounded bg-white/15 px-2 py-1 text-xs text-white transition-colors hover:bg-white/25 disabled:opacity-50"
+                                className="rounded bg-white/15 px-2.5 text-white transition-colors hover:bg-white/25 disabled:opacity-50"
                               >
-                                <SearchIcon style={{ fontSize: 14 }} />
+                                <SearchIcon style={{ fontSize: 20 }} />
                               </button>
                             </div>
                             {subSearchBusy ? (
-                              <div className="px-3.5 py-3 text-xs text-white/50">
+                              <div className="px-4 py-4 text-sm text-white/50">
                                 {zh('搜索中…', 'Searching...')}
                               </div>
                             ) : null}
                             {!subSearchBusy && subSearchItems.length === 0 ? (
-                              <div className="px-3.5 py-3 text-xs text-white/50">
+                              <div className="px-4 py-4 text-sm text-white/50">
                                 {zh(
                                   '输入番号搜索在线字幕；搜索结果可预览或保存到视频目录',
                                   'Search online subtitles by movie code. Results can be previewed or saved next to the video.'
@@ -1926,7 +1926,7 @@ export default function PlayerModal({
                                   <button
                                     type="button"
                                     onClick={() => openSubtitleDetail(item.code)}
-                                    className="flex w-full items-center justify-between gap-2 px-3.5 py-2 text-left text-xs transition-colors hover:bg-white/10"
+                                    className="flex w-full items-center justify-between gap-2 px-4 py-2.5 text-left text-sm transition-colors hover:bg-white/10"
                                   >
                                     <span className="min-w-0 flex-1">
                                       <span className="block font-semibold text-white">
@@ -1950,12 +1950,12 @@ export default function PlayerModal({
                                     </span>
                                   </button>
                                   {detail?.loading ? (
-                                    <div className="px-3.5 pb-2 text-[11px] text-white/50">
+                                    <div className="px-4 pb-2.5 text-xs text-white/50">
                                       {zh('加载中…', 'Loading...')}
                                     </div>
                                   ) : null}
                                   {detail?.error ? (
-                                    <div className="px-3.5 pb-2 text-[11px] text-red-300">
+                                    <div className="px-4 pb-2.5 text-xs text-red-300">
                                       {detail.error}
                                     </div>
                                   ) : null}
@@ -1963,9 +1963,9 @@ export default function PlayerModal({
                                     ? tracks.map((track) => (
                                         <div
                                           key={track.id}
-                                          className="flex items-center gap-1 px-3.5 py-1.5 pl-8"
+                                          className="flex items-center gap-2 px-4 py-2 pl-10"
                                         >
-                                          <span className="min-w-0 flex-1 truncate text-xs text-white/80">
+                                          <span className="min-w-0 flex-1 truncate text-sm text-white/80">
                                             {track.label || track.lang || track.id}
                                           </span>
                                           <button
@@ -1979,9 +1979,9 @@ export default function PlayerModal({
                                                 label: track.label || track.lang,
                                               })
                                             }
-                                            className="rounded p-1 text-white/50 transition-colors hover:bg-white/15 hover:text-white"
+                                            className="rounded p-1.5 text-white/50 transition-colors hover:bg-white/15 hover:text-white"
                                           >
-                                            <PreviewIcon style={{ fontSize: 15 }} />
+                                            <PreviewIcon style={{ fontSize: 18 }} />
                                           </button>
                                           <button
                                             type="button"
@@ -1994,9 +1994,9 @@ export default function PlayerModal({
                                                 label: track.label || track.lang,
                                               })
                                             }
-                                            className="rounded p-1 text-white/50 transition-colors hover:bg-white/15 hover:text-white"
+                                            className="rounded p-1.5 text-white/50 transition-colors hover:bg-white/15 hover:text-white"
                                           >
-                                            <DownloadIcon style={{ fontSize: 15 }} />
+                                            <DownloadIcon style={{ fontSize: 18 }} />
                                           </button>
                                         </div>
                                       ))
@@ -2010,21 +2010,21 @@ export default function PlayerModal({
                     ) : null}
                     {/* 字幕预览弹层 */}
                     {subPreview ? (
-                      <div className="absolute bottom-12 right-0 z-40 flex max-h-72 w-72 flex-col overflow-hidden rounded-xl border border-white/10 bg-black/90 shadow-2xl backdrop-blur-sm">
-                        <div className="flex items-center justify-between border-b border-white/10 px-3 py-2">
-                          <span className="min-w-0 flex-1 truncate text-xs font-semibold text-white">
+                      <div className="absolute bottom-12 right-0 z-40 flex max-h-96 w-96 flex-col overflow-hidden rounded-xl border border-white/10 bg-black/90 shadow-2xl backdrop-blur-sm">
+                        <div className="flex items-center justify-between border-b border-white/10 px-3 py-2.5">
+                          <span className="min-w-0 flex-1 truncate text-sm font-semibold text-white">
                             {subPreview.label}
                           </span>
                           <button
                             type="button"
                             aria-label={zh('关闭预览', 'Close preview')}
                             onClick={() => setSubPreview(null)}
-                            className="rounded px-1.5 text-sm text-white/60 hover:text-white"
+                            className="rounded px-2 py-0.5 text-lg text-white/60 hover:text-white"
                           >
                             ×
                           </button>
                         </div>
-                        <div className="max-h-60 overflow-y-auto whitespace-pre-wrap px-3 py-2 text-xs leading-5 text-white/80">
+                        <div className="max-h-80 overflow-y-auto whitespace-pre-wrap px-4 py-3 text-sm leading-6 text-white/80">
                           {subPreview.text}
                         </div>
                       </div>
@@ -2119,18 +2119,18 @@ export default function PlayerModal({
 // online track). Optionally shows a preview button next to the label.
 function SubMenuItem({ active, label, onClick, onPreview }) {
   return (
-    <div className={`flex items-center gap-1 px-3.5 py-1.5 ${active ? 'bg-white/10' : ''}`}>
+    <div className={`flex items-center gap-1.5 px-4 py-2 ${active ? 'bg-white/10' : ''}`}>
       <button
         type="button"
         onClick={onClick}
-        className={`flex min-w-0 flex-1 items-center gap-2 text-left text-xs transition-colors hover:text-white ${
+        className={`flex min-w-0 flex-1 items-center gap-2 text-left text-sm transition-colors hover:text-white ${
           active ? 'font-semibold text-white' : 'text-white/80'
         }`}
       >
         {active ? (
-          <CheckIcon style={{ fontSize: 14 }} className="shrink-0 text-yellow-300" />
+          <CheckIcon style={{ fontSize: 16 }} className="shrink-0 text-yellow-300" />
         ) : (
-          <span className="inline-block w-3.5 shrink-0" />
+          <span className="inline-block w-4 shrink-0" />
         )}
         <span className="min-w-0 flex-1 truncate">{label}</span>
       </button>
@@ -2139,9 +2139,9 @@ function SubMenuItem({ active, label, onClick, onPreview }) {
           type="button"
           aria-label={zh('预览', 'Preview')}
           onClick={onPreview}
-          className="rounded p-1 text-white/50 transition-colors hover:bg-white/15 hover:text-white"
+          className="rounded p-1.5 text-white/50 transition-colors hover:bg-white/15 hover:text-white"
         >
-          <PreviewIcon style={{ fontSize: 15 }} />
+          <PreviewIcon style={{ fontSize: 18 }} />
         </button>
       ) : null}
     </div>
