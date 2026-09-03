@@ -365,6 +365,8 @@ export default function PlayerModal({
       }
       setControlsVisible(false)
       setMenuOpen(null)
+      setSubMenu(null)
+      setSubPreview(null)
     }, CONTROLS_HIDE_DELAY_MS)
   }, [])
 
@@ -678,6 +680,8 @@ export default function PlayerModal({
       }
       setControlsVisible(false)
       setMenuOpen(null)
+      setSubMenu(null)
+      setSubPreview(null)
     }
 
     // 触摸设备：浏览器（Chrome Android 等）不会在 <video> 媒体元素上派发
