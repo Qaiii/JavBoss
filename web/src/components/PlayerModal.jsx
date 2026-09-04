@@ -174,7 +174,7 @@ export default function PlayerModal({
   const [subSearchItems, setSubSearchItems] = useState([])
   const [subSearchQuery, setSubSearchQuery] = useState('')
   const [subDetailTracks, setSubDetailTracks] = useState([]) // { code, title, tracks }
-  const [subMenu, setSubMenu] = useState(null) // null | 'local' | 'search' | 'detail'
+  const [subMenu, setSubMenu] = useState(null) // null | 'local' | 'search'
   const [subSearchBusy, setSubSearchBusy] = useState(false)
   const [subPreview, setSubPreview] = useState(null) // { label, text }
   const [subNotice, setSubNotice] = useState('')
@@ -550,11 +550,10 @@ export default function PlayerModal({
     })
   }, [videoJavCode])
 
-  // 加载某部影片的语言轨道列表
+  // 加载某部影片的语言轨道列表（行内展开在搜索列表里，保持搜索面板不切换）
   const openSubtitleDetail = useCallback(
     async (code) => {
       if (!video?.id) return
-      setSubMenu('detail')
       setSubPreview(null)
       setSubDetailTracks((prev) => ({ ...prev, [code]: { loading: true } }))
       try {
