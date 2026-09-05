@@ -47,3 +47,19 @@ func DerivePosterURL(coverURL string) string {
 	parsed.Path = stem[:len(stem)-2] + "ps" + ext
 	return parsed.String()
 }
+
+// IsThumbnailPosterURL reports DMM-style package-small poster URLs (ps.jpg).
+// Those files are listing thumbnails, not display-sized posters.
+func IsThumbnailPosterURL(raw string) bool {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return false
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed == nil || parsed.Path == "" {
+		return false
+	}
+	ext := path.Ext(parsed.Path)
+	stem := strings.TrimSuffix(parsed.Path, ext)
+	return len(stem) >= 2 && ext != "" && strings.EqualFold(stem[len(stem)-2:], "ps")
+}

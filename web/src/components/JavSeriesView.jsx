@@ -3,9 +3,17 @@ import StarBorderRoundedIcon from '@mui/icons-material/StarBorderRounded'
 import StarRoundedIcon from '@mui/icons-material/StarRounded'
 import VideocamOutlinedIcon from '@mui/icons-material/VideocamOutlined'
 
+import JavDisplayCover from '@/components/JavDisplayCover'
 import Pagination from '@/components/Pagination'
 import WaterfallLoader from '@/components/WaterfallLoader'
+import { useStore } from '@/store'
 import { zh } from '@/utils/i18n'
+import {
+  JAV_COVER_ORIENTATION_PORTRAIT,
+  javCoverGridMinmax,
+  javCoverSrc,
+  normalizeJavCoverOrientation,
+} from '@/utils/jav'
 import { openJavDBWithAssist } from '@/utils/javdb'
 
 export default function JavSeriesView({
@@ -76,6 +84,9 @@ export default function JavSeriesView({
 }
 
 function JavSeriesGrid({ items, onSelectSeries, onSelectStudio, onOpenFavorites, buildSeriesUrl }) {
+  const coverOrientation = useStore((state) =>
+    normalizeJavCoverOrientation(state.config?.jav_cover_orientation)
+  )
   const hasItems = Array.isArray(items) && items.length > 0
   if (!hasItems) {
     return (
@@ -88,7 +99,13 @@ function JavSeriesGrid({ items, onSelectSeries, onSelectStudio, onOpenFavorites,
   return (
     <div
       className="grid gap-4 bg-white"
-      style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(16rem, 1fr))' }}
+      style={{
+        gridTemplateColumns: `repeat(auto-fill, minmax(${
+          coverOrientation === JAV_COVER_ORIENTATION_PORTRAIT
+            ? javCoverGridMinmax(coverOrientation)
+            : '16rem'
+        }, 1fr))`,
+      }}
     >
       {items.map((item) => (
         <SeriesCard
@@ -105,8 +122,11 @@ function JavSeriesGrid({ items, onSelectSeries, onSelectStudio, onOpenFavorites,
 }
 
 export function SeriesCard({ item, href, onSelectSeries, onSelectStudio, onOpenFavorites }) {
+  const coverOrientation = useStore((state) =>
+    normalizeJavCoverOrientation(state.config?.jav_cover_orientation)
+  )
   const sampleCode = String(item?.sample_code || '').trim()
-  const cover = sampleCode ? `/jav/${encodeURIComponent(sampleCode)}/cover` : null
+  const cover = sampleCode ? javCoverSrc(sampleCode) : null
   const name = item?.name || zh('未知系列', 'Unknown series')
   const studioName = String(item?.studio_name || '').trim()
   const studioId = Number(item?.studio_id)
@@ -170,19 +190,18 @@ export function SeriesCard({ item, href, onSelectSeries, onSelectStudio, onOpenF
         }
       }}
     >
-      <div className="relative aspect-[800/538] w-full overflow-hidden bg-gray-100">
-        {cover ? (
-          <img
-            src={cover}
-            alt={name}
-            className="h-full w-full object-cover transition duration-200 group-hover:scale-[1.03]"
-            loading="lazy"
-          />
-        ) : (
+      <JavDisplayCover
+        src={cover}
+        alt={name}
+        orientation={coverOrientation}
+        className="w-full overflow-hidden bg-gray-100"
+        imageClassName="object-cover transition duration-200 group-hover:scale-[1.03]"
+        fallback={
           <div className="absolute inset-0 flex h-full w-full items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 p-4 text-center text-lg font-semibold text-gray-600">
             {name}
           </div>
-        )}
+        }
+      >
         {showWorkCount ? (
           <div className="absolute left-2 top-2 rounded bg-black/70 px-2 py-1 text-xs text-white">
             {zh(`作品 ${workCount}`, `${workCount} works`)}
@@ -217,7 +236,7 @@ export function SeriesCard({ item, href, onSelectSeries, onSelectStudio, onOpenF
         >
           <img src="/ico/javdb.png" alt="JavDB" className="h-4 w-4" loading="lazy" />
         </button>
-      </div>
+      </JavDisplayCover>
       <div className="flex flex-1 flex-col gap-1 p-3">
         <div className="line-clamp-2 text-sm font-semibold leading-tight">{name}</div>
         <div className="flex min-w-0 items-center gap-2 text-xs text-gray-500">

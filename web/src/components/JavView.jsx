@@ -2,6 +2,7 @@ import SwapVertIcon from '@mui/icons-material/SwapVert'
 import { Popover, Switch } from '@mui/material'
 import { useState } from 'react'
 import JavGrid from '@/components/JavGrid'
+import JavIdolHero from '@/components/JavIdolHero'
 import Pagination from '@/components/Pagination'
 import WaterfallLoader from '@/components/WaterfallLoader'
 import { JAV_SORT_OPTIONS, findSortOption, reverseSortValue, sortLabelParts } from '@/constants/jav'
@@ -71,6 +72,7 @@ export default function JavView({
   onShowExternalWorksChange,
   activeIdolId = 0,
   onDislikeWork,
+  playOnCoverClick = false,
 }) {
   const contentClass = javRandomMode ? 'mt-4' : ''
   const [sortAnchorEl, setSortAnchorEl] = useState(null)
@@ -91,7 +93,8 @@ export default function JavView({
     setSortAnchorEl(null)
   }
 
-  return (
+  const showIdolProfile = hasSingleIdolFilter && !javRandomMode
+  const body = (
     <>
       {!javRandomMode && (
         <div className="sticky-pagination pagination-toolbar-grid mb-4 grid md:grid-cols-[1fr_auto_1fr] md:items-center">
@@ -254,6 +257,7 @@ export default function JavView({
             onManageVideoTagClick={onManageVideoTagClick}
             activeIdolId={activeIdolId}
             onDislikeWork={onDislikeWork}
+            playOnCoverClick={playOnCoverClick}
           />
         </div>
       )}
@@ -264,5 +268,16 @@ export default function JavView({
         onLoadMore={onLoadMore}
       />
     </>
+  )
+
+  if (!showIdolProfile) return body
+
+  return (
+    <div className="idol-profile">
+      <JavIdolHero idolId={activeIdolId} />
+      <div className="idol-profile-works">
+        <div className="idol-profile-works-inner">{body}</div>
+      </div>
+    </div>
   )
 }

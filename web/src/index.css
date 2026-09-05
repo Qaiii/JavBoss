@@ -1319,6 +1319,149 @@ body.has-page-scroll .sticky-pagination {
   accent-color: #c78b3b;
 }
 
+.idol-profile {
+  position: relative;
+}
+
+.idol-hero {
+  position: sticky;
+  top: var(--topbar-height);
+  z-index: 0;
+  height: calc(100dvh - var(--topbar-height));
+  width: calc(100% + var(--page-left-padding) + var(--page-right-padding));
+  margin-left: calc(-1 * var(--page-left-padding));
+  margin-right: calc(-1 * var(--page-right-padding));
+  overflow: hidden;
+  background: #0b0f16;
+}
+
+.idol-hero__poster {
+  position: absolute;
+  inset: -28px;
+}
+
+.idol-hero__collage {
+  display: grid;
+  height: 100%;
+  width: 100%;
+  gap: 2px;
+}
+
+.idol-hero__collage--1 {
+  grid-template-columns: 1fr;
+}
+
+.idol-hero__collage--2 {
+  grid-template-columns: 1.15fr 0.85fr;
+}
+
+.idol-hero__collage--3 {
+  grid-template-columns: 1.3fr 0.7fr;
+  grid-template-rows: 1fr 1fr;
+}
+
+.idol-hero__collage--3 > :first-child {
+  grid-row: 1 / span 2;
+}
+
+.idol-hero__collage--4 {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+
+.idol-hero__collage--5 {
+  grid-template-columns: 1.2fr 0.9fr 0.9fr;
+  grid-template-rows: 1fr 1fr;
+}
+
+.idol-hero__collage--5 > :first-child {
+  grid-row: 1 / span 2;
+}
+
+.idol-hero__collage--6 {
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: 1fr 1fr;
+}
+
+.idol-hero__shade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(8, 10, 16, 0.58) 0%,
+    rgba(8, 10, 16, 0.18) 42%,
+    transparent 72%
+  );
+  pointer-events: none;
+}
+
+.idol-hero__info {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: min(34rem, 48%);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 2.25rem 2rem 3.4rem;
+  pointer-events: none;
+}
+
+.idol-hero__info-fade {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 48%;
+  background: linear-gradient(to top, rgba(8, 10, 16, 0.62), transparent);
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+  mask-image: linear-gradient(to top, #000 18%, transparent);
+  pointer-events: none;
+}
+
+.idol-hero__info-body {
+  position: relative;
+  z-index: 1;
+  pointer-events: auto;
+}
+
+.idol-profile-works {
+  position: relative;
+  z-index: 1;
+  width: calc(100% + var(--page-left-padding) + var(--page-right-padding));
+  margin-left: calc(-1 * var(--page-left-padding));
+  margin-top: calc(0px - (100dvh - var(--topbar-height)));
+  padding-top: calc(100dvh - var(--topbar-height));
+  pointer-events: none;
+}
+
+.idol-profile-works-inner {
+  pointer-events: auto;
+  min-height: 72vh;
+  padding: 0 var(--page-right-padding) 3rem var(--page-left-padding);
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0) 0,
+    rgba(255, 255, 255, 0.78) 3rem,
+    rgba(255, 255, 255, 0.94) 7.5rem
+  );
+}
+
+.player-card--viewport {
+  width: 100vw;
+  height: 100dvh;
+  max-width: none;
+  margin: 0;
+  border-radius: 0;
+  background: #000;
+  box-shadow: none;
+}
+
+.player-card--viewport .player-shell {
+  height: 100dvh;
+  aspect-ratio: auto;
+}
+
 @media (max-width: 640px) {
   .skeuo-tag {
     width: 100%;

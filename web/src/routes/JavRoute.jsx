@@ -275,6 +275,7 @@ function JavListRoute({
   setJavTempSort,
   showExternalWorks,
   waterfallMode,
+  playOnCoverClick = false,
 }) {
   return (
     <JavView
@@ -329,6 +330,7 @@ function JavListRoute({
       onShowExternalWorksChange={onShowExternalWorksChange}
       activeIdolId={activeIdolId}
       onDislikeWork={onDislikeWork}
+      playOnCoverClick={playOnCoverClick}
     />
   )
 }

@@ -3,6 +3,7 @@ package jav
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -58,6 +59,37 @@ func currentLookupCache() LookupCache {
 	lookupCacheState.RLock()
 	defer lookupCacheState.RUnlock()
 	return lookupCacheState.store
+}
+
+type lookupCacheJanitor interface {
+	CountExpired(now time.Time) (int, error)
+	DeleteExpiredCount(now time.Time) (int, error)
+}
+
+// CountExpiredLookupCache reports expired provider lookup cache entries.
+func CountExpiredLookupCache(now time.Time) (int, error) {
+	janitor, ok := currentLookupCache().(lookupCacheJanitor)
+	if !ok || janitor == nil {
+		return 0, nil
+	}
+	n, err := janitor.CountExpired(now)
+	if err != nil {
+		return 0, fmt.Errorf("count expired lookup cache: %w", err)
+	}
+	return n, nil
+}
+
+// DeleteExpiredLookupCache removes expired provider lookup cache entries.
+func DeleteExpiredLookupCache(now time.Time) (int, error) {
+	janitor, ok := currentLookupCache().(lookupCacheJanitor)
+	if !ok || janitor == nil {
+		return 0, nil
+	}
+	n, err := janitor.DeleteExpiredCount(now)
+	if err != nil {
+		return 0, fmt.Errorf("delete expired lookup cache: %w", err)
+	}
+	return n, nil
 }
 
 func lookupCacheGet[T any](key string) (*T, bool, error) {

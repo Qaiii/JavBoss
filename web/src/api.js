@@ -209,6 +209,18 @@ export async function runJavScrapeCheck() {
   return parseJSONResponse(res)
 }
 
+export async function fetchScrapedDataCleanup() {
+  const res = await apiFetch('/tools/scraped-data-cleanup', { cache: 'no-store' })
+  if (!res.ok) throw await apiError(res)
+  return parseJSONResponse(res)
+}
+
+export async function runScrapedDataCleanup() {
+  const res = await apiFetch('/tools/scraped-data-cleanup', { method: 'POST' })
+  if (!res.ok) throw await apiError(res)
+  return parseJSONResponse(res)
+}
+
 export async function deleteTag(id) {
   const res = await apiFetch(`/tags/${id}`, { method: 'DELETE' })
   if (!res.ok) {
@@ -1266,6 +1278,40 @@ export async function updateJavIdolCover(id, { javId = 0, cropLeft = 0.53 } = {}
     throw await apiError(res)
   }
   return res.json()
+}
+
+export async function fetchJavIdolPosterOptions(id) {
+  const res = await apiFetch(`/jav/idols/${encodeURIComponent(id)}/poster-options`)
+  if (!res.ok) {
+    throw await apiError(res)
+  }
+  const data = await parseJSONResponse(res)
+  return Array.isArray(data?.items) ? data.items : []
+}
+
+export async function updateJavIdolPoster(id, images = []) {
+  const res = await apiFetch(`/jav/idols/${encodeURIComponent(id)}/poster`, {
+    method: 'PUT',
+    headers: jsonHeaders,
+    body: JSON.stringify({ images }),
+  })
+  if (!res.ok) {
+    throw await apiError(res)
+  }
+  return parseJSONResponse(res)
+}
+
+export async function uploadJavIdolPoster(id, file) {
+  const body = new FormData()
+  body.append('file', file)
+  const res = await apiFetch(`/jav/idols/${encodeURIComponent(id)}/poster`, {
+    method: 'POST',
+    body,
+  })
+  if (!res.ok) {
+    throw await apiError(res)
+  }
+  return parseJSONResponse(res)
 }
 
 export async function fetchJavStudios({

@@ -34,6 +34,7 @@ import {
 import JavDetailModal from '@/components/JavDetailModal'
 import AppModal from '@/components/AppModal'
 import JavIdolCoverModal from '@/components/JavIdolCoverModal'
+import JavDisplayCover from '@/components/JavDisplayCover'
 import { IdolCard, JavIdolEditModal, getIdolCardLayoutProps } from '@/components/JavIdolGrid'
 import { SeriesCard } from '@/components/JavSeriesView'
 import { StudioCard } from '@/components/JavStudioView'
@@ -46,7 +47,6 @@ import {
   isUnimportedJav,
   javCardExternalSourceKeys,
   javExternalSourceKey,
-  javCoverAspectClass,
   javCoverGridMinmax,
   javCardCoverSrc,
   normalizeJavCoverOrientation,
@@ -140,6 +140,7 @@ export default function JavGrid({
   onManageVideoTagClick,
   activeIdolId = 0,
   onDislikeWork,
+  playOnCoverClick = false,
 }) {
   const directoryVisibilityKey = useStore((state) =>
     (state.directories || [])
@@ -355,6 +356,7 @@ export default function JavGrid({
             coverOrientation={coverOrientation}
             activeIdolId={activeIdolId}
             onDislikeWork={onDislikeWork}
+            playOnCoverClick={playOnCoverClick}
           />
         ))}
       </div>
@@ -1799,30 +1801,7 @@ function JavEditModal({ open, item, preferChineseName = false, onClose, onSaved 
 }
 
 function JavCoverPlaceholder() {
-  return <div className="h-full w-full bg-gray-200" aria-hidden="true" />
-}
-
-function JavCoverImage({ src, alt, className = '', referrerPolicy }) {
-  const [failed, setFailed] = useState(false)
-
-  useEffect(() => {
-    setFailed(false)
-  }, [src])
-
-  if (!src || failed) {
-    return <JavCoverPlaceholder />
-  }
-
-  return (
-    <img
-      src={src}
-      alt={alt}
-      className={`h-full w-full object-contain object-top ${className}`}
-      loading="lazy"
-      referrerPolicy={referrerPolicy}
-      onError={() => setFailed(true)}
-    />
-  )
+  return <div className="absolute inset-0 bg-gray-200" aria-hidden="true" />
 }
 
 function normalizeIdolTagMaxRows(value) {
@@ -2253,6 +2232,7 @@ function JavCard({
   coverOrientation = 'landscape',
   activeIdolId = 0,
   onDislikeWork,
+  playOnCoverClick = false,
 }) {
   const primaryVideo = useMemo(() => (item?.videos || [])[0], [item])
   const preferChineseTitle = useStore((state) => javTitlePrefersChinese(state.config))
@@ -2264,11 +2244,11 @@ function JavCard({
   const [customTagEditorOpen, setCustomTagEditorOpen] = useState(false)
   const [detailOpen, setDetailOpen] = useState(false)
   const [disliking, setDisliking] = useState(false)
+  const [coverVisible, setCoverVisible] = useState(false)
   const cover = javCardCoverSrc({
     code,
     inLibrary,
     coverUrl: item?.cover_url,
-    orientation: coverOrientation,
     version: coverVersion,
   })
   const sourceURL = String(item?.source_url || '').trim()
@@ -2330,6 +2310,10 @@ function JavCard({
   useEffect(() => {
     setFavoriteRating(itemFavoriteRating)
   }, [item?.id, itemFavoriteRating])
+
+  useEffect(() => {
+    if (!cover) setCoverVisible(false)
+  }, [cover])
 
   const handleExternalLinkClick = (event, site) => {
     if (site.onClick) {
@@ -2426,12 +2410,17 @@ function JavCard({
 
   const handleOpenCoverPreview = (event) => {
     event.stopPropagation()
-    if (!cover) return
+    if (!coverVisible) return
     onOpenCoverPreview?.({ src: cover, alt: titleText })
   }
 
   const handleOpenDetail = () => {
     clearHoverPreview()
+    if (playOnCoverClick) {
+      if (!canPlay) return
+      onPlay?.(primaryVideo, item)
+      return
+    }
     if (!inLibrary) return
     setDetailOpen(true)
   }
@@ -2856,22 +2845,21 @@ function JavCard({
 
   return (
     <>
-      <div className="flex flex-col overflow-hidden rounded-lg border bg-white shadow-sm transition hover:shadow-lg">
-        <div
-          className={`card-hover-scope group relative overflow-hidden bg-white ${javCoverAspectClass(coverOrientation)}`}
+      <div className="flex min-w-0 flex-col overflow-hidden rounded-lg border bg-white shadow-sm transition hover:shadow-lg">
+        <JavDisplayCover
+          src={cover}
+          alt={item?.code || zh('JAV 封面', 'JAV cover')}
+          orientation={coverOrientation}
+          onDisplayChange={setCoverVisible}
+          className="card-hover-scope group w-full overflow-hidden bg-white"
+          imageClassName={
+            inLibrary
+              ? undefined
+              : 'object-contain object-top grayscale transition duration-200 group-hover:grayscale-0'
+          }
+          referrerPolicy={inLibrary ? undefined : 'no-referrer'}
+          fallback={<JavCoverPlaceholder />}
         >
-          {cover ? (
-            <JavCoverImage
-              src={cover}
-              alt={item?.code || zh('JAV 封面', 'JAV cover')}
-              className={
-                inLibrary ? '' : 'grayscale transition duration-200 group-hover:grayscale-0'
-              }
-              referrerPolicy={inLibrary ? undefined : 'no-referrer'}
-            />
-          ) : (
-            <JavCoverPlaceholder />
-          )}
           {inLibrary ? (
             <button
               type="button"
@@ -3069,9 +3057,9 @@ function JavCard({
               )}
             </button>
           ) : null}
-          {cover || (inLibrary && canOpen) ? (
+          {coverVisible || (inLibrary && canOpen) ? (
             <div className="card-hover-focus-visible absolute bottom-2 right-2 z-10 flex items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100">
-              {cover ? (
+              {coverVisible ? (
                 <button
                   type="button"
                   onClick={handleOpenCoverPreview}
@@ -3098,7 +3086,7 @@ function JavCard({
               ) : null}
             </div>
           ) : null}
-        </div>
+        </JavDisplayCover>
         <div className="flex flex-1 flex-col gap-2 p-3">
           <div className="text-sm leading-tight" title={titleText} style={titleClampStyle}>
             {codeText ? <span className="font-semibold text-gray-800">{codeText}</span> : null}
@@ -3374,6 +3362,7 @@ function JavCard({
         <JavDetailModal
           item={item}
           cover={cover}
+          coverOrientation={coverOrientation}
           title={titleText}
           releaseText={releaseText}
           durationText={durationText}

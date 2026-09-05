@@ -33,3 +33,18 @@ func TestDerivePosterURLIgnoresUnknownPatterns(t *testing.T) {
 		t.Fatalf("javdb cover should not derive a poster URL, got %q", got)
 	}
 }
+
+func TestIsThumbnailPosterURL(t *testing.T) {
+	if !IsThumbnailPosterURL("https://jp.netcdn.space/digital/video/ipx00228/ipx00228ps.jpg") {
+		t.Fatal("expected DMM ps.jpg to be a thumbnail poster")
+	}
+	if !IsThumbnailPosterURL("https://www.javdatabase.com/covers/thumb/1s/1sods00062ps.webp") {
+		t.Fatal("expected listing ps.webp to be a thumbnail poster")
+	}
+	if IsThumbnailPosterURL("https://jp.netcdn.space/digital/video/ipx00228/ipx00228pl.jpg") {
+		t.Fatal("landscape pl.jpg should not be treated as a thumbnail poster")
+	}
+	if IsThumbnailPosterURL("https://www.javbus.com/pics/cover/c85j_b.jpg") {
+		t.Fatal("javbus landscape cover should not be treated as a thumbnail poster")
+	}
+}

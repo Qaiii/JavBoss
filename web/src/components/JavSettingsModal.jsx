@@ -4,10 +4,14 @@ import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import SwapVertIcon from '@mui/icons-material/SwapVert'
 import AppModal from '@/components/AppModal'
 import {
+  IDOL_CARD_MIN_WIDTH_DEFAULT,
+  IDOL_CARD_MIN_WIDTH_MAX,
+  IDOL_CARD_MIN_WIDTH_MIN,
   IDOL_SORT_OPTIONS,
   JAV_SORT_OPTIONS,
   JAV_SORT_RULE_FILTERS,
   findSortOption,
+  normalizeIdolCardMinWidth,
   reverseSortValue,
   sortLabel,
   sortLabelParts,
@@ -337,6 +341,8 @@ export default function JavSettingsModal({
   onJavWaterfallDefaultChange,
   idolPageSizeInput,
   onIdolPageSizeChange,
+  idolCardMinWidthInput = IDOL_CARD_MIN_WIDTH_DEFAULT,
+  onIdolCardMinWidthChange,
   idolWaterfallDefaultInput = false,
   onIdolWaterfallDefaultChange,
   studioPageSizeInput,
@@ -379,6 +385,7 @@ export default function JavSettingsModal({
     switch (activeTab) {
       case 'idol':
         onIdolPageSizeChange?.(24)
+        onIdolCardMinWidthChange?.(IDOL_CARD_MIN_WIDTH_DEFAULT)
         onIdolWaterfallDefaultChange?.(false)
         onIdolSortChange?.(IDOL_SORT_OPTIONS[0]?.defaultValue || 'recent')
         onJavIdolPreferChineseNameChange?.(false)
@@ -717,13 +724,32 @@ export default function JavSettingsModal({
               </div>
             </SettingsSection>
             <SettingsSection title={zh('卡片设置', 'Card settings')}>
-              <SettingsRow label={zh('优先显示中文名', 'Prefer Chinese name')}>
-                <SettingsSwitch
-                  label={zh('优先显示中文名', 'Prefer Chinese name')}
-                  checked={javIdolPreferChineseNameInput}
-                  onChange={onJavIdolPreferChineseNameChange}
-                />
-              </SettingsRow>
+              <div className="divide-y divide-slate-100 px-1">
+                <SettingsRow label={zh('卡片宽度', 'Card width')}>
+                  <div className="flex w-48 items-center gap-2">
+                    <input
+                      type="range"
+                      min={IDOL_CARD_MIN_WIDTH_MIN}
+                      max={IDOL_CARD_MIN_WIDTH_MAX}
+                      step="1"
+                      value={normalizeIdolCardMinWidth(idolCardMinWidthInput)}
+                      onChange={(event) => onIdolCardMinWidthChange?.(Number(event.target.value))}
+                      className="h-1.5 min-w-0 flex-1 accent-blue-600"
+                      aria-label={zh('卡片宽度', 'Card width')}
+                    />
+                    <span className="w-12 shrink-0 text-right tabular-nums text-slate-500">
+                      {normalizeIdolCardMinWidth(idolCardMinWidthInput)}rem
+                    </span>
+                  </div>
+                </SettingsRow>
+                <SettingsRow label={zh('优先显示中文名', 'Prefer Chinese name')}>
+                  <SettingsSwitch
+                    label={zh('优先显示中文名', 'Prefer Chinese name')}
+                    checked={javIdolPreferChineseNameInput}
+                    onChange={onJavIdolPreferChineseNameChange}
+                  />
+                </SettingsRow>
+              </div>
             </SettingsSection>
             <SettingsSection title={zh('作品同步', 'Works sync')}>
               <SettingsRow label={zh('女优新作品刷新间隔（天）', 'Refresh new works every (days)')}>

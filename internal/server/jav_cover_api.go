@@ -12,7 +12,7 @@ import (
 	"javboss/internal/manager"
 )
 
-// getJavCover serves a downloaded JAV cover if present; otherwise enqueues and returns 404.
+// getJavCover serves a downloaded JAV cover file.
 func getJavCover(c *gin.Context) {
 	code := c.Param("code")
 	cfg := common.AppConfig
@@ -23,25 +23,13 @@ func getJavCover(c *gin.Context) {
 
 	c.Header("Cache-Control", "no-cache, must-revalidate")
 
-	kind := manager.ParseCoverKind(c.Query("orientation"))
-	if kind == manager.CoverKindPortrait {
-		if path, ok := manager.FindCoverPathKind(cfg.JavCoverDir, code, manager.CoverKindPortrait); ok {
-			c.File(path)
-			return
-		}
-		if path, ok := manager.EnsurePosterCover(cfg.JavCoverDir, code); ok {
-			c.File(path)
-			return
-		}
-	} else if path, ok := manager.FindCoverPath(cfg.JavCoverDir, code); ok {
+	if path, ok := manager.FindCoverPath(cfg.JavCoverDir, code); ok {
 		c.File(path)
 		return
 	}
 
 	if common.CoverManager != nil {
-		if _, ok := manager.FindCoverPath(cfg.JavCoverDir, code); !ok {
-			common.CoverManager.Enqueue(code)
-		}
+		common.CoverManager.Enqueue(code)
 	}
 	respondLocalizedError(c, http.StatusNotFound, "JAV 封面不存在", "JAV cover was not found")
 }

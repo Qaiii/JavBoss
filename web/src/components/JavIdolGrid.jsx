@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded'
 import EditRoundedIcon from '@mui/icons-material/EditRounded'
 import PhotoCameraRoundedIcon from '@mui/icons-material/PhotoCameraRounded'
@@ -12,10 +12,14 @@ import JavIdolCoverModal, {
   IDOL_COVER_VISIBLE_RATIO,
   normalizeIdolCoverCropLeft,
 } from '@/components/JavIdolCoverModal'
+import JavDisplayCover from '@/components/JavDisplayCover'
+import { useStore } from '@/store'
 import { getIdolDisplayNames } from '@/utils/javIdol'
+import { javCoverSrc } from '@/utils/jav'
 import { openJavDBWithAssist } from '@/utils/javdb'
 import { zh } from '@/utils/i18n'
 import { getErrorMessage } from '@/utils/errors'
+import { normalizeIdolCardMinWidth } from '@/constants/jav'
 
 export { getIdolDisplayName, getIdolDisplayNames } from '@/utils/javIdol'
 
@@ -41,6 +45,9 @@ export default function JavIdolGrid({
   onMerged,
 }) {
   const { coverAspectPercent } = getIdolCardLayoutProps()
+  const cardMinWidth = useStore((state) =>
+    normalizeIdolCardMinWidth(state.config?.idol_card_min_width)
+  )
   const [coverEditorItem, setCoverEditorItem] = useState(null)
   const [editItem, setEditItem] = useState(null)
   const [coverOverrides, setCoverOverrides] = useState(() => new Map())
@@ -66,7 +73,9 @@ export default function JavIdolGrid({
     <>
       <div
         className="grid gap-3 bg-white"
-        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(11rem, 1fr))' }}
+        style={{
+          gridTemplateColumns: `repeat(auto-fill, minmax(${cardMinWidth}rem, 1fr))`,
+        }}
       >
         {displayItems.map((item) => (
           <IdolCard
@@ -130,18 +139,14 @@ export function IdolCard({
   onOpenCoverEditor,
   onOpenEditor,
   href,
-  coverAspectPercent,
   showWorkCount = true,
   preferChineseName = false,
 }) {
   const coverCode = String(item?.cover_code || '').trim()
-  const cover = coverCode ? `/jav/${encodeURIComponent(coverCode)}/cover` : null
+  const cover = coverCode ? javCoverSrc(coverCode) : null
   const coverCropLeft = normalizeIdolCoverCropLeft(
     item?.cover_crop_left ?? IDOL_COVER_DEFAULT_CROP_LEFT
   )
-  const coverFrameRef = useRef(null)
-  const [coverFrame, setCoverFrame] = useState({ width: 0, height: 0 })
-  const [coverImageSize, setCoverImageSize] = useState(null)
   const workCount = item?.work_count || 0
   const favoriteCount = Number(item?.favorite_count) || 0
   const aliases = Array.isArray(item?.aliases) ? item.aliases : []
@@ -157,63 +162,6 @@ export function IdolCard({
   const { primaryName, secondaryName } = getIdolDisplayNames(item, preferChineseName)
   const metaRows = buildMetaRows({ birthDate, height, bwh, bwhDisplay, cup, aliases })
   const canOpenJavDB = Boolean(javDBSearchURL)
-  const hasCoverImageSize =
-    coverImageSize?.src === cover &&
-    Number.isFinite(coverImageSize.width) &&
-    Number.isFinite(coverImageSize.height) &&
-    coverImageSize.width > 0 &&
-    coverImageSize.height > 0
-  const hasMeasuredCoverFrame = coverFrame.width > 0 && coverFrame.height > 0
-  const coverReady = Boolean(cover && hasCoverImageSize && hasMeasuredCoverFrame)
-  const renderedCoverWidth = coverReady
-    ? coverFrame.height * (coverImageSize.width / coverImageSize.height)
-    : 0
-  const coverLeft = calculateCoverLeft({
-    cropLeft: coverCropLeft,
-    frameWidth: coverFrame.width,
-    renderedWidth: renderedCoverWidth,
-  })
-
-  useEffect(() => {
-    setCoverImageSize(null)
-    if (!cover) return undefined
-
-    let cancelled = false
-    const img = new Image()
-    img.onload = () => {
-      if (cancelled) return
-      setCoverImageSize({ src: cover, width: img.naturalWidth, height: img.naturalHeight })
-    }
-    img.onerror = () => {
-      if (cancelled) return
-      setCoverImageSize(null)
-    }
-    img.src = cover
-    return () => {
-      cancelled = true
-      img.onload = null
-      img.onerror = null
-    }
-  }, [cover])
-
-  useEffect(() => {
-    const node = coverFrameRef.current
-    if (!node) return undefined
-
-    const updateFrame = () => {
-      const rect = node.getBoundingClientRect()
-      setCoverFrame({ width: rect.width, height: rect.height })
-    }
-    updateFrame()
-
-    if (!window.ResizeObserver) {
-      window.addEventListener('resize', updateFrame)
-      return () => window.removeEventListener('resize', updateFrame)
-    }
-    const observer = new window.ResizeObserver(updateFrame)
-    observer.observe(node)
-    return () => observer.disconnect()
-  }, [cover])
 
   const handleClick = (e) => {
     const selection = window.getSelection?.()
@@ -271,27 +219,17 @@ export function IdolCard({
         }
       }}
     >
-      <div
-        ref={coverFrameRef}
-        className="relative w-full overflow-hidden bg-gray-100"
-        style={{ paddingTop: `${coverAspectPercent}%` }} // 维持可见区域的原始纵横比，避免压扁
-      >
-        {cover && coverReady ? (
-          <img
-            src={cover}
-            alt={primaryName}
-            className="absolute top-0 h-full max-w-none select-none"
-            style={{
-              left: `${coverLeft}px`,
-              width: 'auto',
-            }}
-            draggable={false}
-          />
-        ) : (
+      <JavDisplayCover
+        src={cover}
+        alt={primaryName}
+        orientation="portrait"
+        cropLeft={coverCropLeft}
+        fallback={
           <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 px-3 text-center text-lg font-semibold text-gray-600">
             {primaryName}
           </div>
-        )}
+        }
+      >
         {showWorkCount && (
           <div className="absolute left-2 top-2 rounded bg-black/70 px-2 py-1 text-xs text-white">
             {zh(`作品 ${workCount}`, `${workCount} javs`)}
@@ -344,7 +282,7 @@ export function IdolCard({
         >
           <EditRoundedIcon sx={{ fontSize: 16 }} />
         </button>
-      </div>
+      </JavDisplayCover>
       <div className="flex flex-1 select-text flex-col gap-2 p-3">
         <div className="flex min-w-0 items-baseline gap-1.5 leading-tight">
           <span
@@ -962,16 +900,6 @@ function mergeAliasLists(current = [], incoming = []) {
     aliases.push(alias)
   }
   return aliases
-}
-
-function calculateCoverLeft({ cropLeft, frameWidth, renderedWidth }) {
-  if (!Number.isFinite(frameWidth) || frameWidth <= 0) return 0
-  if (!Number.isFinite(renderedWidth) || renderedWidth <= 0) return 0
-  if (renderedWidth <= frameWidth) {
-    return (frameWidth - renderedWidth) / 2
-  }
-  const maxOffset = renderedWidth - frameWidth
-  return -Math.min(Math.max(cropLeft * renderedWidth, 0), maxOffset)
 }
 
 function formatBirthDate(value) {

@@ -3069,6 +3069,96 @@ func TestUpdateJavIdolCoverSelection(t *testing.T) {
 	}
 }
 
+func TestUpdateJavIdolPosterImages(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+	now := time.Unix(1710000000, 0).UTC()
+
+	dir := models.Directory{Path: "/tmp/media"}
+	if err := db.Create(&dir).Error; err != nil {
+		t.Fatalf("create directory: %v", err)
+	}
+
+	idol := models.JavIdol{Name: "Poster Idol"}
+	otherIdol := models.JavIdol{Name: "Other Poster Idol"}
+	if err := db.Create(&[]models.JavIdol{idol, otherIdol}).Error; err != nil {
+		t.Fatalf("create idols: %v", err)
+	}
+	if err := db.Where("name = ?", "Poster Idol").First(&idol).Error; err != nil {
+		t.Fatalf("reload idol: %v", err)
+	}
+	if err := db.Where("name = ?", "Other Poster Idol").First(&otherIdol).Error; err != nil {
+		t.Fatalf("reload other idol: %v", err)
+	}
+
+	ownJav := models.Jav{Code: "PST-001", Title: "Own Work", FetchedAt: now}
+	otherJav := models.Jav{Code: "PST-002", Title: "Other Work", FetchedAt: now}
+	if err := db.Create(&[]models.Jav{ownJav, otherJav}).Error; err != nil {
+		t.Fatalf("create javs: %v", err)
+	}
+	if err := db.Where("code = ?", "PST-001").First(&ownJav).Error; err != nil {
+		t.Fatalf("reload own jav: %v", err)
+	}
+	if err := db.Where("code = ?", "PST-002").First(&otherJav).Error; err != nil {
+		t.Fatalf("reload other jav: %v", err)
+	}
+
+	if err := db.Create(&[]models.JavIdolMap{
+		{JavID: ownJav.ID, JavIdolID: idol.ID},
+		{JavID: otherJav.ID, JavIdolID: otherIdol.ID},
+	}).Error; err != nil {
+		t.Fatalf("create idol maps: %v", err)
+	}
+
+	videos := []models.Video{
+		{DirectoryID: dir.ID, Path: "pst-001.mp4", Filename: "pst-001.mp4", Fingerprint: "fp-pst-001", JavID: int64Ptr(ownJav.ID), ModifiedAt: now},
+		{DirectoryID: dir.ID, Path: "pst-002.mp4", Filename: "pst-002.mp4", Fingerprint: "fp-pst-002", JavID: int64Ptr(otherJav.ID), ModifiedAt: now},
+	}
+	if err := db.Create(&videos).Error; err != nil {
+		t.Fatalf("create videos: %v", err)
+	}
+	createVideoLocationsForVideos(t, db, videos...)
+
+	rows, err := ListIdolPosterWorkVideos(ctx, idol.ID, nil)
+	if err != nil {
+		t.Fatalf("ListIdolPosterWorkVideos: %v", err)
+	}
+	if len(rows) != 1 || rows[0].VideoID != videos[0].ID || rows[0].Code != ownJav.Code {
+		t.Fatalf("unexpected poster work videos: %#v", rows)
+	}
+
+	item, err := UpdateJavIdolPosterImages(ctx, idol.ID, models.JavIdolPosterImages{
+		{Kind: models.JavIdolPosterKindScreenshot, VideoID: videos[0].ID, Name: "mpv_00-00-12.jpg"},
+		{Kind: models.JavIdolPosterKindUpload, Name: "upload_0123456789abcdef.jpg"},
+	}, nil)
+	if err != nil {
+		t.Fatalf("UpdateJavIdolPosterImages: %v", err)
+	}
+	if len(item.PosterImages) != 2 {
+		t.Fatalf("poster images = %#v, want 2", item.PosterImages)
+	}
+	if item.PosterImages[0].Kind != models.JavIdolPosterKindScreenshot || item.PosterImages[0].VideoID != videos[0].ID {
+		t.Fatalf("unexpected first poster image: %#v", item.PosterImages[0])
+	}
+	if item.PosterImages[1].Kind != models.JavIdolPosterKindUpload || item.PosterImages[1].Name != "upload_0123456789abcdef.jpg" {
+		t.Fatalf("unexpected second poster image: %#v", item.PosterImages[1])
+	}
+
+	if _, err := UpdateJavIdolPosterImages(ctx, idol.ID, models.JavIdolPosterImages{
+		{Kind: models.JavIdolPosterKindScreenshot, VideoID: videos[1].ID, Name: "mpv_00-00-01.jpg"},
+	}, nil); err == nil {
+		t.Fatal("expected invalid poster video error")
+	}
+
+	item, err = UpdateJavIdolPosterImages(ctx, idol.ID, nil, nil)
+	if err != nil {
+		t.Fatalf("reset poster images: %v", err)
+	}
+	if len(item.PosterImages) != 0 {
+		t.Fatalf("poster images after reset = %#v, want empty", item.PosterImages)
+	}
+}
+
 func TestSearchJavSortByDurationDesc(t *testing.T) {
 	db := openTestDB(t)
 	ctx := context.Background()

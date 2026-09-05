@@ -70,6 +70,7 @@ import {
   IDOL_FAVORITE_ORDER_SORT,
   IDOL_PROFILE_FILTER_DEFINITIONS,
   javSortRulesConfig,
+  normalizeIdolCardMinWidth,
   normalizeIdolProfileFilters,
   normalizeIdolSort,
   normalizeJavSort,
@@ -358,6 +359,7 @@ export default function App() {
   const [playerStartTime, setPlayerStartTime] = useState(0)
   // 浏览器播放器内“选集”：同番号多视频文件时，把可选文件列表随播放器一起带过去
   const [playerEpisodes, setPlayerEpisodes] = useState([])
+  const [playerFillViewport, setPlayerFillViewport] = useState(false)
   const [screenshotsVideo, setScreenshotsVideo] = useState(null)
   const [screenshotsAllowSetCover, setScreenshotsAllowSetCover] = useState(true)
   const [scrapeSettingsVideo, setScrapeSettingsVideo] = useState(null)
@@ -461,6 +463,9 @@ export default function App() {
     configFlag(config?.jav_waterfall_default)
   )
   const [idolPageSizeInput, setIdolPageSizeInput] = useState(idolPageSize)
+  const [idolCardMinWidthInput, setIdolCardMinWidthInput] = useState(() =>
+    normalizeIdolCardMinWidth(config?.idol_card_min_width)
+  )
   const [idolWaterfallDefaultInput, setIdolWaterfallDefaultInput] = useState(
     configFlag(config?.idol_waterfall_default)
   )
@@ -671,6 +676,7 @@ export default function App() {
     (video, player, episodes) => {
       if (!video) return
       if (player === 'browser') {
+        setPlayerFillViewport(false)
         setPlayerStartTime(0)
         setPlayerEpisodes(Array.isArray(episodes) ? episodes : [])
         setPlayerVideo(video)
@@ -1027,17 +1033,27 @@ export default function App() {
   }, [])
 
   const handleJavPlay = useCallback(
-    (video, item) => {
+    (video, item, options = {}) => {
       const videos = item?.videos || []
       const target = video || videos[0]
       if (!target) return
+      const fillViewport = Boolean(options.fillViewport)
+      if (fillViewport) {
+        setPlayerFillViewport(true)
+        setPlayerEpisodes(videos.length > 1 ? videos : [])
+        setPlayerStartTime(0)
+        setPlayerVideo(target)
+        return
+      }
       // 同番号多视频文件：直接进入浏览器播放器，选集功能放在播放器内
       if (videos.length > 1 && defaultPlayer === 'browser') {
+        setPlayerFillViewport(false)
         setPlayerEpisodes(videos)
         setPlayerStartTime(0)
         setPlayerVideo(target)
         return
       }
+      setPlayerFillViewport(false)
       handleOpenPlayer(target)
     },
     [defaultPlayer, handleOpenPlayer]
@@ -2691,6 +2707,7 @@ export default function App() {
     setJavFavoriteRatingShowFullInput(configFlag(config?.jav_favorite_rating_show_full, false))
     setJavWaterfallDefaultInput(configFlag(config?.jav_waterfall_default))
     setIdolPageSizeInput(idolPageSize)
+    setIdolCardMinWidthInput(normalizeIdolCardMinWidth(config?.idol_card_min_width))
     setIdolWaterfallDefaultInput(configFlag(config?.idol_waterfall_default))
     setStudioPageSizeInput(studioPageSize)
     setStudioWaterfallDefaultInput(configFlag(config?.studio_waterfall_default))
@@ -2714,6 +2731,7 @@ export default function App() {
     config?.jav_favorite_rating_show_full,
     config?.jav_waterfall_default,
     config?.idol_waterfall_default,
+    config?.idol_card_min_width,
     config?.studio_waterfall_default,
     config?.series_waterfall_default,
     idolPageSize,
@@ -2806,6 +2824,7 @@ export default function App() {
     const javTagRows =
       Number.isFinite(javTagRowsRaw) && javTagRowsRaw >= 0 ? Math.min(javTagRowsRaw, 12) : 2
     const idolSize = Math.max(1, parseInt(idolPageSizeInput, 10) || idolPageSize)
+    const idolCardMinWidth = normalizeIdolCardMinWidth(idolCardMinWidthInput)
     const studioSize = Math.max(1, parseInt(studioPageSizeInput, 10) || studioPageSize)
     const seriesSize = Math.max(1, parseInt(seriesPageSizeInput, 10) || seriesPageSize)
     const normalizedSort = normalizeJavSort(javSortInput)
@@ -2831,6 +2850,7 @@ export default function App() {
         jav_favorite_rating_show_full: Boolean(javFavoriteRatingShowFullInput),
         jav_waterfall_default: waterfallDefaults.jav,
         idol_page_size: idolSize,
+        idol_card_min_width: idolCardMinWidth,
         idol_waterfall_default: waterfallDefaults.idol,
         studio_page_size: studioSize,
         studio_waterfall_default: waterfallDefaults.studio,
@@ -2912,6 +2932,7 @@ export default function App() {
       setJavFavoriteRatingShowFullInput(configFlag(config?.jav_favorite_rating_show_full, false))
       setJavWaterfallDefaultInput(configFlag(config?.jav_waterfall_default))
       setIdolPageSizeInput(idolPageSize)
+      setIdolCardMinWidthInput(normalizeIdolCardMinWidth(config?.idol_card_min_width))
       setIdolWaterfallDefaultInput(configFlag(config?.idol_waterfall_default))
       setStudioPageSizeInput(studioPageSize)
       setStudioWaterfallDefaultInput(configFlag(config?.studio_waterfall_default))
@@ -2937,6 +2958,7 @@ export default function App() {
     config?.jav_favorite_rating_show_full,
     config?.jav_waterfall_default,
     config?.idol_waterfall_default,
+    config?.idol_card_min_width,
     config?.studio_waterfall_default,
     config?.series_waterfall_default,
     javPageSize,
@@ -4400,7 +4422,10 @@ export default function App() {
               javTitleMaxRows,
               javIdolTagMaxRows,
               javTagMaxRows,
-              onPlay: handleJavPlay,
+              onPlay: (video, item) =>
+                handleJavPlay(video, item, {
+                  fillViewport: Number(javIdolIds[0]) > 0 && javIdolIds.length === 1,
+                }),
               onOpenFile: handleJavOpenFile,
               alternatePlayerLabel,
               onRevealFile: handleJavRevealFile,
@@ -4433,6 +4458,7 @@ export default function App() {
               showExternalWorks,
               onShowExternalWorksChange: handleShowExternalWorksChange,
               activeIdolId: Number(javIdolIds[0]) || 0,
+              playOnCoverClick: Number(javIdolIds[0]) > 0 && javIdolIds.length === 1,
               onDislikeWork: (item) => {
                 const idolId = Number(javIdolIds[0]) || 0
                 if (idolId <= 0) return
@@ -4531,6 +4557,7 @@ export default function App() {
         video={playerVideo}
         startTime={playerStartTime}
         episodes={playerEpisodes}
+        fillViewport={playerFillViewport}
         onSwitchVideo={handleSwitchPlayerVideo}
         hotkeys={config?.player_hotkeys}
         showHotkeyHint={configFlag(config?.browser_player_show_hotkey_hint, true)}
@@ -4539,6 +4566,7 @@ export default function App() {
           setPlayerVideo(null)
           setPlayerStartTime(0)
           setPlayerEpisodes([])
+          setPlayerFillViewport(false)
         }}
       />
 
@@ -4586,6 +4614,8 @@ export default function App() {
         onJavWaterfallDefaultChange={setJavWaterfallDefaultInput}
         idolPageSizeInput={idolPageSizeInput}
         onIdolPageSizeChange={setIdolPageSizeInput}
+        idolCardMinWidthInput={idolCardMinWidthInput}
+        onIdolCardMinWidthChange={setIdolCardMinWidthInput}
         idolWaterfallDefaultInput={idolWaterfallDefaultInput}
         onIdolWaterfallDefaultChange={setIdolWaterfallDefaultInput}
         studioPageSizeInput={studioPageSizeInput}

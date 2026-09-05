@@ -7,11 +7,19 @@ import DirectoryManager from '@/components/DirectoryManager'
 import AppModal from '@/components/AppModal'
 import PlayerSettingsModal from '@/components/PlayerSettingsModal'
 import WebHotkeySettings from '@/components/WebHotkeySettings'
-import { downloadFFmpeg, fetchJavScrapeCheck, fetchTools, runJavScrapeCheck } from '@/api'
+import {
+  downloadFFmpeg,
+  fetchJavScrapeCheck,
+  fetchScrapedDataCleanup,
+  fetchTools,
+  runJavScrapeCheck,
+  runScrapedDataCleanup,
+} from '@/api'
 import { parsePlayerHotkeys } from '@/utils/playerHotkeys'
 import { zh } from '@/utils/i18n'
 import { getErrorMessage } from '@/utils/errors'
 import { javScrapeCheckFieldCounts, javScrapeCheckHasPending } from '@/utils/javScrapeCheck'
+import { scrapedDataCleanupCounts, scrapedDataCleanupTotal } from '@/utils/scrapedDataCleanup'
 
 const SETTINGS_SECTIONS = [
   {
@@ -38,8 +46,8 @@ const SETTINGS_SECTIONS = [
     id: 'tools',
     title: { zh: '工具', en: 'Tools' },
     summary: {
-      zh: '下载运行工具，并检查 JAV 抓取情况',
-      en: 'Manage runtime tools and JAV scrape completeness',
+      zh: '下载运行工具，检查 JAV 抓取情况，并清理未使用的抓取数据',
+      en: 'Manage runtime tools, JAV scrape completeness, and unused scraped data',
     },
   },
   {
@@ -163,6 +171,10 @@ export default function GlobalSettingsModal({
   const [javScrapeCheck, setJavScrapeCheck] = useState(null)
   const [javScrapeCheckLoading, setJavScrapeCheckLoading] = useState(false)
   const [javScrapeCheckError, setJavScrapeCheckError] = useState('')
+  const [scrapedDataCleanup, setScrapedDataCleanup] = useState(null)
+  const [scrapedDataCleanupLoading, setScrapedDataCleanupLoading] = useState(false)
+  const [scrapedDataCleanupError, setScrapedDataCleanupError] = useState('')
+  const [scrapedDataJustCleaned, setScrapedDataJustCleaned] = useState(false)
 
   const normalizedPlayerHotkeys = parsePlayerHotkeys(playerHotkeys)
   const ffmpegInstalledLabel =
@@ -300,6 +312,24 @@ export default function GlobalSettingsModal({
       })
       .catch(() => {
         if (!cancelled) setJavScrapeCheck(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [open, activeSection])
+
+  useEffect(() => {
+    if (!open || activeSection !== 'tools') return undefined
+    let cancelled = false
+    fetchScrapedDataCleanup()
+      .then((report) => {
+        if (!cancelled) {
+          setScrapedDataCleanup(report)
+          setScrapedDataJustCleaned(false)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setScrapedDataCleanup(null)
       })
     return () => {
       cancelled = true
@@ -1221,6 +1251,33 @@ export default function GlobalSettingsModal({
       }
     }
 
+    const handleScrapedDataCleanup = async () => {
+      const confirmed = window.confirm(
+        zh(
+          '只会删除未被视频引用的抓取数据和未使用封面，不会删除任何视频文件。确定继续？',
+          'This only deletes unused scraped data and unused covers. Video files are never deleted. Continue?'
+        )
+      )
+      if (!confirmed) return
+      setScrapedDataCleanupLoading(true)
+      setScrapedDataCleanupError('')
+      try {
+        const report = await runScrapedDataCleanup()
+        try {
+          const leftover = await fetchScrapedDataCleanup()
+          setScrapedDataCleanup(leftover)
+          setScrapedDataJustCleaned(true)
+        } catch {
+          setScrapedDataCleanup(report)
+          setScrapedDataJustCleaned(true)
+        }
+      } catch (err) {
+        setScrapedDataCleanupError(getErrorMessage(err))
+      } finally {
+        setScrapedDataCleanupLoading(false)
+      }
+    }
+
     const javScrapeFieldCounts = javScrapeCheckFieldCounts(javScrapeCheck)
 
     return (
@@ -1371,6 +1428,82 @@ export default function GlobalSettingsModal({
             )}
             {javScrapeCheckError ? (
               <div className="text-sm text-red-600">{javScrapeCheckError}</div>
+            ) : null}
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-col gap-5">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <h4 className="text-sm font-semibold text-zinc-900">
+                  {zh('清理抓取垃圾数据', 'Clean unused scraped data')}
+                </h4>
+                <p className="mt-2 max-w-2xl text-sm text-zinc-500">
+                  {zh(
+                    '删除没有被任何视频引用的抓取元数据、未使用的标签/演员/发行商/系列，以及封面目录里已无对应番号的封面文件。不会删除任何视频文件。',
+                    'Removes scraped metadata that no video still uses, unused tags/actresses/studios/series, and cover files whose codes are gone. Video files are never deleted.'
+                  )}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleScrapedDataCleanup}
+                disabled={
+                  scrapedDataCleanupLoading ||
+                  (scrapedDataCleanup != null && scrapedDataCleanupTotal(scrapedDataCleanup) === 0)
+                }
+                className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+              >
+                {scrapedDataCleanupLoading
+                  ? zh('清理中…', 'Cleaning...')
+                  : zh('开始清理', 'Clean now')}
+              </button>
+            </div>
+
+            {scrapedDataCleanup ? (
+              <div className="space-y-3">
+                {scrapedDataCleanupTotal(scrapedDataCleanup) > 0 ? (
+                  <>
+                    <div className="text-sm text-zinc-700">
+                      {zh(
+                        `发现 ${scrapedDataCleanupTotal(scrapedDataCleanup)} 项可清理的抓取数据。`,
+                        `Found ${scrapedDataCleanupTotal(scrapedDataCleanup)} unused scraped items.`
+                      )}
+                    </div>
+                    <ul className="grid gap-2 sm:grid-cols-2">
+                      {scrapedDataCleanupCounts(scrapedDataCleanup).map((field) => (
+                        <li
+                          key={field.key}
+                          className="flex items-center justify-between rounded-xl border border-zinc-100 bg-zinc-50 px-3 py-2 text-sm text-zinc-700"
+                        >
+                          <span>{zh(field.label[0], field.label[1])}</span>
+                          <span className="font-medium text-zinc-900">{field.count}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                ) : (
+                  <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                    {scrapedDataJustCleaned
+                      ? zh(
+                          '已完成清理。视频文件未被改动。',
+                          'Cleanup finished. Video files were not changed.'
+                        )
+                      : zh('没有可清理的抓取垃圾数据。', 'No unused scraped data was found.')}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-zinc-500">
+                {zh(
+                  '打开此页时会自动扫描可清理的抓取数据。',
+                  'This page scans for unused scraped data when you open it.'
+                )}
+              </p>
+            )}
+            {scrapedDataCleanupError ? (
+              <div className="text-sm text-red-600">{scrapedDataCleanupError}</div>
             ) : null}
           </div>
         </section>

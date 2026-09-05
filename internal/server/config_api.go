@@ -22,6 +22,8 @@ import (
 const maxPageSize = 500
 const maxJavDisplayRows = 12
 const maxJavSortRules = 50
+const minIdolCardMinWidth = 8
+const maxIdolCardMinWidth = 24
 
 var validWebHotkeyActions = map[string]struct{}{
 	"content_page_up":        {},
@@ -98,6 +100,7 @@ func updateConfig(c *gin.Context) {
 		JavFavoriteRatingFull  *bool                 `json:"jav_favorite_rating_show_full"`
 		JavWaterfallDefault    *bool                 `json:"jav_waterfall_default"`
 		IdolPageSize           *int                  `json:"idol_page_size"`
+		IdolCardMinWidth       *int                  `json:"idol_card_min_width"`
 		IdolWaterfallDefault   *bool                 `json:"idol_waterfall_default"`
 		StudioPageSize         *int                  `json:"studio_page_size"`
 		StudioWaterfallDefault *bool                 `json:"studio_waterfall_default"`
@@ -244,6 +247,16 @@ func updateConfig(c *gin.Context) {
 		if v, ok := clampSize(*req.IdolPageSize); ok {
 			entries["idol_page_size"] = v
 		}
+	}
+	if req.IdolCardMinWidth != nil {
+		width := *req.IdolCardMinWidth
+		if width < minIdolCardMinWidth {
+			width = minIdolCardMinWidth
+		}
+		if width > maxIdolCardMinWidth {
+			width = maxIdolCardMinWidth
+		}
+		entries["idol_card_min_width"] = strconv.Itoa(width)
 	}
 	if req.IdolWaterfallDefault != nil {
 		entries["idol_waterfall_default"] = strconv.FormatBool(*req.IdolWaterfallDefault)

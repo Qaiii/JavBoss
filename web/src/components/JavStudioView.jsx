@@ -15,10 +15,17 @@ import {
 import AppModal from '@/components/AppModal'
 import Pagination from '@/components/Pagination'
 import { SeriesCard } from '@/components/JavSeriesView'
+import JavDisplayCover from '@/components/JavDisplayCover'
 import WaterfallLoader from '@/components/WaterfallLoader'
 import { useStore } from '@/store'
 import { getErrorMessage } from '@/utils/errors'
 import { zh } from '@/utils/i18n'
+import {
+  JAV_COVER_ORIENTATION_PORTRAIT,
+  javCoverGridMinmax,
+  javCoverSrc,
+  normalizeJavCoverOrientation,
+} from '@/utils/jav'
 import { openJavDBWithAssist } from '@/utils/javdb'
 
 export default function JavStudioView({
@@ -107,6 +114,9 @@ function JavStudioGrid({
   buildSeriesUrl,
   onMerged,
 }) {
+  const coverOrientation = useStore((state) =>
+    normalizeJavCoverOrientation(state.config?.jav_cover_orientation)
+  )
   const [editItem, setEditItem] = useState(null)
   const [overrides, setOverrides] = useState(() => new Map())
   const displayItems = useMemo(() => {
@@ -130,7 +140,13 @@ function JavStudioGrid({
     <>
       <div
         className="grid gap-4 bg-white"
-        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(16rem, 1fr))' }}
+        style={{
+          gridTemplateColumns: `repeat(auto-fill, minmax(${
+            coverOrientation === JAV_COVER_ORIENTATION_PORTRAIT
+              ? javCoverGridMinmax(coverOrientation)
+              : '16rem'
+          }, 1fr))`,
+        }}
       >
         {displayItems.map((item) => (
           <StudioCard
@@ -189,8 +205,11 @@ export function StudioCard({
       .map((directory) => `${directory.id}:${directory.enabled !== false ? '1' : '0'}`)
       .join(',')
   )
+  const coverOrientation = useStore((state) =>
+    normalizeJavCoverOrientation(state.config?.jav_cover_orientation)
+  )
   const sampleCode = String(item?.sample_code || '').trim()
-  const cover = sampleCode ? `/jav/${encodeURIComponent(sampleCode)}/cover` : null
+  const cover = sampleCode ? javCoverSrc(sampleCode) : null
   const name = item?.name || zh('未知片商', 'Unknown studio')
   const studioId = Number(item?.id)
   const workCount = Number(item?.work_count)
@@ -492,19 +511,18 @@ export function StudioCard({
         }
       }}
     >
-      <div className="relative aspect-[800/538] w-full overflow-hidden bg-gray-100">
-        {cover ? (
-          <img
-            src={cover}
-            alt={name}
-            className="h-full w-full object-cover transition duration-200 group-hover:scale-[1.03]"
-            loading="lazy"
-          />
-        ) : (
+      <JavDisplayCover
+        src={cover}
+        alt={name}
+        orientation={coverOrientation}
+        className="w-full overflow-hidden bg-gray-100"
+        imageClassName="object-cover transition duration-200 group-hover:scale-[1.03]"
+        fallback={
           <div className="absolute inset-0 flex h-full w-full items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 p-4 text-center text-lg font-semibold text-gray-600">
             {name}
           </div>
-        )}
+        }
+      >
         {showWorkCount ? (
           <div className="absolute left-2 top-2 rounded bg-black/70 px-2 py-1 text-xs text-white">
             {zh(`作品 ${workCount}`, `${workCount} works`)}
@@ -550,7 +568,7 @@ export function StudioCard({
             <EditRoundedIcon sx={{ fontSize: 16 }} />
           </button>
         ) : null}
-      </div>
+      </JavDisplayCover>
       <div className="flex flex-1 flex-col gap-1 p-3">
         <div className="flex min-w-0 items-baseline gap-1.5 leading-tight">
           <span

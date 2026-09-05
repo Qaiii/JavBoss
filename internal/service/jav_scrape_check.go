@@ -19,7 +19,6 @@ const (
 	javScrapeRepairWorkerCount = 2
 
 	JavScrapeFieldCoverLandscape = "cover_landscape"
-	JavScrapeFieldCoverPortrait  = "cover_portrait"
 	JavScrapeFieldTitle          = "title"
 	JavScrapeFieldTags           = "tags"
 	JavScrapeFieldSeries         = "series"
@@ -221,7 +220,7 @@ func repairJavScrape(ctx context.Context, code string) error {
 	}
 
 	if mgr := common.CoverManager; mgr != nil {
-		if !mgr.ExistsKind(code, manager.CoverKindLandscape) || !mgr.ExistsKind(code, manager.CoverKindPortrait) {
+		if !mgr.Exists(code) {
 			mgr.TryEnqueue(code)
 		}
 	}
@@ -265,8 +264,7 @@ func CheckAndRepairJavScrape(ctx context.Context) (JavScrapeCheckReport, error) 
 		}
 
 		code := strings.TrimSpace(item.Code)
-		needsCover := containsJavScrapeField(fields, JavScrapeFieldCoverLandscape) ||
-			containsJavScrapeField(fields, JavScrapeFieldCoverPortrait)
+		needsCover := containsJavScrapeField(fields, JavScrapeFieldCoverLandscape)
 		needsMetadata := javScrapeNeedsMetadataRepair(fields)
 
 		queued := false
@@ -348,15 +346,8 @@ func javScrapeMissingFields(item db.JavScrapeHealthItem, coverMgr *manager.Cover
 	var fields []string
 	if coverMgr != nil {
 		code := strings.TrimSpace(item.Code)
-		if !coverMgr.ExistsKind(code, manager.CoverKindLandscape) {
+		if !coverMgr.Exists(code) {
 			fields = append(fields, JavScrapeFieldCoverLandscape)
-		}
-		if !coverMgr.ExistsKind(code, manager.CoverKindPortrait) {
-			if coverMgr.EnsurePoster(code) && coverMgr.ExistsKind(code, manager.CoverKindPortrait) {
-				// Portrait was generated locally from the landscape cover.
-			} else {
-				fields = append(fields, JavScrapeFieldCoverPortrait)
-			}
 		}
 	}
 	if strings.TrimSpace(item.Title) == "" {
@@ -392,7 +383,7 @@ func javScrapeMissingFields(item db.JavScrapeHealthItem, coverMgr *manager.Cover
 func unimportedJavScrapeMissingFields(item db.UnimportedJavScrapeHealthItem) []string {
 	var fields []string
 	if strings.TrimSpace(item.CoverURL) == "" {
-		fields = append(fields, JavScrapeFieldCoverLandscape, JavScrapeFieldCoverPortrait)
+		fields = append(fields, JavScrapeFieldCoverLandscape)
 	}
 	if strings.TrimSpace(item.Title) == "" {
 		fields = append(fields, JavScrapeFieldTitle)
@@ -421,7 +412,7 @@ func unimportedJavScrapeMissingFields(item db.UnimportedJavScrapeHealthItem) []s
 func javScrapeNeedsMetadataRepair(fields []string) bool {
 	for _, field := range fields {
 		switch field {
-		case JavScrapeFieldCoverLandscape, JavScrapeFieldCoverPortrait:
+		case JavScrapeFieldCoverLandscape:
 			continue
 		default:
 			return true

@@ -404,3 +404,13 @@ export function sortLabelParts(option, sort, zh) {
 export function isUserJavTag(tag) {
   return Number(tag?.provider) === JAV_PROVIDER_USER
 }
+
+export const IDOL_CARD_MIN_WIDTH_DEFAULT = 14
+export const IDOL_CARD_MIN_WIDTH_MIN = 8
+export const IDOL_CARD_MIN_WIDTH_MAX = 24
+
+export function normalizeIdolCardMinWidth(value) {
+  const parsed = Number.parseInt(String(value ?? ''), 10)
+  if (!Number.isFinite(parsed)) return IDOL_CARD_MIN_WIDTH_DEFAULT
+  return Math.min(IDOL_CARD_MIN_WIDTH_MAX, Math.max(IDOL_CARD_MIN_WIDTH_MIN, parsed))
+}

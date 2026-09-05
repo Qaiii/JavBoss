@@ -507,6 +507,7 @@ func enrichJavIdolSummary(ctx context.Context, item *dbpkg.JavIdolSummary, cover
 	item.JapaneseName = strings.TrimSpace(item.JapaneseName)
 	item.ChineseName = strings.TrimSpace(item.ChineseName)
 	item.CoverCode = strings.TrimSpace(item.CoverCode)
+	item.PosterImages = enrichIdolPosterImages(item.ID, item.PosterImages)
 
 	if coverDir == "" {
 		return

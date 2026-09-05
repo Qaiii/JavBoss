@@ -13,6 +13,7 @@ export {
   javCoverGridMinmax,
   javCardCoverSrc,
   javCoverSrc,
+  javCoverIsPortrait,
   normalizeJavCoverOrientation,
 } from '@/utils/javCover'
 export { javTitlePrefersChinese, normalizeJavTitleLanguage } from '@/utils/javTitle'

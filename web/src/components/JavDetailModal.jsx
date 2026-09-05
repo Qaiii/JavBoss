@@ -18,6 +18,7 @@ import {
 } from '@/api'
 import AppModal from '@/components/AppModal'
 import { IdolCard, getIdolCardLayoutProps } from '@/components/JavIdolGrid'
+import JavDisplayCover from '@/components/JavDisplayCover'
 import { SeriesCard } from '@/components/JavSeriesView'
 import { StudioCard } from '@/components/JavStudioView'
 import VideoGrid from '@/components/VideoGrid'
@@ -452,6 +453,7 @@ function JavScreenshotGrid({ videos, onPlayAtTime, onCoverChanged }) {
 export default function JavDetailModal({
   item,
   cover,
+  coverOrientation,
   title,
   releaseText,
   durationText,
@@ -696,18 +698,17 @@ export default function JavDetailModal({
 
       <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
         <div className="grid items-stretch gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(19rem,2fr)]">
-          <div className="group relative aspect-[800/538] w-full overflow-hidden rounded-lg border border-gray-200 bg-gray-50 shadow-sm">
-            {cover ? (
-              <img
-                src={cover}
-                alt={code || zh('JAV 封面', 'JAV cover')}
-                className="h-full w-full object-contain object-top"
-              />
-            ) : (
-              <span className="flex h-full items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 text-lg font-semibold text-gray-500">
+          <JavDisplayCover
+            src={cover}
+            alt={code || zh('JAV 封面', 'JAV cover')}
+            orientation={coverOrientation}
+            className="group w-full overflow-hidden rounded-lg border border-gray-200 bg-gray-50 shadow-sm"
+            fallback={
+              <span className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 text-lg font-semibold text-gray-500">
                 {code || zh('暂无封面', 'No cover')}
               </span>
-            )}
+            }
+          >
             {canPlay ? (
               <button
                 type="button"
@@ -718,7 +719,7 @@ export default function JavDetailModal({
                 <PlayArrowIcon sx={{ fontSize: 54 }} />
               </button>
             ) : null}
-          </div>
+          </JavDisplayCover>
 
           <div className="flex min-w-0 flex-col gap-5">
             <dl className="overflow-hidden rounded-lg border border-gray-200 bg-white">

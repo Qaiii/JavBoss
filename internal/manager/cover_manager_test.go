@@ -1,12 +1,8 @@
 package manager
 
 import (
-	"bytes"
 	"context"
 	"errors"
-	"image"
-	"image/color"
-	"image/jpeg"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -188,198 +184,73 @@ func TestHandleTaskRetriesAfterSmallCover(t *testing.T) {
 	}
 }
 
-func TestParseCoverKind(t *testing.T) {
-	if got := ParseCoverKind("portrait"); got != CoverKindPortrait {
-		t.Fatalf("ParseCoverKind(portrait) = %q", got)
+func TestRemoveUnusedCoverFilesLeavesKeptAndUnknownFiles(t *testing.T) {
+	coverDir := t.TempDir()
+	outsideDir := t.TempDir()
+	videoPath := filepath.Join(outsideDir, "keep.mp4")
+	if err := os.WriteFile(videoPath, []byte("video"), 0o644); err != nil {
+		t.Fatalf("write video: %v", err)
 	}
-	if got := ParseCoverKind("LANDSCAPE"); got != CoverKindLandscape {
-		t.Fatalf("ParseCoverKind(LANDSCAPE) = %q", got)
+	files := map[string]string{
+		"keep-001.jpg":          "keep-cover",
+		"keep-001-poster.jpg":   "keep-poster",
+		"orph-001.webp":         "orphan-cover",
+		"orph-002-poster.png":   "orphan-poster",
+		"orph-003.download.tmp": "orphan-tmp",
+		"notes.txt":             "leave-me",
 	}
-	if got := ParseCoverKind(""); got != CoverKindLandscape {
-		t.Fatalf("ParseCoverKind() = %q", got)
-	}
-}
-
-func TestDownloadCoverPrefersProviderPosterOverCrop(t *testing.T) {
-	landscape := encodeTestJPEG(t, 800, 538)
-	poster := encodeSmallPosterJPEG(t)
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "image/jpeg")
-		switch r.URL.Path {
-		case "/cover.jpg":
-			_, _ = w.Write(landscape)
-		case "/poster.jpg":
-			_, _ = w.Write(poster)
-		default:
-			http.NotFound(w, r)
-		}
-	}))
-	defer server.Close()
-
-	originalLookup := lookupJavByCode
-	lookupJavByCode = func(string, jav.Provider) (*jav.JavInfo, error) {
-		return &jav.JavInfo{
-			CoverURL:  server.URL + "/cover.jpg",
-			PosterURL: server.URL + "/poster.jpg",
-		}, nil
-	}
-	t.Cleanup(func() { lookupJavByCode = originalLookup })
-
-	manager := &CoverManager{
-		coverDir:  t.TempDir(),
-		providers: []jav.Provider{jav.ProviderAvmoo},
-	}
-	if err := manager.handleTask(context.Background(), "ABC-001"); err != nil {
-		t.Fatalf("handleTask: %v", err)
-	}
-
-	path, ok := FindCoverPathKind(manager.coverDir, "ABC-001", CoverKindPortrait)
-	if !ok {
-		t.Fatal("expected downloaded poster")
-	}
-	file, err := os.Open(path)
-	if err != nil {
-		t.Fatalf("open poster: %v", err)
-	}
-	defer file.Close()
-	img, _, err := image.Decode(file)
-	if err != nil {
-		t.Fatalf("decode poster: %v", err)
-	}
-	if img.Bounds().Dx() != 120 || img.Bounds().Dy() != 180 {
-		t.Fatalf("poster size = %dx%d, want official 120x180 (not a landscape crop)", img.Bounds().Dx(), img.Bounds().Dy())
-	}
-}
-
-func TestDownloadPosterAcceptsFileBelowLandscapeMinimum(t *testing.T) {
-	poster := encodeSmallPosterJPEG(t)
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "image/jpeg")
-		_, _ = w.Write(poster)
-	}))
-	defer server.Close()
-
-	manager := &CoverManager{coverDir: t.TempDir()}
-	if err := manager.downloadCoverKind(context.Background(), "ABC-001", server.URL+"/poster.jpg", CoverKindPortrait); err != nil {
-		t.Fatalf("downloadCoverKind poster: %v", err)
-	}
-	if _, ok := FindCoverPathKind(manager.coverDir, "ABC-001", CoverKindPortrait); !ok {
-		t.Fatal("small poster should be kept")
-	}
-}
-
-func TestHandleTaskCropsPosterWhenPosterURLMissing(t *testing.T) {
-	landscape := encodeTestJPEG(t, 800, 538)
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "image/jpeg")
-		_, _ = w.Write(landscape)
-	}))
-	defer server.Close()
-
-	originalLookup := lookupJavByCode
-	lookupJavByCode = func(string, jav.Provider) (*jav.JavInfo, error) {
-		return &jav.JavInfo{CoverURL: server.URL + "/cover.jpg"}, nil
-	}
-	t.Cleanup(func() { lookupJavByCode = originalLookup })
-
-	manager := &CoverManager{
-		coverDir:  t.TempDir(),
-		providers: []jav.Provider{jav.ProviderAvmoo},
-	}
-	if err := manager.handleTask(context.Background(), "ABC-001"); err != nil {
-		t.Fatalf("handleTask: %v", err)
-	}
-	path, ok := FindCoverPathKind(manager.coverDir, "ABC-001", CoverKindPortrait)
-	if !ok {
-		t.Fatal("expected cropped poster fallback")
-	}
-	file, err := os.Open(path)
-	if err != nil {
-		t.Fatalf("open poster: %v", err)
-	}
-	defer file.Close()
-	img, _, err := image.Decode(file)
-	if err != nil {
-		t.Fatalf("decode poster: %v", err)
-	}
-	wantWidth := 538 * 2 / 3
-	if img.Bounds().Dx() != wantWidth || img.Bounds().Dy() != 538 {
-		t.Fatalf("cropped poster size = %dx%d, want %dx538", img.Bounds().Dx(), img.Bounds().Dy(), wantWidth)
-	}
-}
-
-func TestEnsurePosterCoverCropsLandscape(t *testing.T) {
-	dir := t.TempDir()
-	src := filepath.Join(dir, "abc-001.jpg")
-	writeTestJPEG(t, src, 800, 538)
-	path, ok := EnsurePosterCover(dir, "ABC-001")
-	if !ok {
-		t.Fatal("expected poster cover to be generated")
-	}
-	file, err := os.Open(path)
-	if err != nil {
-		t.Fatalf("open poster: %v", err)
-	}
-	defer file.Close()
-	img, _, err := image.Decode(file)
-	if err != nil {
-		t.Fatalf("decode poster: %v", err)
-	}
-	wantWidth := 538 * 2 / 3
-	if img.Bounds().Dx() != wantWidth || img.Bounds().Dy() != 538 {
-		t.Fatalf("poster size = %dx%d, want %dx538", img.Bounds().Dx(), img.Bounds().Dy(), wantWidth)
-	}
-	if _, ok := FindCoverPathKind(dir, "ABC-001", CoverKindPortrait); !ok {
-		t.Fatal("generated poster should be findable")
-	}
-}
-
-func TestEnsurePosterCoverSkipsPortraitSource(t *testing.T) {
-	dir := t.TempDir()
-	src := filepath.Join(dir, "abc-001.jpg")
-	writeTestJPEG(t, src, 400, 600)
-	if _, ok := EnsurePosterCover(dir, "ABC-001"); ok {
-		t.Fatal("portrait source should not produce a cropped poster")
-	}
-}
-
-func writeTestJPEG(t *testing.T, path string, width, height int) {
-	t.Helper()
-	if err := os.WriteFile(path, encodeTestJPEG(t, width, height), 0o644); err != nil {
-		t.Fatalf("write jpeg: %v", err)
-	}
-}
-
-func encodeSmallPosterJPEG(t *testing.T) []byte {
-	t.Helper()
-	data := encodeTestJPEG(t, 120, 180)
-	if int64(len(data)) < minValidPosterSizeBytes {
-		t.Fatalf("test poster size %d is below portrait minimum %d", len(data), minValidPosterSizeBytes)
-	}
-	if int64(len(data)) >= minValidCoverSizeBytes {
-		t.Fatalf("test poster size %d should stay below landscape minimum %d", len(data), minValidCoverSizeBytes)
-	}
-	return data
-}
-
-func encodeTestJPEG(t *testing.T, width, height int) []byte {
-	t.Helper()
-	img := image.NewRGBA(image.Rect(0, 0, width, height))
-	for y := 0; y < height; y++ {
-		for x := 0; x < width; x++ {
-			img.SetRGBA(x, y, color.RGBA{R: uint8(x), G: uint8(y), B: uint8(x + y), A: 255})
+	for name, body := range files {
+		if err := os.WriteFile(filepath.Join(coverDir, name), []byte(body), 0o644); err != nil {
+			t.Fatalf("write %s: %v", name, err)
 		}
 	}
-	return encodeJPEG(t, img)
+
+	keep := map[string]struct{}{"keep-001": {}}
+	count, err := CountUnusedCoverFiles(coverDir, keep)
+	if err != nil {
+		t.Fatalf("count unused covers: %v", err)
+	}
+	if count != 3 {
+		t.Fatalf("unused cover count = %d, want 3", count)
+	}
+
+	removed, err := RemoveUnusedCoverFiles(coverDir, keep)
+	if err != nil {
+		t.Fatalf("remove unused covers: %v", err)
+	}
+	if removed != 3 {
+		t.Fatalf("removed = %d, want 3", removed)
+	}
+
+	assertFileExists(t, filepath.Join(coverDir, "keep-001.jpg"))
+	assertFileExists(t, filepath.Join(coverDir, "keep-001-poster.jpg"))
+	assertFileExists(t, filepath.Join(coverDir, "notes.txt"))
+	assertFileExists(t, videoPath)
+	assertFileMissing(t, filepath.Join(coverDir, "orph-001.webp"))
+	assertFileMissing(t, filepath.Join(coverDir, "orph-002-poster.png"))
+	assertFileMissing(t, filepath.Join(coverDir, "orph-003.download.tmp"))
 }
 
-func encodeJPEG(t *testing.T, img image.Image) []byte {
-	t.Helper()
-	var buf bytes.Buffer
-	if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: 90}); err != nil {
-		t.Fatalf("encode jpeg: %v", err)
+func TestCountUnusedCoverFilesSkipsEmptyDir(t *testing.T) {
+	count, err := CountUnusedCoverFiles("", map[string]struct{}{"keep": {}})
+	if err != nil {
+		t.Fatalf("empty cover dir: %v", err)
 	}
-	return buf.Bytes()
+	if count != 0 {
+		t.Fatalf("count = %d, want 0", count)
+	}
+}
+
+func assertFileExists(t *testing.T, path string) {
+	t.Helper()
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("expected %s to exist: %v", path, err)
+	}
+}
+
+func assertFileMissing(t *testing.T, path string) {
+	t.Helper()
+	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("expected %s to be removed, stat err=%v", path, err)
+	}
 }

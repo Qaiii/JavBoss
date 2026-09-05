@@ -2059,24 +2059,25 @@ func ListSeriesCoverCodes(ctx context.Context, seriesID int64, directoryIDs []in
 
 // JavIdolSummary represents idol info with aggregated work count and cover selection.
 type JavIdolSummary struct {
-	ID            int64      `json:"id"`
-	Name          string     `json:"name"`
-	Aliases       []string   `json:"aliases,omitempty" gorm:"-"`
-	RomanName     string     `json:"roman_name"`
-	JapaneseName  string     `json:"japanese_name"`
-	ChineseName   string     `json:"chinese_name"`
-	HeightCM      *int       `json:"height_cm"`
-	BirthDate     *time.Time `json:"birth_date"`
-	Bust          *int       `json:"bust"`
-	Waist         *int       `json:"waist"`
-	Hips          *int       `json:"hips"`
-	Cup           *int       `json:"cup"`
-	WorkCount     int64      `json:"work_count"`
-	CoverJavID    *int64     `json:"cover_jav_id"`
-	CoverCode     string     `json:"cover_code"`
-	CoverCropLeft float64    `json:"cover_crop_left"`
-	FavoriteCount int64      `json:"favorite_count"`
-	Tracked       bool       `json:"tracked" gorm:"-"`
+	ID            int64                      `json:"id"`
+	Name          string                     `json:"name"`
+	Aliases       []string                   `json:"aliases,omitempty" gorm:"-"`
+	RomanName     string                     `json:"roman_name"`
+	JapaneseName  string                     `json:"japanese_name"`
+	ChineseName   string                     `json:"chinese_name"`
+	HeightCM      *int                       `json:"height_cm"`
+	BirthDate     *time.Time                 `json:"birth_date"`
+	Bust          *int                       `json:"bust"`
+	Waist         *int                       `json:"waist"`
+	Hips          *int                       `json:"hips"`
+	Cup           *int                       `json:"cup"`
+	WorkCount     int64                      `json:"work_count"`
+	CoverJavID    *int64                     `json:"cover_jav_id"`
+	CoverCode     string                     `json:"cover_code"`
+	CoverCropLeft float64                    `json:"cover_crop_left"`
+	PosterImages  models.JavIdolPosterImages `json:"poster_images"`
+	FavoriteCount int64                      `json:"favorite_count"`
+	Tracked       bool                       `json:"tracked" gorm:"-"`
 }
 
 // JavIdolIntRange is an inclusive numeric range used by idol profile filters.
@@ -2163,7 +2164,7 @@ func GetJavIdolSummary(ctx context.Context, idolID int64, directoryIDs []int64) 
 	var item JavIdolSummary
 	tx := common.DB.WithContext(ctx).
 		Table("jav_idol ji").
-		Select("ji.id, ji.name, ji.roman_name, ji.japanese_name, ji.chinese_name, ji.height_cm, ji.birth_date, ji.bust, ji.waist, ji.hips, ji.cup, COALESCE(idol_work_counts.work_count, 0) AS work_count, ji.cover_jav_id, COALESCE(NULLIF(cover_jav.code, ''), solo_idols.cover_code) AS cover_code, COALESCE(ji.cover_crop_left, 0.53) AS cover_crop_left, COALESCE(favorite_counts.favorite_count, 0) AS favorite_count").
+		Select("ji.id, ji.name, ji.roman_name, ji.japanese_name, ji.chinese_name, ji.height_cm, ji.birth_date, ji.bust, ji.waist, ji.hips, ji.cup, COALESCE(idol_work_counts.work_count, 0) AS work_count, ji.cover_jav_id, COALESCE(NULLIF(cover_jav.code, ''), solo_idols.cover_code) AS cover_code, COALESCE(ji.cover_crop_left, 0.53) AS cover_crop_left, COALESCE(ji.poster_images, '[]') AS poster_images, COALESCE(favorite_counts.favorite_count, 0) AS favorite_count").
 		Joins("LEFT JOIN (?) idol_work_counts ON idol_work_counts.jav_idol_id = ji.id", buildVisibleIdolWorkCountQuery(ctx, directoryIDs)).
 		Joins("LEFT JOIN (?) solo_idols ON solo_idols.jav_idol_id = ji.id", buildVisibleSoloIdolCoverQuery(ctx, directoryIDs, nil, nil)).
 		Joins("LEFT JOIN jav cover_jav ON cover_jav.id = ji.cover_jav_id").
@@ -2333,8 +2334,8 @@ func ListJavIdols(ctx context.Context, search, sort string, limit, offset int, d
 	base = applyJavIdolFilters(base, filters, filterDate)
 	if err := base.
 		Joins("LEFT JOIN jav cover_jav ON cover_jav.id = ji.cover_jav_id").
-		Select("ji.id, ji.name, ji.roman_name, ji.japanese_name, ji.chinese_name, ji.height_cm, ji.birth_date, ji.bust, ji.waist, ji.hips, ji.cup, COUNT(DISTINCT j.id) AS work_count, ji.cover_jav_id, COALESCE(NULLIF(cover_jav.code, ''), solo_idols.cover_code) AS cover_code, COALESCE(ji.cover_crop_left, 0.53) AS cover_crop_left, COALESCE(favorite_counts.favorite_count, 0) AS favorite_count").
-		Group("ji.id, ji.name, ji.roman_name, ji.japanese_name, ji.chinese_name, ji.height_cm, ji.birth_date, ji.bust, ji.waist, ji.hips, ji.cup, ji.cover_jav_id, cover_jav.code, ji.cover_crop_left, solo_idols.cover_code, favorite_counts.favorite_count").
+		Select("ji.id, ji.name, ji.roman_name, ji.japanese_name, ji.chinese_name, ji.height_cm, ji.birth_date, ji.bust, ji.waist, ji.hips, ji.cup, COUNT(DISTINCT j.id) AS work_count, ji.cover_jav_id, COALESCE(NULLIF(cover_jav.code, ''), solo_idols.cover_code) AS cover_code, COALESCE(ji.cover_crop_left, 0.53) AS cover_crop_left, COALESCE(ji.poster_images, '[]') AS poster_images, COALESCE(favorite_counts.favorite_count, 0) AS favorite_count").
+		Group("ji.id, ji.name, ji.roman_name, ji.japanese_name, ji.chinese_name, ji.height_cm, ji.birth_date, ji.bust, ji.waist, ji.hips, ji.cup, ji.cover_jav_id, cover_jav.code, ji.cover_crop_left, ji.poster_images, solo_idols.cover_code, favorite_counts.favorite_count").
 		Order(order).
 		Limit(limit).
 		Offset(offset).
@@ -2747,6 +2748,138 @@ func isFiniteFloat(value float64) bool {
 	return !math.IsNaN(value) && !math.IsInf(value, 0)
 }
 
+// JavIdolPosterWorkVideo is one library video belonging to an idol's work.
+type JavIdolPosterWorkVideo struct {
+	JavID    int64  `json:"jav_id"`
+	Code     string `json:"code"`
+	Title    string `json:"title"`
+	TitleZH  string `json:"title_zh"`
+	VideoID  int64  `json:"video_id"`
+	Filename string `json:"filename"`
+}
+
+// ListIdolPosterWorkVideos returns visible library videos for an idol's works.
+func ListIdolPosterWorkVideos(ctx context.Context, idolID int64, directoryIDs []int64) ([]JavIdolPosterWorkVideo, error) {
+	if idolID <= 0 {
+		return nil, errors.New("idol id must be positive")
+	}
+
+	var rows []JavIdolPosterWorkVideo
+	query := common.DB.WithContext(ctx).
+		Table("jav_idol_map jim").
+		Select("j.id AS jav_id, j.code, j.title, j.title_zh, vl.video_id, MIN(vl.filename) AS filename").
+		Joins("JOIN jav j ON j.id = jim.jav_id").
+		Joins("JOIN video_location vl ON vl.jav_id = j.id").
+		Joins("JOIN directory d ON d.id = vl.directory_id").
+		Where("jim.jav_idol_id = ?", idolID).
+		Where(activeLocationWhereSQL("vl", "d"))
+	query = applyDirectoryFilter(query, "vl", directoryIDs)
+	if err := query.
+		Group("j.id, j.code, j.title, j.title_zh, vl.video_id").
+		Order("j.code ASC, vl.video_id ASC").
+		Scan(&rows).Error; err != nil {
+		return nil, fmt.Errorf("list idol poster work videos: %w", err)
+	}
+	return rows, nil
+}
+
+func idolOwnsVideoIDs(ctx context.Context, tx *gorm.DB, idolID int64, videoIDs []int64, directoryIDs []int64) (map[int64]bool, error) {
+	owned := map[int64]bool{}
+	if len(videoIDs) == 0 {
+		return owned, nil
+	}
+	var rows []int64
+	query := tx.WithContext(ctx).
+		Table("jav_idol_map jim").
+		Select("DISTINCT vl.video_id").
+		Joins("JOIN video_location vl ON vl.jav_id = jim.jav_id").
+		Joins("JOIN directory d ON d.id = vl.directory_id").
+		Where("jim.jav_idol_id = ?", idolID).
+		Where("vl.video_id IN ?", videoIDs).
+		Where(activeLocationWhereSQL("vl", "d"))
+	query = applyDirectoryFilter(query, "vl", directoryIDs)
+	if err := query.Pluck("vl.video_id", &rows).Error; err != nil {
+		return nil, fmt.Errorf("validate idol poster videos: %w", err)
+	}
+	for _, videoID := range rows {
+		owned[videoID] = true
+	}
+	return owned, nil
+}
+
+// UpdateJavIdolPosterImages persists the idol-detail poster collage.
+func UpdateJavIdolPosterImages(ctx context.Context, idolID int64, images models.JavIdolPosterImages, directoryIDs []int64) (*JavIdolSummary, error) {
+	if idolID <= 0 {
+		return nil, errors.New("idol id must be positive")
+	}
+	normalized := images.Normalized()
+
+	if err := common.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var count int64
+		if err := tx.Model(&models.JavIdol{}).Where("id = ?", idolID).Count(&count).Error; err != nil {
+			return fmt.Errorf("find jav idol: %w", err)
+		}
+		if count == 0 {
+			return gorm.ErrRecordNotFound
+		}
+
+		videoIDs := make([]int64, 0, len(normalized))
+		for _, image := range normalized {
+			if image.Kind == models.JavIdolPosterKindScreenshot {
+				videoIDs = append(videoIDs, image.VideoID)
+			}
+		}
+		owned, err := idolOwnsVideoIDs(ctx, tx, idolID, uniqueInt64s(videoIDs), directoryIDs)
+		if err != nil {
+			return err
+		}
+		for _, image := range normalized {
+			if image.Kind != models.JavIdolPosterKindScreenshot {
+				continue
+			}
+			if !owned[image.VideoID] {
+				return errors.New("poster screenshot video is not available for idol")
+			}
+		}
+
+		encoded, err := normalized.Value()
+		if err != nil {
+			return err
+		}
+		if err := tx.Model(&models.JavIdol{}).Where("id = ?", idolID).Update("poster_images", encoded).Error; err != nil {
+			return fmt.Errorf("update jav idol poster images: %w", err)
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	return GetJavIdolSummary(ctx, idolID, directoryIDs)
+}
+
+func inheritJavIdolPosterTx(tx *gorm.DB, canonical models.JavIdol, sources []models.JavIdol) error {
+	if len(canonical.PosterImages.Normalized()) > 0 {
+		return nil
+	}
+	for _, source := range sources {
+		images := source.PosterImages.Normalized()
+		if len(images) == 0 {
+			continue
+		}
+		encoded, err := images.Value()
+		if err != nil {
+			return err
+		}
+		if err := tx.Model(&models.JavIdol{}).
+			Where("id = ?", canonical.ID).
+			Update("poster_images", encoded).Error; err != nil {
+			return fmt.Errorf("inherit jav idol poster: %w", err)
+		}
+		return nil
+	}
+	return nil
+}
+
 // FindIdolSoloCode returns one solo work code for the idol, when available.
 func FindIdolSoloCode(ctx context.Context, idolID int64) (string, error) {
 	if idolID == 0 {
@@ -3120,33 +3253,6 @@ func SaveJavInfo(ctx context.Context, info *jav.JavInfo) (*models.Jav, error) {
 		return nil, err
 	}
 	return javRec, nil
-}
-
-// DeleteOrphanJavs removes JAV records that have no video referencing them.
-func DeleteOrphanJavs(ctx context.Context) error {
-	var orphanIDs []int64
-	sub := common.DB.WithContext(ctx).Model(&models.VideoLocation{}).Select("DISTINCT jav_id").Where("jav_id IS NOT NULL")
-	if err := common.DB.WithContext(ctx).Model(&models.Jav{}).
-		Where("id NOT IN (?)", sub).
-		Pluck("id", &orphanIDs).Error; err != nil {
-		return fmt.Errorf("find orphan javs: %w", err)
-	}
-	if len(orphanIDs) == 0 {
-		return nil
-	}
-
-	return common.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("jav_id IN ?", orphanIDs).Delete(&models.JavTagMap{}).Error; err != nil {
-			return fmt.Errorf("delete orphan jav tag maps: %w", err)
-		}
-		if err := tx.Where("jav_id IN ?", orphanIDs).Delete(&models.JavIdolMap{}).Error; err != nil {
-			return fmt.Errorf("delete orphan jav idol maps: %w", err)
-		}
-		if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Where("id IN ?", orphanIDs).Delete(&models.Jav{}).Error; err != nil {
-			return fmt.Errorf("delete orphan javs: %w", err)
-		}
-		return nil
-	})
 }
 
 // ListJavCodesForDirectory 返回指定目录中可见视频关联的去重 JAV 番号。
@@ -4097,6 +4203,9 @@ func MergeJavIdols(ctx context.Context, canonicalID int64, sourceIDs []int64, di
 			return err
 		}
 		if err := inheritJavIdolCoverTx(tx, canonical, sources); err != nil {
+			return err
+		}
+		if err := inheritJavIdolPosterTx(tx, canonical, sources); err != nil {
 			return err
 		}
 		if err := tx.Where("id IN ?", cleanSourceIDs).Delete(&models.JavIdol{}).Error; err != nil {

@@ -12,7 +12,6 @@ test('lists known scrape completeness fields', () => {
     JAV_SCRAPE_CHECK_FIELDS.map((field) => field.key),
     [
       'cover_landscape',
-      'cover_portrait',
       'title',
       'tags',
       'series',

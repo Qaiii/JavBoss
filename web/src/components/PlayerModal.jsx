@@ -93,6 +93,7 @@ export default function PlayerModal({
   hotkeys = null,
   showHotkeyHint = true,
   onPlaybackError,
+  fillViewport = false,
 }) {
   const videoRef = useRef(null)
   const playerRef = useRef(null)
@@ -100,6 +101,7 @@ export default function PlayerModal({
   const seekBarRef = useRef(null)
   // 悬停预览气泡元素：测量其宽度，用于在进度条两端贴边不超出
   const seekTooltipRef = useRef(null)
+  const overlayRef = useRef(null)
   const hotkeyMapRef = useRef(new Map())
   const hideTimerRef = useRef(null)
   const clickTimerRef = useRef(null)
@@ -1481,6 +1483,18 @@ export default function PlayerModal({
     applySeek(Math.min(Math.max(0, next), duration))
   }
 
+  useEffect(() => {
+    if (!fillViewport || !video) return undefined
+    const overlay = overlayRef.current
+    if (!overlay) return undefined
+    const handleWheel = (event) => {
+      event.preventDefault()
+      event.stopPropagation()
+    }
+    overlay.addEventListener('wheel', handleWheel, { passive: false })
+    return () => overlay.removeEventListener('wheel', handleWheel)
+  }, [fillViewport, video])
+
   if (!video) return null
 
   const displayName = getVideoDisplayName(video)
@@ -1505,9 +1519,10 @@ export default function PlayerModal({
 
   return (
     <div
+      ref={overlayRef}
       className={`fixed inset-0 z-[1700] flex items-center justify-center bg-black/70 transition-transform duration-300 pointer-coarse:bg-black ${
-        dismissedWhilePip ? '-translate-x-[120vw]' : ''
-      }`}
+        fillViewport ? 'bg-black' : ''
+      } ${dismissedWhilePip ? '-translate-x-[120vw]' : ''}`}
     >
       {/*
         桌面端：白色卡片包裹，标题与关闭按钮在卡片内；
@@ -1515,21 +1530,35 @@ export default function PlayerModal({
         宽度公式在 .player-card 的媒体查询中，比例通过 --player-ar 传入。
       */}
       <div
-        className="player-card relative mx-4 rounded-lg bg-white shadow-lg pointer-coarse:mx-0 pointer-coarse:rounded-none pointer-coarse:bg-black pointer-coarse:shadow-none"
+        className={`player-card relative mx-4 rounded-lg bg-white shadow-lg pointer-coarse:mx-0 pointer-coarse:rounded-none pointer-coarse:bg-black pointer-coarse:shadow-none ${
+          fillViewport ? 'player-card--viewport mx-0 rounded-none bg-black shadow-none' : ''
+        }`}
         style={{ '--player-ar': `${aspectRatio}` }}
       >
         <button
           aria-label={zh('关闭', 'Close')}
           onClick={handleClose}
           className={`absolute right-3 top-4 z-20 rounded-full bg-black/60 px-2 py-1 text-sm text-white hover:bg-black/80 pointer-coarse:top-3 pointer-coarse:transition-opacity pointer-coarse:duration-200 ${
-            controlsVisible ? '' : 'pointer-coarse:pointer-events-none pointer-coarse:opacity-0'
+            fillViewport ? 'top-3' : ''
+          } ${
+            fillViewport || controlsVisible
+              ? ''
+              : 'pointer-coarse:pointer-events-none pointer-coarse:opacity-0'
           }`}
         >
           ×
         </button>
-        <div className="flex flex-col gap-4 p-4 pointer-coarse:gap-0 pointer-coarse:p-0">
+        <div
+          className={`flex flex-col gap-4 p-4 pointer-coarse:gap-0 pointer-coarse:p-0 ${
+            fillViewport ? 'h-full gap-0 p-0' : ''
+          }`}
+        >
           <h2
             className={`truncate pr-10 text-lg font-semibold pointer-coarse:absolute pointer-coarse:inset-x-0 pointer-coarse:top-0 pointer-coarse:z-10 pointer-coarse:bg-gradient-to-b pointer-coarse:from-black/60 pointer-coarse:to-transparent pointer-coarse:pb-5 pointer-coarse:pl-3 pointer-coarse:pr-14 pointer-coarse:pt-4 pointer-coarse:text-sm pointer-coarse:font-medium pointer-coarse:text-white pointer-coarse:transition-opacity pointer-coarse:duration-200 ${
+              fillViewport
+                ? 'absolute inset-x-0 top-0 z-10 bg-gradient-to-b from-black/60 to-transparent pb-5 pl-3 pr-14 pt-4 text-sm font-medium text-white'
+                : ''
+            } ${fillViewport && !controlsVisible ? 'pointer-events-none opacity-0' : ''} ${
               controlsVisible ? '' : 'pointer-coarse:pointer-events-none pointer-coarse:opacity-0'
             }`}
             title={displayName}
@@ -1538,9 +1567,15 @@ export default function PlayerModal({
           </h2>
           <div
             ref={shellRef}
-            className={`player-shell relative w-full bg-black ${controlsVisible ? '' : 'cursor-none'}`}
+            className={`player-shell relative w-full bg-black ${controlsVisible ? '' : 'cursor-none'} ${
+              fillViewport ? 'h-full' : ''
+            }`}
             style={{
-              aspectRatio: videoSize ? `${videoSize.width} / ${videoSize.height}` : '16 / 9',
+              aspectRatio: fillViewport
+                ? undefined
+                : videoSize
+                  ? `${videoSize.width} / ${videoSize.height}`
+                  : '16 / 9',
               ...subtitleStyleCssVars(subtitleStyle),
             }}
           >

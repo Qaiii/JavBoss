@@ -1,6 +1,5 @@
 export const JAV_SCRAPE_CHECK_FIELDS = [
-  { key: 'cover_landscape', label: ['封面图（横屏）', 'Cover (landscape)'] },
-  { key: 'cover_portrait', label: ['封面图（竖屏）', 'Cover (portrait)'] },
+  { key: 'cover_landscape', label: ['封面图', 'Cover'] },
   { key: 'title', label: ['标题', 'Title'] },
   { key: 'tags', label: ['标签', 'Tags'] },
   { key: 'series', label: ['系列', 'Series'] },

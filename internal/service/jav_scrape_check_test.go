@@ -108,8 +108,7 @@ func TestCheckAndRepairJavScrapeQueuesIncompleteRows(t *testing.T) {
 		report.Fields[JavScrapeFieldSeries] != 1 ||
 		report.Fields[JavScrapeFieldStudio] != 1 ||
 		report.Fields[JavScrapeFieldSource] != 1 ||
-		report.Fields[JavScrapeFieldCoverLandscape] != 1 ||
-		report.Fields[JavScrapeFieldCoverPortrait] != 1 {
+		report.Fields[JavScrapeFieldCoverLandscape] != 1 {
 		t.Fatalf("fields = %#v", report.Fields)
 	}
 

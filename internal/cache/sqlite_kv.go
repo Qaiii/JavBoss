@@ -110,15 +110,38 @@ func (s *SQLiteKV) Set(key string, value []byte, expiresAt time.Time) error {
 	return nil
 }
 
+// CountExpired returns how many values have already expired.
+func (s *SQLiteKV) CountExpired(now time.Time) (int, error) {
+	if s == nil || s.db == nil {
+		return 0, nil
+	}
+	var n int
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM kv WHERE expires_at <= ?`, now.Unix()).Scan(&n); err != nil {
+		return 0, fmt.Errorf("count expired kv: %w", err)
+	}
+	return n, nil
+}
+
 // DeleteExpired removes expired values.
 func (s *SQLiteKV) DeleteExpired(now time.Time) error {
+	_, err := s.DeleteExpiredCount(now)
+	return err
+}
+
+// DeleteExpiredCount removes expired values and returns how many were deleted.
+func (s *SQLiteKV) DeleteExpiredCount(now time.Time) (int, error) {
 	if s == nil || s.db == nil {
-		return nil
+		return 0, nil
 	}
-	if _, err := s.db.Exec(`DELETE FROM kv WHERE expires_at <= ?`, now.Unix()); err != nil {
-		return fmt.Errorf("delete expired kv: %w", err)
+	result, err := s.db.Exec(`DELETE FROM kv WHERE expires_at <= ?`, now.Unix())
+	if err != nil {
+		return 0, fmt.Errorf("delete expired kv: %w", err)
 	}
-	return nil
+	n, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("expired kv rows affected: %w", err)
+	}
+	return int(n), nil
 }
 
 // StartCleaner periodically removes expired values until ctx is done.

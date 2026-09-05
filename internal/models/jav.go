@@ -4,6 +4,7 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -123,6 +124,97 @@ func (list *JavStringList) Scan(value any) error {
 	return nil
 }
 
+const (
+	JavIdolPosterKindUpload     = "upload"
+	JavIdolPosterKindScreenshot = "screenshot"
+	MaxJavIdolPosterImages      = 12
+)
+
+// JavIdolPosterImage is one custom idol-detail poster source.
+type JavIdolPosterImage struct {
+	Kind    string `json:"kind"`
+	VideoID int64  `json:"video_id,omitempty"`
+	Name    string `json:"name"`
+	URL     string `json:"url,omitempty" gorm:"-"`
+}
+
+// JavIdolPosterImages persists the idol-detail poster collage as JSON.
+type JavIdolPosterImages []JavIdolPosterImage
+
+func (images JavIdolPosterImages) Value() (driver.Value, error) {
+	normalized := images.Normalized()
+	data, err := json.Marshal(normalized)
+	if err != nil {
+		return nil, fmt.Errorf("marshal idol poster images: %w", err)
+	}
+	return string(data), nil
+}
+
+func (images *JavIdolPosterImages) Scan(value any) error {
+	if images == nil {
+		return fmt.Errorf("scan idol poster images into nil receiver")
+	}
+	var data []byte
+	switch typed := value.(type) {
+	case nil:
+		*images = JavIdolPosterImages{}
+		return nil
+	case string:
+		data = []byte(typed)
+	case []byte:
+		data = typed
+	default:
+		return fmt.Errorf("scan idol poster images from %T", value)
+	}
+	if raw := strings.TrimSpace(string(data)); raw == "" || raw == "null" {
+		*images = JavIdolPosterImages{}
+		return nil
+	}
+	if err := json.Unmarshal(data, images); err != nil {
+		return fmt.Errorf("unmarshal idol poster images: %w", err)
+	}
+	*images = images.Normalized()
+	return nil
+}
+
+func (images JavIdolPosterImages) Normalized() JavIdolPosterImages {
+	if len(images) == 0 {
+		return JavIdolPosterImages{}
+	}
+	out := make(JavIdolPosterImages, 0, len(images))
+	seen := map[string]bool{}
+	for _, image := range images {
+		item := JavIdolPosterImage{
+			Kind:    strings.TrimSpace(image.Kind),
+			VideoID: image.VideoID,
+			Name:    strings.TrimSpace(image.Name),
+		}
+		switch item.Kind {
+		case JavIdolPosterKindUpload:
+			item.VideoID = 0
+			if item.Name == "" {
+				continue
+			}
+		case JavIdolPosterKindScreenshot:
+			if item.VideoID <= 0 || item.Name == "" {
+				continue
+			}
+		default:
+			continue
+		}
+		key := item.Kind + "\x00" + strconv.FormatInt(item.VideoID, 10) + "\x00" + item.Name
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, item)
+		if len(out) >= MaxJavIdolPosterImages {
+			break
+		}
+	}
+	return out
+}
+
 // Jav stores metadata fetched for a given code (may map to multiple videos).
 type Jav struct {
 	ID             int64           `json:"id" gorm:"primaryKey"`
@@ -202,21 +294,22 @@ type JavTagCategory struct {
 }
 
 type JavIdol struct {
-	ID            int64      `json:"id" gorm:"primaryKey"`
-	Name          string     `json:"name" gorm:"uniqueIndex"`
-	RomanName     string     `json:"roman_name"`
-	JapaneseName  string     `json:"japanese_name"`
-	ChineseName   string     `json:"chinese_name"`
-	HeightCM      *int       `json:"height_cm"`
-	BirthDate     *time.Time `json:"birth_date"`
-	Bust          *int       `json:"bust"`
-	Waist         *int       `json:"waist"`
-	Hips          *int       `json:"hips"`
-	Cup           *int       `json:"cup"`
-	CreatedAt     time.Time  `json:"created_at"`
-	UpdatedAt     time.Time  `json:"updated_at"`
-	CoverJavID    *int64     `json:"cover_jav_id" gorm:"index"`
-	CoverCropLeft float64    `json:"cover_crop_left" gorm:"not null;default:0.53"`
+	ID            int64               `json:"id" gorm:"primaryKey"`
+	Name          string              `json:"name" gorm:"uniqueIndex"`
+	RomanName     string              `json:"roman_name"`
+	JapaneseName  string              `json:"japanese_name"`
+	ChineseName   string              `json:"chinese_name"`
+	HeightCM      *int                `json:"height_cm"`
+	BirthDate     *time.Time          `json:"birth_date"`
+	Bust          *int                `json:"bust"`
+	Waist         *int                `json:"waist"`
+	Hips          *int                `json:"hips"`
+	Cup           *int                `json:"cup"`
+	CreatedAt     time.Time           `json:"created_at"`
+	UpdatedAt     time.Time           `json:"updated_at"`
+	CoverJavID    *int64              `json:"cover_jav_id" gorm:"index"`
+	CoverCropLeft float64             `json:"cover_crop_left" gorm:"not null;default:0.53"`
+	PosterImages  JavIdolPosterImages `json:"poster_images" gorm:"type:text;not null;default:'[]'"`
 }
 
 type JavIdolAlias struct {

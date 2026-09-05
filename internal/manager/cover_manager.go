@@ -4,11 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"image"
-	"image/draw"
-	_ "image/gif"
-	"image/jpeg"
-	_ "image/png"
 	"io"
 	"net/http"
 	"net/url"
@@ -35,28 +30,9 @@ type CoverManager struct {
 }
 
 const minValidCoverSizeBytes int64 = 30 * 1024
-const minValidPosterSizeBytes int64 = 1024
-
 const posterFileSuffix = "-poster"
 
 var errInvalidCover = errors.New("invalid cover")
-var errNotLandscapeCover = errors.New("cover is not landscape")
-
-// CoverKind identifies which orientation of a JAV cover to store or serve.
-type CoverKind string
-
-const (
-	CoverKindLandscape CoverKind = "landscape"
-	CoverKindPortrait  CoverKind = "portrait"
-)
-
-// ParseCoverKind normalizes a query/config value to a known cover orientation.
-func ParseCoverKind(value string) CoverKind {
-	if strings.EqualFold(strings.TrimSpace(value), string(CoverKindPortrait)) {
-		return CoverKindPortrait
-	}
-	return CoverKindLandscape
-}
 
 var lookupJavByCode = jav.LookupJavByCode
 
@@ -159,24 +135,10 @@ func (m *CoverManager) PendingCount() int {
 
 // Exists reports whether a cover file already exists for the code (any known extension).
 func (m *CoverManager) Exists(code string) bool {
-	return m.ExistsKind(code, CoverKindLandscape)
-}
-
-// ExistsKind reports whether a cover file exists for the requested orientation.
-func (m *CoverManager) ExistsKind(code string, kind CoverKind) bool {
 	if m == nil {
 		return false
 	}
-	_, ok := FindCoverPathKind(m.coverDir, code, kind)
-	return ok
-}
-
-// EnsurePoster generates a portrait cover from the landscape file when possible.
-func (m *CoverManager) EnsurePoster(code string) bool {
-	if m == nil {
-		return false
-	}
-	_, ok := EnsurePosterCover(m.coverDir, code)
+	_, ok := FindCoverPath(m.coverDir, code)
 	return ok
 }
 
@@ -219,21 +181,12 @@ func (m *CoverManager) handleTask(parent context.Context, code string) error {
 		return errors.New("empty code")
 	}
 	if m.Exists(code) {
-		_, _ = EnsurePosterCover(m.coverDir, code)
 		return nil
 	}
 
 	ctx, cancel := context.WithTimeout(parent, 45*time.Second)
 	defer cancel()
-
-	if err := m.downloadCoverFromProviders(ctx, code); err != nil {
-		if errors.Is(err, util.ErrCachedNotFound) {
-			return nil
-		}
-		return err
-	}
-	_, _ = EnsurePosterCover(m.coverDir, code)
-	return nil
+	return m.downloadCoverFromProviders(ctx, code)
 }
 
 func (m *CoverManager) downloadCoverFromProviders(ctx context.Context, code string) error {
@@ -253,13 +206,8 @@ func (m *CoverManager) downloadCoverFromProviders(ctx context.Context, code stri
 		}
 
 		coverURL := ""
-		posterURL := ""
 		if info != nil {
 			coverURL = strings.TrimSpace(info.CoverURL)
-			posterURL = strings.TrimSpace(info.PosterURL)
-			if posterURL == "" {
-				posterURL = jav.DerivePosterURL(coverURL)
-			}
 		}
 		if coverURL == "" {
 			continue
@@ -273,14 +221,6 @@ func (m *CoverManager) downloadCoverFromProviders(ctx context.Context, code stri
 			logging.Error("download cover failed: provider=%s code=%s err=%v", provider.String(), code, err)
 			continue
 		}
-		if posterURL != "" && !strings.EqualFold(posterURL, coverURL) {
-			if err := m.downloadCoverKind(ctx, code, posterURL, CoverKindPortrait); err != nil {
-				if !errors.Is(err, util.ErrCachedNotFound) && !errors.Is(err, errInvalidCover) {
-					logging.Error("download poster failed: provider=%s code=%s err=%v", provider.String(), code, err)
-				}
-			}
-		}
-		_, _ = EnsurePosterCover(m.coverDir, code)
 		return nil
 	}
 	if lastErr != nil {
@@ -290,10 +230,6 @@ func (m *CoverManager) downloadCoverFromProviders(ctx context.Context, code stri
 }
 
 func (m *CoverManager) downloadCover(ctx context.Context, code, coverURL string) error {
-	return m.downloadCoverKind(ctx, code, coverURL, "")
-}
-
-func (m *CoverManager) downloadCoverKind(ctx context.Context, code, coverURL string, kind CoverKind) error {
 	code = normalizeCode(code)
 	if code == "" {
 		return errors.New("empty code")
@@ -345,47 +281,27 @@ func (m *CoverManager) downloadCoverKind(ctx context.Context, code, coverURL str
 		_ = os.Remove(tmp)
 		return fmt.Errorf("close cover: %w", err)
 	}
-	if kind == "" {
-		if written < minValidCoverSizeBytes {
-			_ = os.Remove(tmp)
-			return fmt.Errorf("%w: size %d below minimum %d", errInvalidCover, written, minValidCoverSizeBytes)
-		}
-		kind = classifyCoverFile(tmp)
-	} else if written < minValidCoverBytes(kind) {
+	if written < minValidCoverSizeBytes {
 		_ = os.Remove(tmp)
-		return fmt.Errorf("%w: size %d below minimum %d", errInvalidCover, written, minValidCoverBytes(kind))
+		return fmt.Errorf("%w: size %d below minimum %d", errInvalidCover, written, minValidCoverSizeBytes)
 	}
-	target := filepath.Join(m.coverDir, coverFileBase(code, kind)+ext)
-	removeCoverFilesKind(m.coverDir, code, kind)
+	target := filepath.Join(m.coverDir, code+ext)
+	removeCoverFiles(m.coverDir, code)
 	if err := os.Rename(tmp, target); err != nil {
 		_ = os.Remove(tmp)
 		return fmt.Errorf("finalize cover: %w", err)
 	}
-	if kind == CoverKindLandscape {
-		removeCoverFilesKind(m.coverDir, code, CoverKindPortrait)
-	}
 	return nil
 }
 
-func minValidCoverBytes(kind CoverKind) int64 {
-	if kind == CoverKindPortrait {
-		return minValidPosterSizeBytes
-	}
-	return minValidCoverSizeBytes
-}
-
 func removeCoverFiles(coverDir, code string) {
-	removeCoverFilesKind(coverDir, code, CoverKindLandscape)
-}
-
-func removeCoverFilesKind(coverDir, code string, kind CoverKind) {
 	code = normalizeCode(code)
 	if coverDir == "" || code == "" {
 		return
 	}
-	base := coverFileBase(code, kind)
 	for _, ext := range knownExts {
-		_ = os.Remove(filepath.Join(coverDir, base+ext))
+		_ = os.Remove(filepath.Join(coverDir, code+ext))
+		_ = os.Remove(filepath.Join(coverDir, code+posterFileSuffix+ext))
 	}
 }
 
@@ -432,129 +348,130 @@ func DownloadCoverFromURL(ctx context.Context, coverDir, code, coverURL string) 
 	return manager.downloadCover(ctx, code, coverURL)
 }
 
-func coverFileBase(code string, kind CoverKind) string {
-	code = normalizeCode(code)
-	if kind == CoverKindPortrait {
-		return code + posterFileSuffix
-	}
-	return code
+func normalizeCode(code string) string {
+	return strings.ToLower(strings.TrimSpace(code))
 }
 
-func classifyCoverFile(path string) CoverKind {
-	file, err := os.Open(path)
-	if err != nil {
-		return CoverKindLandscape
-	}
-	defer file.Close()
-	img, _, err := image.Decode(file)
-	if err != nil {
-		return CoverKindLandscape
-	}
-	bounds := img.Bounds()
-	if bounds.Dy() > bounds.Dx() {
-		return CoverKindPortrait
-	}
-	return CoverKindLandscape
-}
-
-// FindCoverPathKind returns the existing cover file for the requested orientation.
-func FindCoverPathKind(dir, code string, kind CoverKind) (string, bool) {
+// FindCoverPath returns the existing cover file path for the given code within dir.
+func FindCoverPath(dir, code string) (string, bool) {
 	code = normalizeCode(code)
 	if code == "" {
 		return "", false
 	}
-	minSize := minValidCoverBytes(kind)
-	base := coverFileBase(code, kind)
 	for _, ext := range knownExts {
-		p := filepath.Join(dir, base+ext)
+		p := filepath.Join(dir, code+ext)
 		info, err := os.Stat(p)
-		if err == nil && info.Size() >= minSize {
+		if err == nil && info.Size() >= minValidCoverSizeBytes {
 			return p, true
 		}
 	}
 	return "", false
 }
 
-// EnsurePosterCover returns an existing portrait cover, or crops one from the
-// landscape cover when the landscape image is wider than it is tall.
-func EnsurePosterCover(dir, code string) (string, bool) {
-	if path, ok := FindCoverPathKind(dir, code, CoverKindPortrait); ok {
-		return path, true
+func isKnownCoverExt(ext string) bool {
+	ext = strings.ToLower(ext)
+	for _, known := range knownExts {
+		if ext == known {
+			return true
+		}
 	}
-	landscape, ok := FindCoverPath(dir, code)
-	if !ok {
-		return "", false
-	}
-	dest := filepath.Join(dir, coverFileBase(code, CoverKindPortrait)+".jpg")
-	tmp := dest + ".tmp"
-	if err := generatePosterFromLandscape(landscape, tmp); err != nil {
-		_ = os.Remove(tmp)
-		return "", false
-	}
-	info, err := os.Stat(tmp)
-	if err != nil || info.Size() < minValidPosterSizeBytes {
-		_ = os.Remove(tmp)
-		return "", false
-	}
-	removeCoverFilesKind(dir, code, CoverKindPortrait)
-	if err := os.Rename(tmp, dest); err != nil {
-		_ = os.Remove(tmp)
-		return "", false
-	}
-	return dest, true
+	return false
 }
 
-func generatePosterFromLandscape(srcPath, destPath string) error {
-	file, err := os.Open(srcPath)
-	if err != nil {
-		return fmt.Errorf("open landscape cover: %w", err)
+func coverCodeFromFileName(name string) (string, bool) {
+	name = strings.ToLower(strings.TrimSpace(name))
+	if name == "" || strings.Contains(name, string(filepath.Separator)) {
+		return "", false
 	}
-	defer file.Close()
-
-	img, _, err := image.Decode(file)
-	if err != nil {
-		return fmt.Errorf("decode landscape cover: %w", err)
+	if strings.HasSuffix(name, ".download.tmp") {
+		code := strings.TrimSuffix(name, ".download.tmp")
+		return code, code != ""
 	}
-	bounds := img.Bounds()
-	width := bounds.Dx()
-	height := bounds.Dy()
-	if height <= 0 || width <= height {
-		return errNotLandscapeCover
+	ext := filepath.Ext(name)
+	if !isKnownCoverExt(ext) {
+		return "", false
 	}
-	posterWidth := height * 2 / 3
-	if posterWidth < 1 {
-		posterWidth = 1
-	}
-	if posterWidth > width {
-		posterWidth = width
-	}
-	cropped := image.NewRGBA(image.Rect(0, 0, posterWidth, height))
-	draw.Draw(cropped, cropped.Bounds(), img, image.Pt(bounds.Min.X, bounds.Min.Y), draw.Src)
-
-	if err := os.MkdirAll(filepath.Dir(destPath), 0o755); err != nil {
-		return fmt.Errorf("ensure poster dir: %w", err)
-	}
-	out, err := os.Create(destPath)
-	if err != nil {
-		return fmt.Errorf("create poster: %w", err)
-	}
-	if err := jpeg.Encode(out, cropped, &jpeg.Options{Quality: 90}); err != nil {
-		out.Close()
-		return fmt.Errorf("encode poster: %w", err)
-	}
-	if err := out.Close(); err != nil {
-		return fmt.Errorf("close poster: %w", err)
-	}
-	return nil
+	base := strings.TrimSuffix(name, ext)
+	base = strings.TrimSuffix(base, posterFileSuffix)
+	return base, base != ""
 }
 
-func normalizeCode(code string) string {
-	return strings.ToLower(strings.TrimSpace(code))
+func fileIsInsideDir(filePath, dir string) bool {
+	absFile, err := filepath.Abs(filePath)
+	if err != nil {
+		return false
+	}
+	absDir, err := filepath.Abs(dir)
+	if err != nil {
+		return false
+	}
+	rel, err := filepath.Rel(absDir, absFile)
+	if err != nil {
+		return false
+	}
+	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
-// FindCoverPath returns the existing landscape cover file path for the given code within dir.
-func FindCoverPath(dir, code string) (string, bool) {
-	return FindCoverPathKind(dir, code, CoverKindLandscape)
+// CountUnusedCoverFiles counts cover images in coverDir whose codes are not in keepCodes.
+// It never looks outside coverDir and ignores unrecognized files.
+func CountUnusedCoverFiles(coverDir string, keepCodes map[string]struct{}) (int, error) {
+	paths, err := listUnusedCoverFiles(coverDir, keepCodes)
+	if err != nil {
+		return 0, err
+	}
+	return len(paths), nil
+}
+
+// RemoveUnusedCoverFiles deletes unused cover images from coverDir only.
+func RemoveUnusedCoverFiles(coverDir string, keepCodes map[string]struct{}) (int, error) {
+	paths, err := listUnusedCoverFiles(coverDir, keepCodes)
+	if err != nil {
+		return 0, err
+	}
+	removed := 0
+	for _, path := range paths {
+		if err := os.Remove(path); err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			return removed, fmt.Errorf("remove unused cover: %w", err)
+		}
+		removed++
+	}
+	return removed, nil
+}
+
+func listUnusedCoverFiles(coverDir string, keepCodes map[string]struct{}) ([]string, error) {
+	coverDir = strings.TrimSpace(coverDir)
+	if coverDir == "" {
+		return nil, nil
+	}
+	entries, err := os.ReadDir(coverDir)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("read cover dir: %w", err)
+	}
+	var unused []string
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		code, ok := coverCodeFromFileName(entry.Name())
+		if !ok {
+			continue
+		}
+		if _, keep := keepCodes[code]; keep {
+			continue
+		}
+		path := filepath.Join(coverDir, entry.Name())
+		if !fileIsInsideDir(path, coverDir) {
+			continue
+		}
+		unused = append(unused, path)
+	}
+	return unused, nil
 }
 
 func guessExt(ct string) string {
