@@ -152,7 +152,7 @@ func lookupCacheKeyVersion(provider Provider, method string) string {
 		return "v3"
 	}
 	if provider == ProviderJavDB && method == "list_actress_works" {
-		return "v2"
+		return "v3"
 	}
 	if provider == ProviderJavDatabase && method == "lookup_actress_code" {
 		return "v2"
@@ -178,4 +178,69 @@ func normalizeLookupCacheInput(method, input string) string {
 	default:
 		return strings.Join(strings.Fields(input), " ")
 	}
+}
+
+var cachedJavInfoProviders = []Provider{
+	ProviderJavBus,
+	ProviderJavDB,
+	ProviderAvmoo,
+	ProviderAvsox,
+	ProviderJavMenu,
+	ProviderJavDatabase,
+}
+
+// CachedJavInfo returns a previously cached movie lookup for code, if any.
+// Japanese-source providers are tried first; later hits only fill blank fields
+// so an English fallback cannot clobber a Japanese studio or series name.
+func CachedJavInfo(code string) *JavInfo {
+	code = strings.TrimSpace(code)
+	if code == "" {
+		return nil
+	}
+	var out *JavInfo
+	for _, provider := range cachedJavInfoProviders {
+		cached, ok, err := lookupCacheGet[JavInfo](lookupCacheKey(provider, "lookup_jav", code))
+		if !ok || err != nil || cached == nil {
+			continue
+		}
+		if out == nil {
+			clone := *cached
+			if clone.Tags != nil {
+				clone.Tags = append([]string(nil), clone.Tags...)
+			}
+			out = &clone
+			continue
+		}
+		mergeCachedJavInfo(out, cached)
+	}
+	return out
+}
+
+func mergeCachedJavInfo(dst, src *JavInfo) {
+	if dst == nil || src == nil {
+		return
+	}
+	dst.Studio = firstJapaneseOrNonEmpty(dst.Studio, src.Studio)
+	dst.Series = firstJapaneseOrNonEmpty(dst.Series, src.Series)
+	if len(dst.Tags) == 0 && len(src.Tags) > 0 {
+		dst.Tags = append([]string(nil), src.Tags...)
+	}
+	if dst.DurationMin == 0 {
+		dst.DurationMin = src.DurationMin
+	}
+	if dst.ReleaseUnix == 0 {
+		dst.ReleaseUnix = src.ReleaseUnix
+	}
+}
+
+func firstJapaneseOrNonEmpty(primary, fallback string) string {
+	primary = strings.TrimSpace(primary)
+	fallback = strings.TrimSpace(fallback)
+	if primary == "" {
+		return fallback
+	}
+	if ContainsJapaneseRunes(fallback) && !ContainsJapaneseRunes(primary) {
+		return fallback
+	}
+	return primary
 }

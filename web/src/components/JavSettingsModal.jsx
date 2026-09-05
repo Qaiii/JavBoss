@@ -355,6 +355,8 @@ export default function JavSettingsModal({
   onIdolSortChange,
   javIdolPreferChineseNameInput = false,
   onJavIdolPreferChineseNameChange,
+  javTitleLanguageInput = 'original',
+  onJavTitleLanguageChange,
   javIdolRefreshDaysInput = 7,
   onJavIdolRefreshDaysChange,
   javTagShowSimplifiedInput = false,
@@ -407,6 +409,7 @@ export default function JavSettingsModal({
         onJavFavoriteRatingShowFullChange?.(false)
         onJavSortChange?.(JAV_SORT_OPTIONS[0]?.defaultValue || 'recent')
         onJavSortRulesChange?.([])
+        onJavTitleLanguageChange?.('original')
         break
     }
   }
@@ -520,6 +523,17 @@ export default function JavSettingsModal({
                         {count}
                       </option>
                     ))}
+                  </select>
+                </SettingsRow>
+                <SettingsRow label={zh('标题显示语言', 'Title language')}>
+                  <select
+                    value={javTitleLanguageInput === 'chinese' ? 'chinese' : 'original'}
+                    onChange={(e) => onJavTitleLanguageChange?.(e.target.value)}
+                    className={controlClassName}
+                    aria-label={zh('标题显示语言', 'Title language')}
+                  >
+                    <option value="original">{zh('原文', 'Original')}</option>
+                    <option value="chinese">{zh('中文', 'Chinese')}</option>
                   </select>
                 </SettingsRow>
                 <SettingsRow label={zh('标签最多行数', 'Tag max rows')}>

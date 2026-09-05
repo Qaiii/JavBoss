@@ -13,6 +13,8 @@ func RegisterRoutes(router gin.IRoutes) {
 	router.PATCH("/config", updateConfig)
 	router.GET("/tools", getTools)
 	router.POST("/tools/ffmpeg/download", downloadFFmpeg)
+	router.GET("/tools/jav-scrape-check", getJavScrapeCheck)
+	router.POST("/tools/jav-scrape-check", runJavScrapeCheck)
 	router.GET("/videos", listVideos)
 	router.GET("/videos/screenshots", listVideosScreenshots)
 	router.GET("/videos/:id", getVideo)

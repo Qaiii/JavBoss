@@ -412,3 +412,43 @@ func TestJavDatabaseIdolWorksPageURL(t *testing.T) {
 		t.Fatalf("page2 url with existing query = %q", got)
 	}
 }
+
+func TestPreferJapaneseTitle(t *testing.T) {
+	cases := []struct {
+		existing string
+		incoming string
+		want     string
+	}{
+		{existing: "中年オヤジ", incoming: "Middle-aged Man", want: "中年オヤジ"},
+		{existing: "Old English", incoming: "ケースの女", want: "ケースの女"},
+		{existing: "Old English", incoming: "New English", want: "New English"},
+		{existing: "中年オヤジ", incoming: "", want: "中年オヤジ"},
+		{existing: "", incoming: "Middle-aged Man", want: "Middle-aged Man"},
+	}
+	for _, tc := range cases {
+		if got := PreferJapaneseTitle(tc.existing, tc.incoming); got != tc.want {
+			t.Fatalf("PreferJapaneseTitle(%q, %q) = %q, want %q", tc.existing, tc.incoming, got, tc.want)
+		}
+	}
+}
+
+func TestParseDateUnixAcceptsYMDAndMDY(t *testing.T) {
+	ymd := time.Date(2018, 11, 13, 0, 0, 0, 0, time.UTC).Unix()
+	mdy := time.Date(2026, 10, 7, 0, 0, 0, 0, time.UTC).Unix()
+	cases := []struct {
+		in   string
+		want int64
+	}{
+		{"2018-11-13", ymd},
+		{"2018/11/13", ymd},
+		{"4.43, by 221 users 10/07/2026", mdy},
+		{"10/07/2026", mdy},
+		{"", 0},
+		{"no date here", 0},
+	}
+	for _, tc := range cases {
+		if got := parseDateUnix(tc.in); got != tc.want {
+			t.Fatalf("parseDateUnix(%q) = %d, want %d", tc.in, got, tc.want)
+		}
+	}
+}

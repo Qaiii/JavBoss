@@ -538,6 +538,7 @@ func TestParseJavDBActressWorksPage(t *testing.T) {
     <div class="item">
       <a class="box" href="/v/aBcDe">
         <div class="video-title"><strong>ABP-999</strong> Some Title</div>
+        <div class="meta">4.43, by 221 users 10/07/2026</div>
         <img data-original="https://c0.jdbstatic.com/covers/ab/aBcDe.jpg">
       </a>
     </div>
@@ -579,6 +580,10 @@ func TestParseJavDBActressWorksPage(t *testing.T) {
 	}
 	if items[1].Title != "Some Title" {
 		t.Fatalf("items[1].Title = %q, want Some Title", items[1].Title)
+	}
+	wantUSRelease := time.Date(2026, 10, 7, 0, 0, 0, 0, time.UTC).Unix()
+	if items[1].ReleaseUnix != wantUSRelease {
+		t.Fatalf("items[1].ReleaseUnix = %d, want %d (US listing date 10/07/2026)", items[1].ReleaseUnix, wantUSRelease)
 	}
 }
 
@@ -680,5 +685,55 @@ func TestJavDBActressWorksPageURL(t *testing.T) {
 	}
 	if got := javDBActressWorksPageURL("https://javdb.com/actors/1pKDJx?foo=1", 3); got != "https://javdb.com/actors/1pKDJx?foo=1&page=3" {
 		t.Fatalf("url with existing query = %q", got)
+	}
+}
+
+func TestLoadCachedActressWorksReadsLegacyPagesWhenCurrentVersionMissing(t *testing.T) {
+	cache := newMemoryLookupCache()
+	SetCache(cache)
+	t.Cleanup(func() { SetCache(nil) })
+
+	profile := "https://javdb.com/actors/k4O90"
+	lookupCacheSetHit(strings.Join([]string{"v1", "jav", "javdb", "list_actress_works", profile + "|1"}, ":"), javDBWorksPage{
+		Items: []*JavInfo{
+			{Code: "START-503", Title: "中年オヤジ"},
+			{Code: "START-481", Title: "密室"},
+		},
+		HasNext: true,
+	})
+	lookupCacheSetHit(strings.Join([]string{"v1", "jav", "javdb", "list_actress_works", profile + "|2"}, ":"), javDBWorksPage{
+		Items: []*JavInfo{
+			{Code: "START-467", Title: "ネスト生活"},
+		},
+		HasNext: false,
+	})
+
+	got := LoadCachedActressWorks(profile)
+	if len(got) != 3 {
+		t.Fatalf("cached items = %d, want 3", len(got))
+	}
+	if got[0].Title != "中年オヤジ" || got[2].Code != "START-467" {
+		t.Fatalf("cached items = %+v", got)
+	}
+}
+
+func TestLoadCachedActressWorksPrefersCurrentCacheVersion(t *testing.T) {
+	cache := newMemoryLookupCache()
+	SetCache(cache)
+	t.Cleanup(func() { SetCache(nil) })
+
+	profile := "https://javdb.com/actors/k4O90"
+	lookupCacheSetHit(lookupCacheKey(ProviderJavDB, "list_actress_works", profile+"|1"), javDBWorksPage{
+		Items:   []*JavInfo{{Code: "START-503", Title: "新しい日本語タイトル"}},
+		HasNext: false,
+	})
+	lookupCacheSetHit(strings.Join([]string{"v1", "jav", "javdb", "list_actress_works", profile + "|1"}, ":"), javDBWorksPage{
+		Items:   []*JavInfo{{Code: "START-503", Title: "古いタイトル"}},
+		HasNext: false,
+	})
+
+	got := LoadCachedActressWorks(profile)
+	if len(got) != 1 || got[0].Title != "新しい日本語タイトル" {
+		t.Fatalf("cached items = %+v, want current-version Japanese title", got)
 	}
 }

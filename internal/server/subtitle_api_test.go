@@ -1,6 +1,7 @@
 package server
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -78,6 +79,24 @@ func TestNextAvailablePathPreservesExistingContent(t *testing.T) {
 	}
 	if string(data) != "我的本地字幕" {
 		t.Fatalf("existing file was modified: %q", string(data))
+	}
+}
+
+func TestIsUnwritableError(t *testing.T) {
+	if isUnwritableError(nil) {
+		t.Fatal("nil should not be unwritable")
+	}
+	if !isUnwritableError(os.ErrPermission) {
+		t.Fatal("os.ErrPermission")
+	}
+	if !isUnwritableError(errors.New("open x: read-only file system")) {
+		t.Fatal("EROFS text")
+	}
+	if !isUnwritableError(errors.New("write subtitle: open x: erofs: mkdir y: permission denied")) {
+		t.Fatal("wrapped EROFS")
+	}
+	if isUnwritableError(errors.New("no space left on device")) {
+		t.Fatal("disk full is not classified as read-only")
 	}
 }
 

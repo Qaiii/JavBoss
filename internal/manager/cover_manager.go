@@ -116,20 +116,68 @@ func (m *CoverManager) Enqueue(code string) {
 	m.tasks <- code
 }
 
-// Exists reports whether a cover file already exists for the code (any known extension).
-func (m *CoverManager) Exists(code string) bool {
+// TryEnqueue schedules a cover download without blocking when the queue is full.
+// It returns true when the code is already scheduled or was accepted.
+func (m *CoverManager) TryEnqueue(code string) bool {
 	if m == nil {
 		return false
 	}
-	path, ok := FindCoverPath(m.coverDir, code)
-	if !ok {
+	code = normalizeCode(code)
+	if code == "" || m.tasks == nil {
 		return false
 	}
-	info, err := os.Stat(path)
-	if err != nil {
+
+	m.mu.Lock()
+	if m.scheduled == nil {
+		m.scheduled = make(map[string]struct{})
+	}
+	if _, ok := m.scheduled[code]; ok {
+		m.mu.Unlock()
+		return true
+	}
+	m.scheduled[code] = struct{}{}
+	m.mu.Unlock()
+
+	select {
+	case m.tasks <- code:
+		return true
+	default:
+		m.clearScheduled(code)
 		return false
 	}
-	return info.Size() >= minValidCoverSizeBytes
+}
+
+// PendingCount returns how many cover downloads are queued or in flight.
+func (m *CoverManager) PendingCount() int {
+	if m == nil {
+		return 0
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return len(m.scheduled)
+}
+
+// Exists reports whether a cover file already exists for the code (any known extension).
+func (m *CoverManager) Exists(code string) bool {
+	return m.ExistsKind(code, CoverKindLandscape)
+}
+
+// ExistsKind reports whether a cover file exists for the requested orientation.
+func (m *CoverManager) ExistsKind(code string, kind CoverKind) bool {
+	if m == nil {
+		return false
+	}
+	_, ok := FindCoverPathKind(m.coverDir, code, kind)
+	return ok
+}
+
+// EnsurePoster generates a portrait cover from the landscape file when possible.
+func (m *CoverManager) EnsurePoster(code string) bool {
+	if m == nil {
+		return false
+	}
+	_, ok := EnsurePosterCover(m.coverDir, code)
+	return ok
 }
 
 func (m *CoverManager) worker(ctx context.Context) {

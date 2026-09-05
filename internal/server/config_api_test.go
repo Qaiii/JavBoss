@@ -37,8 +37,9 @@ func TestUpdateConfigPersistsWaterfallDefaults(t *testing.T) {
 		"idol_waterfall_default": false,
 		"studio_waterfall_default": true,
 		"series_waterfall_default": false,
-		"jav_tag_show_simplified": true,
-		"jav_favorite_rating_show_full": false
+        "jav_tag_show_simplified": true,
+		"jav_favorite_rating_show_full": false,
+		"jav_title_language": "chinese"
 	}`)
 	req := httptest.NewRequest(http.MethodPatch, "/config", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -60,6 +61,7 @@ func TestUpdateConfigPersistsWaterfallDefaults(t *testing.T) {
 		"series_waterfall_default":      "false",
 		"jav_tag_show_simplified":       "true",
 		"jav_favorite_rating_show_full": "false",
+		"jav_title_language":            "chinese",
 	}
 	for key, value := range want {
 		if got[key] != value {

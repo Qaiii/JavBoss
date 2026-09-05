@@ -80,6 +80,49 @@ func (images JavSampleImages) MarshalJSON() ([]byte, error) {
 	return json.Marshal(sampleImagesAlias(images))
 }
 
+// JavStringList persists a JSON string array as a text column.
+type JavStringList []string
+
+func (list JavStringList) Value() (driver.Value, error) {
+	if list == nil {
+		list = JavStringList{}
+	}
+	data, err := json.Marshal(list)
+	if err != nil {
+		return nil, fmt.Errorf("marshal string list: %w", err)
+	}
+	return string(data), nil
+}
+
+func (list *JavStringList) Scan(value any) error {
+	if list == nil {
+		return fmt.Errorf("scan string list into nil receiver")
+	}
+	var data []byte
+	switch typed := value.(type) {
+	case nil:
+		*list = JavStringList{}
+		return nil
+	case string:
+		data = []byte(typed)
+	case []byte:
+		data = typed
+	default:
+		return fmt.Errorf("scan string list from %T", value)
+	}
+	if raw := strings.TrimSpace(string(data)); raw == "" || raw == "null" {
+		*list = JavStringList{}
+		return nil
+	}
+	if err := json.Unmarshal(data, list); err != nil {
+		return fmt.Errorf("unmarshal string list: %w", err)
+	}
+	if *list == nil {
+		*list = JavStringList{}
+	}
+	return nil
+}
+
 // Jav stores metadata fetched for a given code (may map to multiple videos).
 type Jav struct {
 	ID             int64           `json:"id" gorm:"primaryKey"`
@@ -99,10 +142,13 @@ type Jav struct {
 	IsUncensored   *bool           `json:"is_uncensored"`
 	SampleImages   JavSampleImages `json:"sample_images" gorm:"type:text;not null;default:'[]'"`
 	FavoriteRating float64         `json:"favorite_rating" gorm:"not null;default:0"`
-	Tags           []JavTag        `json:"tags,omitempty" gorm:"-"`
-	Idols          []JavIdol       `json:"idols,omitempty" gorm:"many2many:jav_idol_map"`
-	Videos         []Video         `json:"videos,omitempty" gorm:"-"`
-	FavoriteCount  int64           `json:"favorite_count" gorm:"-"`
+	// TitleZH is appended after favorite_rating so the column order matches
+	// the ALTER TABLE that adds it to databases created before this field.
+	TitleZH       string    `json:"title_zh" gorm:"column:title_zh;type:text"`
+	Tags          []JavTag  `json:"tags,omitempty" gorm:"-"`
+	Idols         []JavIdol `json:"idols,omitempty" gorm:"many2many:jav_idol_map"`
+	Videos        []Video   `json:"videos,omitempty" gorm:"-"`
+	FavoriteCount int64     `json:"favorite_count" gorm:"-"`
 	// InLibrary is omitted for normal library rows. Unimported idol works set
 	// it to false so the actress page can badge and gray out those cards.
 	InLibrary *bool  `json:"in_library,omitempty" gorm:"-"`
@@ -259,6 +305,15 @@ type JavIdolWork struct {
 	// Source is appended after the timestamps so the column order matches the
 	// ALTER TABLE that adds it to databases created before this field existed.
 	Source int `json:"source" gorm:"not null;default:0"`
+	// StudioName, SeriesName, and Tags are listing/detail metadata for
+	// unimported cards. They are stored denormalized because these rows are
+	// not in the jav table and have no studio/series/tag join rows.
+	StudioName string        `json:"studio_name" gorm:"type:text"`
+	SeriesName string        `json:"series_name" gorm:"type:text"`
+	Tags       JavStringList `json:"tags" gorm:"type:text;not null;default:'[]'"`
+	// TitleZH is appended after tags so the column order matches the ALTER
+	// TABLE that adds it to databases created before this field existed.
+	TitleZH string `json:"title_zh" gorm:"column:title_zh;type:text"`
 }
 
 func (JavIdolWork) TableName() string {

@@ -409,6 +409,9 @@ func getJavIdolExternalWorks(c *gin.Context) {
 		// instead of waiting for the periodic sweep.
 		service.EnqueueIdolWorks(id)
 	}
+	if queryBool(c, "refresh", false) {
+		service.EnqueueIdolWorks(id)
+	}
 
 	items, total, err := dbpkg.ListJavIdolWorks(ctx, id, limit, (page-1)*limit)
 	if err != nil {

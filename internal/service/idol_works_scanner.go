@@ -204,10 +204,9 @@ type idolWorksSource struct {
 }
 
 // idolWorksSources lists the providers the works scraper may use, in fallback
-// order. JavDB is the richest source; JavDatabase is a code-driven fallback
-// that stays useful when JavDB is blocked. A single scrape picks one of these
-// (preferring the one that already produced a profile URL), and on failure
-// moves to the next in a random order so traffic is spread.
+// order. JavDB is the richest source and is always tried first; JavDatabase is
+// a code-driven fallback that stays useful when JavDB is blocked. A successful
+// JavDatabase fallback does not overwrite a stored JavDB actor URL.
 //
 // The listWorks/resolveProfile closures dereference the package-level test
 // hooks on every call so tests can swap the underlying fetchers at runtime.
@@ -233,11 +232,11 @@ var idolWorksSources = []idolWorksSource{
 }
 
 // ScrapeIdolWorks resolves the idol's profile URL on a works provider and
-// fetches every page of her works list, persisting the result. The provider is
-// chosen so that a known profile URL is reused, otherwise the source list is
-// walked in random order; when one provider fails the next is tried after a
-// short randomized pause. Failures update the track row's last_error so the
-// next scheduled refresh retries.
+// fetches every page of her works list, persisting the result. JavDB is always
+// tried first (Japanese listing titles); a stored profile URL is reused when it
+// belongs to the provider being tried. When one provider fails the next is
+// tried after a short randomized pause. Failures update the track row's
+// last_error so the next scheduled refresh retries.
 func ScrapeIdolWorks(ctx context.Context, idolID int64) error {
 	item, err := dbpkg.GetJavIdolBasic(ctx, idolID)
 	if err != nil {
@@ -250,12 +249,11 @@ func ScrapeIdolWorks(ctx context.Context, idolID int64) error {
 	}
 
 	knownProfile := strings.TrimSpace(track.JavdbURL)
-	knownSource := sourceForProfileURL(knownProfile)
 
-	// Walk the sources in a random order (a random shuffle of all but the known
-	// one, with the known one first) so repeated scrapes do not always hammer
-	// the same provider first.
-	sources := shuffledWorksSources(knownSource)
+	// Always try JavDB first: its actress listing includes Japanese
+	// origin-title. A previous JavDatabase fallback must not pin later
+	// refreshes to English-only listing titles.
+	sources := shuffledWorksSources(jav.ProviderJavDB)
 	var lastErr error
 	for _, src := range sources {
 		profileURL := knownProfile
@@ -292,7 +290,13 @@ func ScrapeIdolWorks(ctx context.Context, idolID int64) error {
 		if err := dbpkg.ReplaceJavIdolWorks(ctx, idolID, works); err != nil {
 			return err
 		}
-		return dbpkg.MarkJavIdolTrackScraped(ctx, idolID, profileURL, len(works), time.Now())
+		codes := make([]string, 0, len(works))
+		for _, work := range works {
+			codes = append(codes, work.Code)
+		}
+		EnqueueIdolWorkMetadata(codes...)
+		persistURL := persistIdolWorksProfileURL(knownProfile, profileURL, src.provider)
+		return dbpkg.MarkJavIdolTrackScraped(ctx, idolID, persistURL, len(works), time.Now())
 	}
 
 	if lastErr == nil {
@@ -332,6 +336,9 @@ func scrapeAllWorksPages(ctx context.Context, idolID int64, provider jav.Provide
 				DurationMin: w.DurationMin,
 				Source:      int(provider),
 				SourceURL:   sourceURL,
+				StudioName:  strings.TrimSpace(w.Studio),
+				SeriesName:  strings.TrimSpace(w.Series),
+				Tags:        models.JavStringList(dedupeWorkTags(w.Tags)),
 			})
 		}
 		if !hasNext {
@@ -345,6 +352,24 @@ func scrapeAllWorksPages(ctx context.Context, idolID int64, provider jav.Provide
 	return works, nil
 }
 
+func dedupeWorkTags(values []string) []string {
+	seen := make(map[string]struct{}, len(values))
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		key := strings.ToLower(value)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, value)
+	}
+	return out
+}
+
 func listWorksForSource(provider jav.Provider, ctx context.Context, profileURL string, page int) ([]*jav.JavInfo, bool, error) {
 	for _, src := range idolWorksSources {
 		if src.provider == provider {
@@ -352,6 +377,22 @@ func listWorksForSource(provider jav.Provider, ctx context.Context, profileURL s
 		}
 	}
 	return nil, false, fmt.Errorf("no works source for provider %s", provider.String())
+}
+
+// persistIdolWorksProfileURL chooses the profile URL to store after a successful
+// scrape. A stored JavDB actor URL is kept when the scrape fell back to another
+// provider, so the next refresh still prefers JavDB (Japanese listing titles)
+// instead of being pinned to the fallback.
+func persistIdolWorksProfileURL(stored, scraped string, scrapedProvider jav.Provider) string {
+	stored = strings.TrimSpace(stored)
+	scraped = strings.TrimSpace(scraped)
+	if sourceForProfileURL(stored) == jav.ProviderJavDB && scrapedProvider != jav.ProviderJavDB {
+		return stored
+	}
+	if scraped != "" {
+		return scraped
+	}
+	return stored
 }
 
 // sourceForProfileURL returns the provider whose profile URL form matches the
@@ -368,10 +409,10 @@ func sourceForProfileURL(profileURL string) jav.Provider {
 }
 
 // shuffledWorksSources returns the sources to try for one scrape, most
-// preferred first. When a stored profile URL pins a provider that provider
-// goes first; otherwise JavDB leads as the richest source. The remaining
-// sources are shuffled so a scrape that must move past the leader does not
-// always fall to the same second site.
+// preferred first. Callers pass ProviderJavDB so Japanese listing titles are
+// tried before English JavDatabase fallbacks; remaining sources are shuffled
+// so a scrape that must move past the leader does not always fall to the
+// same second site.
 func shuffledWorksSources(preferred jav.Provider) []idolWorksSource {
 	if preferred != jav.ProviderUnknown {
 		lead := []idolWorksSource{}

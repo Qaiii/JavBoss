@@ -28,12 +28,18 @@ test('maps known source URLs to their site key', () => {
   assert.equal(javExternalSourceKey(''), '')
 })
 
-test('hides missing sources for unimported works', () => {
+test('shows the same catalog sources for unimported works as library works', () => {
   assert.deepEqual(
     javCardExternalSourceKeys({ inLibrary: false, sourceURL: 'https://javdb.com/v/abc' }),
-    ['javdb']
+    ['javlibrary', 'javbus', 'javdb', 'javmenu', 'missav']
   )
-  assert.deepEqual(javCardExternalSourceKeys({ inLibrary: false, sourceURL: '' }), [])
+  assert.deepEqual(javCardExternalSourceKeys({ inLibrary: false, sourceURL: '' }), [
+    'javlibrary',
+    'javbus',
+    'javdb',
+    'javmenu',
+    'missav',
+  ])
   assert.deepEqual(javCardExternalSourceKeys({ inLibrary: true, isUncensored: false }), [
     'javlibrary',
     'javbus',
@@ -41,4 +47,16 @@ test('hides missing sources for unimported works', () => {
     'javmenu',
     'missav',
   ])
+  assert.deepEqual(
+    javCardExternalSourceKeys({
+      inLibrary: false,
+      isUncensored: true,
+      sourceURL: 'https://javdb.com/v/abc',
+    }),
+    ['javbus', 'avsox', 'javdb']
+  )
+  assert.deepEqual(
+    javCardExternalSourceKeys({ inLibrary: false, sourceURL: 'https://avsox.click/tw/abc' }),
+    ['javbus', 'avsox']
+  )
 })

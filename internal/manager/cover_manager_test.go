@@ -76,6 +76,23 @@ func TestEnqueueDeduplicatesScheduledCodes(t *testing.T) {
 	}
 }
 
+func TestTryEnqueueDoesNotBlockWhenQueueIsFull(t *testing.T) {
+	manager := &CoverManager{
+		tasks:     make(chan string, 1),
+		scheduled: make(map[string]struct{}),
+	}
+
+	if !manager.TryEnqueue("ABC-001") {
+		t.Fatal("first TryEnqueue should succeed")
+	}
+	if manager.TryEnqueue("ABC-002") {
+		t.Fatal("full queue should not accept another task")
+	}
+	if manager.PendingCount() != 1 {
+		t.Fatalf("pending = %d, want 1", manager.PendingCount())
+	}
+}
+
 func TestDownloadCoverRejectsSmallFile(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "image/jpeg")

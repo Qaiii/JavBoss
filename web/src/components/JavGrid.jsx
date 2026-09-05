@@ -42,8 +42,10 @@ import VideoGrid from '@/components/VideoGrid'
 import { isUserJavTag } from '@/constants/jav'
 import {
   getJavDisplayTitle,
+  javTitlePrefersChinese,
   isUnimportedJav,
   javCardExternalSourceKeys,
+  javExternalSourceKey,
   javCoverAspectClass,
   javCoverGridMinmax,
   javCardCoverSrc,
@@ -2138,14 +2140,29 @@ function JavTagList({ tags, maxRows, buildTagFilterHref, onTagClick, onFilterLin
       <div className="flex min-w-0 flex-1 flex-wrap gap-1">
         {renderedTags.map((tag) => {
           const isUser = isUserJavTag(tag)
+          const canFilterTag = Number(tag?.id) > 0
           const tagClass = isUser
-            ? 'bg-emerald-500 hover:bg-emerald-600'
-            : 'bg-orange-500 hover:bg-orange-600'
+            ? canFilterTag
+              ? 'bg-emerald-500 hover:bg-emerald-600'
+              : 'bg-emerald-500'
+            : canFilterTag
+              ? 'bg-orange-500 hover:bg-orange-600'
+              : 'bg-orange-500'
+          const className = `rounded-full px-2 py-1 text-xs font-medium text-white ${
+            canFilterTag ? `transition ${tagClass}` : tagClass
+          }`
+          if (!canFilterTag) {
+            return (
+              <span key={`${tag.id || tag.name}-${tag.provider || 0}`} className={className}>
+                {tag.name}
+              </span>
+            )
+          }
           return (
             <a
               key={`${tag.id || tag.name}-${tag.provider || 0}`}
               href={buildTagFilterHref(tag)}
-              className={`rounded-full px-2 py-1 text-xs font-medium text-white transition ${tagClass}`}
+              className={className}
               onClick={(event) => onFilterLinkClick(event, () => onTagClick?.(tag))}
             >
               {tag.name}
@@ -2238,6 +2255,7 @@ function JavCard({
   onDislikeWork,
 }) {
   const primaryVideo = useMemo(() => (item?.videos || [])[0], [item])
+  const preferChineseTitle = useStore((state) => javTitlePrefersChinese(state.config))
   const { coverAspectPercent } = useMemo(() => getIdolCardLayoutProps(), [])
   const code = item?.code?.trim()
   const inLibrary = !isUnimportedJav(item)
@@ -2265,12 +2283,14 @@ function JavCard({
     ? zh(`${item.duration_min} 分钟`, `${item.duration_min} min`)
     : ''
   const studioText = String(item?.studio?.name || '').trim()
-  const canFilterStudio = studioText && typeof onStudioClick === 'function'
+  const canFilterStudio =
+    studioText && Number(item?.studio?.id) > 0 && typeof onStudioClick === 'function'
   const preferredSeries = item?.series
   const seriesText = String(preferredSeries?.name || '').trim()
-  const canFilterSeries = seriesText && typeof onSeriesClick === 'function'
+  const canFilterSeries =
+    seriesText && Number(preferredSeries?.id) > 0 && typeof onSeriesClick === 'function'
   const codeText = code
-  const mainTitle = getJavDisplayTitle(item)
+  const mainTitle = getJavDisplayTitle(item, preferChineseTitle)
   const titleText = [codeText, mainTitle].filter(Boolean).join(' ')
   const normalizedTitleMaxRows = normalizeJavTitleMaxRows(titleMaxRows)
   const titleClampStyle =
@@ -2322,7 +2342,8 @@ function JavCard({
   const handleOpenJavDB = (event) => {
     event.preventDefault()
     event.stopPropagation()
-    const href = !inLibrary && sourceURL ? sourceURL : javdbSearchURL
+    const href =
+      !inLibrary && javExternalSourceKey(sourceURL) === 'javdb' ? sourceURL : javdbSearchURL
     openJavDBWithAssist(href, { target: 'movie', code })
   }
 
@@ -2367,9 +2388,9 @@ function JavCard({
         },
       ]
     : []
+  const sourceKey = javExternalSourceKey(sourceURL)
   const visibleSourceKeys = new Set(
     javCardExternalSourceKeys({
-      inLibrary,
       isUncensored: item?.is_uncensored === true,
       sourceURL,
     })
@@ -2377,7 +2398,7 @@ function JavCard({
   const externalLinks = catalogExternalLinks
     .filter((site) => visibleSourceKeys.has(site.key))
     .map((site) =>
-      !inLibrary && sourceURL
+      !inLibrary && sourceKey === site.key
         ? {
             ...site,
             href: sourceURL,
@@ -2843,7 +2864,9 @@ function JavCard({
             <JavCoverImage
               src={cover}
               alt={item?.code || zh('JAV 封面', 'JAV cover')}
-              className={inLibrary ? '' : 'grayscale'}
+              className={
+                inLibrary ? '' : 'grayscale transition duration-200 group-hover:grayscale-0'
+              }
               referrerPolicy={inLibrary ? undefined : 'no-referrer'}
             />
           ) : (
@@ -3420,6 +3443,7 @@ function JavVideoManagerModal({
   onDeleteVideo,
   onTagClick,
 }) {
+  const preferChineseTitle = useStore((state) => javTitlePrefersChinese(state.config))
   const [selectedIds, setSelectedIds] = useState(() => new Set())
 
   useEffect(() => {
@@ -3429,7 +3453,7 @@ function JavVideoManagerModal({
   if (!open) return null
 
   const videos = Array.isArray(item?.videos) ? item.videos : []
-  const title = getJavDisplayTitle(item)
+  const title = getJavDisplayTitle(item, preferChineseTitle)
   const toggleSelectVideo = (video) => {
     const key = videoSelectionKey(video)
     if (!key) return

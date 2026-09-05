@@ -197,6 +197,18 @@ export async function downloadFFmpeg() {
   return parseJSONResponse(res)
 }
 
+export async function fetchJavScrapeCheck() {
+  const res = await apiFetch('/tools/jav-scrape-check', { cache: 'no-store' })
+  if (!res.ok) throw await apiError(res)
+  return parseJSONResponse(res)
+}
+
+export async function runJavScrapeCheck() {
+  const res = await apiFetch('/tools/jav-scrape-check', { method: 'POST' })
+  if (!res.ok) throw await apiError(res)
+  return parseJSONResponse(res)
+}
+
 export async function deleteTag(id) {
   const res = await apiFetch(`/tags/${id}`, { method: 'DELETE' })
   if (!res.ok) {

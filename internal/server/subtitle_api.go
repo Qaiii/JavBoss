@@ -306,14 +306,28 @@ func saveJavSubtitle(c *gin.Context) {
 	}
 	if err := os.WriteFile(savePath, []byte(text), 0o644); err != nil {
 		logging.Error("write subtitle file error: path=%s err=%v", savePath, err)
-		if errors.Is(err, os.ErrPermission) {
-			respondLocalizedError(c, http.StatusInternalServerError, "保存字幕失败：没有写入权限", "Failed to save subtitle: permission denied")
+		if isUnwritableError(err) {
+			respondLocalizedError(c, http.StatusInternalServerError, "保存字幕失败：视频目录只读，请去掉 Docker 挂载末尾的 :ro", "Failed to save subtitle: media library is mounted read-only")
 			return
 		}
 		respondLocalizedError(c, http.StatusInternalServerError, "保存字幕失败", "Failed to save subtitle")
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"name": filepath.Base(savePath)})
+}
+
+func isUnwritableError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, os.ErrPermission) {
+		return true
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "read-only") ||
+		strings.Contains(msg, "erofs") ||
+		strings.Contains(msg, "permission denied") ||
+		strings.Contains(msg, "operation not permitted")
 }
 
 // nextAvailablePath returns a path that does not currently exist on disk,

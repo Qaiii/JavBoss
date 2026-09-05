@@ -185,7 +185,10 @@ func main() {
 	coverManager.Start(ctx)
 	streamManager.Start(ctx)
 	service.InitIdolWorksManager()
+	service.InitIdolWorkMetadataEnricher()
 	service.StartIdolWorksScanner(ctx)
+	service.StartIdolWorkMetadataEnricher(ctx)
+	service.StartJavScrapeRepairManager(ctx)
 	go func() {
 		timer := time.NewTimer(5 * time.Second)
 		defer timer.Stop()

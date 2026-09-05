@@ -830,17 +830,31 @@ func parseDateUnix(value string) int64 {
 	if value == "" {
 		return 0
 	}
-	re := regexp.MustCompile(`\d{4}[-/]\d{2}[-/]\d{2}`)
-	match := re.FindString(value)
-	if match == "" {
-		return 0
+	if match := dateYMDRe.FindString(value); match != "" {
+		normalized := strings.ReplaceAll(strings.ReplaceAll(match, "/", "-"), ".", "-")
+		if t, err := parseYMD(normalized); err == nil {
+			return t.Unix()
+		}
 	}
-	match = strings.ReplaceAll(match, "/", "-")
-	t, err := time.Parse("2006-01-02", match)
-	if err != nil {
-		return 0
+	if match := dateMDYRe.FindString(value); match != "" {
+		if t, err := time.Parse("1/2/2006", match); err == nil {
+			return t.Unix()
+		}
 	}
-	return t.Unix()
+	return 0
+}
+
+var (
+	dateYMDRe = regexp.MustCompile(`\d{4}[-/.]\d{1,2}[-/.]\d{1,2}`)
+	dateMDYRe = regexp.MustCompile(`\b\d{1,2}/\d{1,2}/\d{4}\b`)
+)
+
+func parseYMD(value string) (time.Time, error) {
+	parts := strings.Split(value, "-")
+	if len(parts) != 3 {
+		return time.Time{}, fmt.Errorf("invalid date %q", value)
+	}
+	return time.Parse("2006-1-2", value)
 }
 
 func parseBirthDateUnix(value string) int {
@@ -1089,6 +1103,26 @@ func guessJapaneseName(root *html.Node, roman string) string {
 		}
 	}
 	return ""
+}
+
+// ContainsJapaneseRunes reports whether value includes hiragana, katakana, or CJK.
+func ContainsJapaneseRunes(value string) bool {
+	return containsJapaneseRunes(value)
+}
+
+// PreferJapaneseTitle keeps an existing Japanese title when the incoming title
+// has none, so an English fallback scrape does not overwrite Japanese listing
+// titles. Incoming Japanese (or incoming when neither side is Japanese) wins.
+func PreferJapaneseTitle(existing, incoming string) string {
+	incoming = strings.TrimSpace(incoming)
+	existing = strings.TrimSpace(existing)
+	if incoming == "" {
+		return existing
+	}
+	if containsJapaneseRunes(incoming) || !containsJapaneseRunes(existing) {
+		return incoming
+	}
+	return existing
 }
 
 func containsJapaneseRunes(value string) bool {

@@ -5,10 +5,11 @@ import RestartAltRoundedIcon from '@mui/icons-material/RestartAltRounded'
 import SaveRoundedIcon from '@mui/icons-material/SaveRounded'
 import { fetchJavIdolCoverOptions, updateJavIdolCover } from '@/api'
 import AppModal from '@/components/AppModal'
-import { getJavDisplayTitle } from '@/utils/jav'
+import { getJavDisplayTitle, javTitlePrefersChinese } from '@/utils/jav'
 import { zh } from '@/utils/i18n'
 import { getErrorMessage } from '@/utils/errors'
 import { getIdolDisplayName } from '@/utils/javIdol'
+import { useStore } from '@/store'
 
 export const IDOL_COVER_VISIBLE_RATIO = 0.47
 export const IDOL_COVER_DEFAULT_CROP_LEFT = 1 - IDOL_COVER_VISIBLE_RATIO
@@ -59,6 +60,7 @@ export default function JavIdolCoverModal({
   onSaved,
 }) {
   const previewRef = useRef(null)
+  const preferChineseTitle = useStore((state) => javTitlePrefersChinese(state.config))
   const [options, setOptions] = useState([])
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -117,7 +119,7 @@ export default function JavIdolCoverModal({
   )
   const previewCode = String(selectedOption?.code || itemCoverCode).trim()
   const coverSrc = previewCode ? `/jav/${encodeURIComponent(previewCode)}/cover` : ''
-  const title = selectedOption ? getJavDisplayTitle(selectedOption) : ''
+  const title = selectedOption ? getJavDisplayTitle(selectedOption, preferChineseTitle) : ''
   const visibleRatio = getCoverVisibleRatio(imageSize)
   const maxCropLeft = Math.max(0, 1 - visibleRatio)
   const displayCropLeft = Math.min(cropLeft, maxCropLeft)
@@ -215,7 +217,7 @@ export default function JavIdolCoverModal({
           ) : options.length > 0 ? (
             options.map((option) => {
               const active = Number(option.id) === Number(selectedJavId)
-              const optionTitle = getJavDisplayTitle(option)
+              const optionTitle = getJavDisplayTitle(option, preferChineseTitle)
               return (
                 <button
                   key={option.id}

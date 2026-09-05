@@ -1,4 +1,3 @@
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -1065,6 +1064,33 @@ body.has-page-scroll .sticky-pagination {
 /* 全屏（或比例不匹配）时视频等比缩放居中，避免拉伸 */
 .player-shell .video-js .vjs-tech {
   object-fit: contain;
+}
+
+/* 浏览器播放器字幕样式（由播放器「字幕 → 样式」写入 CSS 变量） */
+.player-shell .vjs-text-track-display {
+  padding-bottom: var(--jb-sub-offset, 12%) !important;
+}
+
+.player-shell .vjs-text-track-cue {
+  font-size: calc(1em * var(--jb-sub-scale, 1.2)) !important;
+}
+
+.player-shell .vjs-text-track-cue > *,
+.player-shell .vjs-text-track-cue div,
+.player-shell .vjs-text-track-cue span {
+  color: var(--jb-sub-color, #ffffff) !important;
+  background-color: var(--jb-sub-bg, rgba(0, 0, 0, 0.6)) !important;
+  text-shadow: var(--jb-sub-shadow, none) !important;
+  font-weight: 600 !important;
+  line-height: 1.35 !important;
+  padding: 0.08em 0.3em !important;
+  border-radius: 0.12em;
+}
+
+.player-shell video::cue {
+  color: var(--jb-sub-color, #ffffff);
+  background-color: var(--jb-sub-bg, rgba(0, 0, 0, 0.6));
+  text-shadow: var(--jb-sub-shadow, none);
 }
 
 /* 自定义控制条随 .player-shell 进入浏览器全屏 */

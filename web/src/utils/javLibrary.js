@@ -25,16 +25,14 @@ export function javExternalSourceKey(url) {
   }
 }
 
-export function javCardExternalSourceKeys({
-  inLibrary = true,
-  isUncensored = false,
-  sourceURL = '',
-} = {}) {
-  if (inLibrary) {
-    return isUncensored
-      ? ['javbus', 'avsox']
-      : ['javlibrary', 'javbus', 'javdb', 'javmenu', 'missav']
+export function javCardExternalSourceKeys({ isUncensored = false, sourceURL = '' } = {}) {
+  const sourceKey = javExternalSourceKey(sourceURL)
+  const uncensored = isUncensored || sourceKey === 'avsox'
+  const keys = uncensored
+    ? ['javbus', 'avsox']
+    : ['javlibrary', 'javbus', 'javdb', 'javmenu', 'missav']
+  if (sourceKey && !keys.includes(sourceKey)) {
+    return [...keys, sourceKey]
   }
-  const key = javExternalSourceKey(sourceURL)
-  return key ? [key] : []
+  return keys
 }

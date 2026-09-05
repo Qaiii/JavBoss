@@ -86,7 +86,7 @@ import { isChineseLocale, zh } from '@/utils/i18n'
 import { getErrorMessage } from '@/utils/errors'
 import { buildVideoFullPath } from '@/utils/display'
 import { getIdolDisplayName } from '@/utils/javIdol'
-import { normalizeJavCoverOrientation } from '@/utils/jav'
+import { normalizeJavCoverOrientation, normalizeJavTitleLanguage } from '@/utils/jav'
 import { withJavTagDisplayName } from '@/utils/javTag'
 import { displayHostPath } from '@/utils/hostPath'
 import {
@@ -477,6 +477,9 @@ export default function App() {
   const [idolSortInput, setIdolSortInput] = useState(idolSort)
   const [javIdolPreferChineseNameInput, setJavIdolPreferChineseNameInput] = useState(
     configFlag(config?.jav_idol_prefer_chinese_name)
+  )
+  const [javTitleLanguageInput, setJavTitleLanguageInput] = useState(
+    normalizeJavTitleLanguage(config?.jav_title_language)
   )
   const [javIdolRefreshDaysInput, setJavIdolRefreshDaysInput] = useState(() => {
     const parsed = Number.parseInt(String(config?.jav_idol_refresh_days || '7'), 10)
@@ -2837,6 +2840,7 @@ export default function App() {
         jav_sort_rules: javSortRulesConfig(javSortRulesInput),
         idol_sort: normalizedIdolSort,
         jav_idol_prefer_chinese_name: Boolean(javIdolPreferChineseNameInput),
+        jav_title_language: normalizeJavTitleLanguage(javTitleLanguageInput),
         jav_tag_show_simplified: Boolean(javTagShowSimplifiedInput),
         jav_idol_refresh_days: Math.min(
           365,
@@ -2917,11 +2921,13 @@ export default function App() {
       setJavSortRulesInput(javSortRules)
       setIdolSortInput(idolSort)
       setJavIdolPreferChineseNameInput(configFlag(config?.jav_idol_prefer_chinese_name))
+      setJavTitleLanguageInput(normalizeJavTitleLanguage(config?.jav_title_language))
       setJavTagShowSimplifiedInput(configFlag(config?.jav_tag_show_simplified))
     }
   }, [
     javSettingsOpen,
     config?.jav_idol_prefer_chinese_name,
+    config?.jav_title_language,
     config?.jav_tag_show_simplified,
     config?.jav_hide_series,
     config?.jav_hide_idols,
@@ -4598,6 +4604,8 @@ export default function App() {
         onIdolSortChange={setIdolSortInput}
         javIdolPreferChineseNameInput={javIdolPreferChineseNameInput}
         onJavIdolPreferChineseNameChange={setJavIdolPreferChineseNameInput}
+        javTitleLanguageInput={javTitleLanguageInput}
+        onJavTitleLanguageChange={setJavTitleLanguageInput}
         javIdolRefreshDaysInput={javIdolRefreshDaysInput}
         onJavIdolRefreshDaysChange={setJavIdolRefreshDaysInput}
         javTagShowSimplifiedInput={javTagShowSimplifiedInput}

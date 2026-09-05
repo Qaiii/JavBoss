@@ -79,6 +79,19 @@ func javCodePrefixSQL(column string) string {
 	return fmt.Sprintf("CASE WHEN INSTR(%[1]s, '-') > 1 AND (INSTR(%[1]s, '_') = 0 OR INSTR(%[1]s, '-') < INSTR(%[1]s, '_')) THEN UPPER(SUBSTR(%[1]s, 1, INSTR(%[1]s, '-') - 1)) WHEN INSTR(%[1]s, '_') > 1 THEN UPPER(SUBSTR(%[1]s, 1, INSTR(%[1]s, '_') - 1)) ELSE '' END", column)
 }
 
+func javCodePrefixFromCode(code string) string {
+	code = strings.ToUpper(strings.TrimSpace(code))
+	dash := strings.IndexByte(code, '-')
+	under := strings.IndexByte(code, '_')
+	if dash > 0 && (under < 0 || dash < under) {
+		return normalizeJavCodePrefix(code[:dash])
+	}
+	if under > 0 {
+		return normalizeJavCodePrefix(code[:under])
+	}
+	return ""
+}
+
 // JavScanVideo contains the fields the scanner needs to resolve or refresh JAV metadata.
 type JavScanVideo struct {
 	LocationID        int64     `gorm:"column:location_id"`
@@ -132,6 +145,37 @@ type JavMetadataScanItem struct {
 	StudioID   *int64 `gorm:"column:studio_id"`
 	SeriesID   *int64 `gorm:"column:series_id"`
 	SeriesEnID *int64 `gorm:"column:series_en_id"`
+}
+
+// JavScrapeHealthItem is a library JAV row plus scrape-completeness flags.
+type JavScrapeHealthItem struct {
+	ID             int64  `gorm:"column:id"`
+	Code           string `gorm:"column:code"`
+	Title          string `gorm:"column:title"`
+	StudioID       *int64 `gorm:"column:studio_id"`
+	SeriesID       *int64 `gorm:"column:series_id"`
+	SeriesEnID     *int64 `gorm:"column:series_en_id"`
+	IsUncensored   *bool  `gorm:"column:is_uncensored"`
+	ReleaseUnix    int64  `gorm:"column:release_unix"`
+	DurationMin    int    `gorm:"column:duration_min"`
+	HasTags        bool   `gorm:"-"`
+	HasScrapedTags bool   `gorm:"-"`
+	HasIdols       bool   `gorm:"-"`
+}
+
+// UnimportedJavScrapeHealthItem is one unimported idol-work code plus
+// scrape-completeness flags merged across every actress row for that code.
+type UnimportedJavScrapeHealthItem struct {
+	Code        string
+	Title       string
+	CoverURL    string
+	StudioName  string
+	SeriesName  string
+	SourceURL   string
+	Source      int
+	HasTags     bool
+	ReleaseUnix int64
+	DurationMin int
 }
 
 // GetJav returns one JAV record with visible files and tags.
@@ -1189,7 +1233,7 @@ func buildJavFilter(ctx context.Context, idolIDs []int64, tagIDs []int64, search
 	q = q.Where("EXISTS (?)", validLocation)
 	if search != "" {
 		like := fmt.Sprintf("%%%s%%", search)
-		q = q.Where("code LIKE ? OR title LIKE ?", like, like)
+		q = q.Where("code LIKE ? OR title LIKE ? OR title_zh LIKE ?", like, like, like)
 	}
 	if filters.StudioID == 0 {
 		q = q.Where("studio_id IS NULL")
@@ -2053,10 +2097,11 @@ type JavIdolFilters struct {
 
 // JavIdolCoverOption represents one visible JAV work that can be used as an idol card cover.
 type JavIdolCoverOption struct {
-	ID    int64  `json:"id"`
-	Code  string `json:"code"`
-	Title string `json:"title"`
-	Solo  bool   `json:"solo"`
+	ID      int64  `json:"id"`
+	Code    string `json:"code"`
+	Title   string `json:"title"`
+	TitleZH string `json:"title_zh"`
+	Solo    bool   `json:"solo"`
 }
 
 func applyJavIdolSearch(q *gorm.DB, search string) *gorm.DB {
@@ -2594,14 +2639,15 @@ func ListIdolCoverOptions(ctx context.Context, idolID int64, directoryIDs []int6
 		Group("jim_count.jav_id")
 
 	var rows []struct {
-		ID    int64
-		Code  string
-		Title string
-		Solo  int
+		ID      int64
+		Code    string
+		Title   string
+		TitleZH string `gorm:"column:title_zh"`
+		Solo    int
 	}
 	query := common.DB.WithContext(ctx).
 		Table("jav_idol_map jim").
-		Select("j.id, j.code, j.title, CASE WHEN s.c = 1 THEN 1 ELSE 0 END AS solo").
+		Select("j.id, j.code, j.title, j.title_zh, CASE WHEN s.c = 1 THEN 1 ELSE 0 END AS solo").
 		Joins("JOIN jav j ON j.id = jim.jav_id").
 		Joins("JOIN video_location vl ON vl.jav_id = j.id").
 		Joins("JOIN directory d ON d.id = vl.directory_id").
@@ -2610,7 +2656,7 @@ func ListIdolCoverOptions(ctx context.Context, idolID int64, directoryIDs []int6
 		Where(activeLocationWhereSQL("vl", "d"))
 	query = applyDirectoryFilter(query, "vl", directoryIDs)
 	if err := query.
-		Group("j.id, j.code, j.title, solo").
+		Group("j.id, j.code, j.title, j.title_zh, solo").
 		Order("solo DESC, j.code ASC").
 		Scan(&rows).Error; err != nil {
 		return nil, fmt.Errorf("list idol cover options: %w", err)
@@ -2623,10 +2669,11 @@ func ListIdolCoverOptions(ctx context.Context, idolID int64, directoryIDs []int6
 			continue
 		}
 		options = append(options, JavIdolCoverOption{
-			ID:    row.ID,
-			Code:  code,
-			Title: strings.TrimSpace(row.Title),
-			Solo:  row.Solo == 1,
+			ID:      row.ID,
+			Code:    code,
+			Title:   strings.TrimSpace(row.Title),
+			TitleZH: strings.TrimSpace(row.TitleZH),
+			Solo:    row.Solo == 1,
 		})
 	}
 	return options, nil
@@ -3201,6 +3248,141 @@ func ListJavsMissingUncensored(ctx context.Context) ([]JavMetadataScanItem, erro
 		Order("created_at ASC, id ASC").
 		Find(&items).Error; err != nil {
 		return nil, fmt.Errorf("list javs missing uncensored state: %w", err)
+	}
+	return items, nil
+}
+
+// ListJavScrapeHealthItems returns every library JAV with flags used to audit scrape completeness.
+func ListJavScrapeHealthItems(ctx context.Context) ([]JavScrapeHealthItem, error) {
+	var items []JavScrapeHealthItem
+	if err := common.DB.WithContext(ctx).
+		Model(&models.Jav{}).
+		Select("id, code, title, studio_id, series_id, series_en_id, is_uncensored, release_unix, duration_min").
+		Where("COALESCE(code, '') <> ''").
+		Order("id ASC").
+		Find(&items).Error; err != nil {
+		return nil, fmt.Errorf("list jav scrape health items: %w", err)
+	}
+	if len(items) == 0 {
+		return items, nil
+	}
+
+	ids := make([]int64, 0, len(items))
+	indexByID := make(map[int64]int, len(items))
+	for i, item := range items {
+		ids = append(ids, item.ID)
+		indexByID[item.ID] = i
+	}
+
+	var taggedIDs []int64
+	if err := common.DB.WithContext(ctx).
+		Model(&models.JavTagMap{}).
+		Where("jav_id IN ?", ids).
+		Distinct("jav_id").
+		Pluck("jav_id", &taggedIDs).Error; err != nil {
+		return nil, fmt.Errorf("list jav scrape health tags: %w", err)
+	}
+	for _, id := range taggedIDs {
+		if index, ok := indexByID[id]; ok {
+			items[index].HasTags = true
+		}
+	}
+
+	var scrapedIDs []int64
+	if err := common.DB.WithContext(ctx).
+		Model(&models.JavTagMap{}).
+		Where("jav_id IN ?", ids).
+		Where("provider IN ?", visibleScrapedJavTagProviders()).
+		Distinct("jav_id").
+		Pluck("jav_id", &scrapedIDs).Error; err != nil {
+		return nil, fmt.Errorf("list jav scrape health scraped tags: %w", err)
+	}
+	for _, id := range scrapedIDs {
+		if index, ok := indexByID[id]; ok {
+			items[index].HasScrapedTags = true
+		}
+	}
+
+	var idolIDs []int64
+	if err := common.DB.WithContext(ctx).
+		Model(&models.JavIdolMap{}).
+		Where("jav_id IN ?", ids).
+		Distinct("jav_id").
+		Pluck("jav_id", &idolIDs).Error; err != nil {
+		return nil, fmt.Errorf("list jav scrape health idols: %w", err)
+	}
+	for _, id := range idolIDs {
+		if index, ok := indexByID[id]; ok {
+			items[index].HasIdols = true
+		}
+	}
+	return items, nil
+}
+
+// ListUnimportedJavScrapeHealthItems returns distinct unimported idol-work codes
+// with scrape-completeness flags. Codes already present in the jav table are omitted.
+func ListUnimportedJavScrapeHealthItems(ctx context.Context) ([]UnimportedJavScrapeHealthItem, error) {
+	var rows []models.JavIdolWork
+	if err := common.DB.WithContext(ctx).
+		Model(&models.JavIdolWork{}).
+		Where("COALESCE(code, '') <> ''").
+		Where(`NOT EXISTS (
+			SELECT 1 FROM jav WHERE UPPER(jav.code) = UPPER(jav_idol_work.code)
+		)`).
+		Find(&rows).Error; err != nil {
+		return nil, fmt.Errorf("list unimported jav scrape health items: %w", err)
+	}
+
+	merged := make(map[string]*UnimportedJavScrapeHealthItem, len(rows))
+	order := make([]string, 0, len(rows))
+	for _, row := range rows {
+		code := strings.ToUpper(strings.TrimSpace(row.Code))
+		if code == "" {
+			continue
+		}
+		item, ok := merged[code]
+		if !ok {
+			item = &UnimportedJavScrapeHealthItem{Code: strings.TrimSpace(row.Code)}
+			merged[code] = item
+			order = append(order, code)
+		}
+		if strings.TrimSpace(item.Title) == "" {
+			item.Title = strings.TrimSpace(row.Title)
+		}
+		if strings.TrimSpace(item.CoverURL) == "" {
+			item.CoverURL = strings.TrimSpace(row.CoverURL)
+		}
+		if strings.TrimSpace(item.StudioName) == "" {
+			item.StudioName = strings.TrimSpace(row.StudioName)
+		}
+		if strings.TrimSpace(item.SeriesName) == "" {
+			item.SeriesName = strings.TrimSpace(row.SeriesName)
+		}
+		if strings.TrimSpace(item.SourceURL) == "" {
+			item.SourceURL = strings.TrimSpace(row.SourceURL)
+		}
+		if item.Source == 0 {
+			item.Source = row.Source
+		}
+		if !item.HasTags {
+			for _, tag := range row.Tags {
+				if strings.TrimSpace(tag) != "" {
+					item.HasTags = true
+					break
+				}
+			}
+		}
+		if item.ReleaseUnix <= 0 && row.ReleaseUnix > 0 {
+			item.ReleaseUnix = row.ReleaseUnix
+		}
+		if item.DurationMin <= 0 && row.DurationMin > 0 {
+			item.DurationMin = row.DurationMin
+		}
+	}
+
+	items := make([]UnimportedJavScrapeHealthItem, 0, len(order))
+	for _, code := range order {
+		items = append(items, *merged[code])
 	}
 	return items, nil
 }

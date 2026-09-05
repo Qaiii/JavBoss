@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"javboss/internal/jav"
 	"javboss/internal/models"
 )
 
@@ -119,6 +120,65 @@ func TestReplaceAndListJavIdolWorks(t *testing.T) {
 	}
 	if total != 0 {
 		t.Fatalf("total after empty replace = %d, want 0", total)
+	}
+}
+
+func TestReplaceJavIdolWorksKeepsJapaneseTitles(t *testing.T) {
+	gdb := openTestDB(t)
+	ctx := context.Background()
+
+	idol := models.JavIdol{Name: "Title Merge Idol"}
+	if err := gdb.Create(&idol).Error; err != nil {
+		t.Fatalf("create idol: %v", err)
+	}
+	if err := ReplaceJavIdolWorks(ctx, idol.ID, []models.JavIdolWork{
+		{JavIdolID: idol.ID, Code: "IPX-001", Title: "中年オヤジ", CoverURL: "https://example.com/old.jpg", ReleaseUnix: 100, SourceURL: "https://javdb.com/v/old"},
+		{JavIdolID: idol.ID, Code: "ABP-999", Title: "Old English", ReleaseUnix: 90},
+	}); err != nil {
+		t.Fatalf("seed works: %v", err)
+	}
+	if err := ReplaceJavIdolWorks(ctx, idol.ID, []models.JavIdolWork{
+		{JavIdolID: idol.ID, Code: "IPX-001", Title: "Middle-aged Man", CoverURL: "https://example.com/new.jpg", ReleaseUnix: 0},
+		{JavIdolID: idol.ID, Code: "ABP-999", Title: "ケースの女", ReleaseUnix: 190},
+		{JavIdolID: idol.ID, Code: "SSIS-123", Title: "Brand New English", ReleaseUnix: 180},
+	}); err != nil {
+		t.Fatalf("replace works: %v", err)
+	}
+
+	items, total, err := ListJavIdolWorks(ctx, idol.ID, 24, 0)
+	if err != nil {
+		t.Fatalf("list works: %v", err)
+	}
+	if total != 3 {
+		t.Fatalf("total = %d, want 3", total)
+	}
+	byCode := map[string]string{}
+	coverByCode := map[string]string{}
+	releaseByCode := map[string]int64{}
+	sourceByCode := map[string]string{}
+	for _, item := range items {
+		byCode[item.Code] = item.Title
+		coverByCode[item.Code] = item.CoverURL
+		releaseByCode[item.Code] = item.ReleaseUnix
+		sourceByCode[item.Code] = item.SourceURL
+	}
+	if byCode["IPX-001"] != "中年オヤジ" {
+		t.Fatalf("IPX-001 title = %q, want Japanese kept", byCode["IPX-001"])
+	}
+	if coverByCode["IPX-001"] != "https://example.com/new.jpg" {
+		t.Fatalf("IPX-001 cover = %q, want incoming cover", coverByCode["IPX-001"])
+	}
+	if releaseByCode["IPX-001"] != 100 {
+		t.Fatalf("IPX-001 release = %d, want previous date kept", releaseByCode["IPX-001"])
+	}
+	if sourceByCode["IPX-001"] != "https://javdb.com/v/old" {
+		t.Fatalf("IPX-001 source_url = %q, want previous source kept", sourceByCode["IPX-001"])
+	}
+	if byCode["ABP-999"] != "ケースの女" {
+		t.Fatalf("ABP-999 title = %q, want incoming Japanese", byCode["ABP-999"])
+	}
+	if byCode["SSIS-123"] != "Brand New English" {
+		t.Fatalf("SSIS-123 title = %q, want incoming English", byCode["SSIS-123"])
 	}
 }
 
@@ -386,6 +446,294 @@ func TestSearchJavMergesUnimportedIdolWorks(t *testing.T) {
 	}
 	if total != 2 || len(withoutExternal) != 2 {
 		t.Fatalf("without external total=%d len=%d, want 2", total, len(withoutExternal))
+	}
+}
+
+func TestJavCodePrefixFromCode(t *testing.T) {
+	cases := map[string]string{
+		"START-602":  "START",
+		"heyzo_1751": "HEYZO",
+		"IPX-001":    "IPX",
+		"ABC":        "",
+	}
+	for in, want := range cases {
+		if got := javCodePrefixFromCode(in); got != want {
+			t.Fatalf("javCodePrefixFromCode(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestSearchJavUnimportedAttachesStudioSeriesTags(t *testing.T) {
+	gdb := openTestDB(t)
+	ctx := context.Background()
+	now := time.Now().UTC()
+
+	dir := models.Directory{Path: "/tmp/unimported-meta"}
+	if err := gdb.Create(&dir).Error; err != nil {
+		t.Fatalf("create directory: %v", err)
+	}
+	idol := models.JavIdol{Name: "Meta Idol"}
+	if err := gdb.Create(&idol).Error; err != nil {
+		t.Fatalf("create idol: %v", err)
+	}
+	studio := models.JavStudio{Name: "SOD CREATE"}
+	if err := gdb.Create(&studio).Error; err != nil {
+		t.Fatalf("create studio: %v", err)
+	}
+	aliasStudio := models.JavStudio{Name: "IDEA POCKET"}
+	if err := gdb.Create(&aliasStudio).Error; err != nil {
+		t.Fatalf("create alias studio: %v", err)
+	}
+	if err := gdb.Create(&models.JavStudioAlias{JavStudioID: aliasStudio.ID, Alias: "アイデアポケット"}).Error; err != nil {
+		t.Fatalf("create studio alias: %v", err)
+	}
+	series := models.JavSeries{Name: "中年オヤジ"}
+	if err := gdb.Create(&series).Error; err != nil {
+		t.Fatalf("create series: %v", err)
+	}
+	tag := models.JavTag{Name: "美少女"}
+	if err := gdb.Create(&tag).Error; err != nil {
+		t.Fatalf("create tag: %v", err)
+	}
+
+	library := models.Jav{Code: "START-001", Title: "Library Start", StudioID: &studio.ID, CreatedAt: now, FetchedAt: now}
+	if err := gdb.Create(&library).Error; err != nil {
+		t.Fatalf("create library jav: %v", err)
+	}
+	if err := gdb.Create(&models.JavIdolMap{JavID: library.ID, JavIdolID: idol.ID}).Error; err != nil {
+		t.Fatalf("create idol map: %v", err)
+	}
+	video := models.Video{
+		DirectoryID: dir.ID,
+		Path:        "start-001.mp4",
+		Filename:    "start-001.mp4",
+		Fingerprint: "fp-start-001",
+		JavID:       int64Ptr(library.ID),
+		ModifiedAt:  now,
+	}
+	if err := gdb.Create(&video).Error; err != nil {
+		t.Fatalf("create video: %v", err)
+	}
+	createVideoLocationsForVideos(t, gdb, video)
+
+	if err := ReplaceJavIdolWorks(ctx, idol.ID, []models.JavIdolWork{
+		{
+			JavIdolID:   idol.ID,
+			Code:        "START-602",
+			Title:       "Prefix Studio Work",
+			ReleaseUnix: 200,
+		},
+		{
+			JavIdolID:   idol.ID,
+			Code:        "IPX-228",
+			Title:       "Named Metadata Work",
+			ReleaseUnix: 100,
+			StudioName:  "アイデアポケット",
+			SeriesName:  "中年オヤジ",
+			Tags:        models.JavStringList{"美少女", "Unknown Tag"},
+		},
+	}); err != nil {
+		t.Fatalf("replace works: %v", err)
+	}
+
+	items, total, err := SearchJavWithPrefixFilters(ctx, []int64{idol.ID}, nil, "", "", "code", 20, 0, nil, nil, JavSearchFilters{StudioID: -1, IncludeExternal: true}, nil, nil)
+	if err != nil {
+		t.Fatalf("search: %v", err)
+	}
+	if total != 3 {
+		t.Fatalf("total = %d, want 3", total)
+	}
+	byCode := map[string]models.Jav{}
+	for _, item := range items {
+		byCode[item.Code] = item
+	}
+
+	prefixItem := byCode["START-602"]
+	if prefixItem.Studio == nil || prefixItem.Studio.ID != studio.ID || prefixItem.Studio.Name != "SOD CREATE" {
+		t.Fatalf("START-602 studio = %+v, want SOD CREATE from prefix", prefixItem.Studio)
+	}
+
+	named := byCode["IPX-228"]
+	if named.Studio == nil || named.Studio.ID != aliasStudio.ID {
+		t.Fatalf("IPX-228 studio = %+v, want IDEA POCKET via alias", named.Studio)
+	}
+	if named.Series == nil || named.Series.ID != series.ID || named.Series.Name != "中年オヤジ" {
+		t.Fatalf("IPX-228 series = %+v, want 中年オヤジ", named.Series)
+	}
+	if len(named.Tags) != 2 {
+		t.Fatalf("IPX-228 tags = %+v, want 2", named.Tags)
+	}
+	if named.Tags[0].ID != tag.ID || named.Tags[0].Name != "美少女" {
+		t.Fatalf("IPX-228 tag[0] = %+v, want catalog 美少女", named.Tags[0])
+	}
+	if named.Tags[1].ID != 0 || named.Tags[1].Name != "Unknown Tag" {
+		t.Fatalf("IPX-228 tag[1] = %+v, want unmatched name", named.Tags[1])
+	}
+}
+
+func TestApplyJavInfoToIdolWorksAndListNeedingMetadata(t *testing.T) {
+	gdb := openTestDB(t)
+	ctx := context.Background()
+	idol := models.JavIdol{Name: "Enrich Idol"}
+	if err := gdb.Create(&idol).Error; err != nil {
+		t.Fatalf("create idol: %v", err)
+	}
+	if err := ReplaceJavIdolWorks(ctx, idol.ID, []models.JavIdolWork{
+		{JavIdolID: idol.ID, Code: "IPX-001", Title: "Old English", ReleaseUnix: 50},
+	}); err != nil {
+		t.Fatalf("replace works: %v", err)
+	}
+	codes, err := ListIdolWorkCodesNeedingMetadata(ctx)
+	if err != nil {
+		t.Fatalf("list needing: %v", err)
+	}
+	if len(codes) != 1 || codes[0] != "IPX-001" {
+		t.Fatalf("needing codes = %v, want [IPX-001]", codes)
+	}
+
+	if err := ApplyJavInfoToIdolWorks(ctx, &jav.JavInfo{
+		Code:        "IPX-001",
+		Title:       "中年オヤジ",
+		Studio:      "IDEA POCKET",
+		Series:      "中年オヤジ",
+		Tags:        []string{"美少女"},
+		DurationMin: 170,
+	}); err != nil {
+		t.Fatalf("apply info: %v", err)
+	}
+
+	var row models.JavIdolWork
+	if err := gdb.Where("code = ?", "IPX-001").First(&row).Error; err != nil {
+		t.Fatalf("reload work: %v", err)
+	}
+	if row.Title != "中年オヤジ" || row.StudioName != "IDEA POCKET" || row.SeriesName != "中年オヤジ" || row.DurationMin != 170 {
+		t.Fatalf("updated work = %+v", row)
+	}
+	if len(row.Tags) != 1 || row.Tags[0] != "美少女" {
+		t.Fatalf("updated tags = %#v", row.Tags)
+	}
+	codes, err = ListIdolWorkCodesNeedingMetadata(ctx)
+	if err != nil {
+		t.Fatalf("list needing after apply: %v", err)
+	}
+	if len(codes) != 0 {
+		t.Fatalf("needing codes after apply = %v, want empty", codes)
+	}
+}
+
+func TestReplaceJavIdolWorksKeepsStudioSeriesTags(t *testing.T) {
+	gdb := openTestDB(t)
+	ctx := context.Background()
+	idol := models.JavIdol{Name: "Keep Meta Idol"}
+	if err := gdb.Create(&idol).Error; err != nil {
+		t.Fatalf("create idol: %v", err)
+	}
+	if err := ReplaceJavIdolWorks(ctx, idol.ID, []models.JavIdolWork{
+		{
+			JavIdolID:   idol.ID,
+			Code:        "IPX-001",
+			Title:       "中年オヤジ",
+			StudioName:  "IDEA POCKET",
+			SeriesName:  "中年オヤジ",
+			Tags:        models.JavStringList{"美少女"},
+			ReleaseUnix: 100,
+		},
+	}); err != nil {
+		t.Fatalf("seed works: %v", err)
+	}
+	if err := ReplaceJavIdolWorks(ctx, idol.ID, []models.JavIdolWork{
+		{JavIdolID: idol.ID, Code: "IPX-001", Title: "Middle-aged Man", ReleaseUnix: 100},
+	}); err != nil {
+		t.Fatalf("replace listing-only: %v", err)
+	}
+	var row models.JavIdolWork
+	if err := gdb.Where("code = ?", "IPX-001").First(&row).Error; err != nil {
+		t.Fatalf("reload work: %v", err)
+	}
+	if row.StudioName != "IDEA POCKET" || row.SeriesName != "中年オヤジ" {
+		t.Fatalf("studio/series = %q / %q, want kept", row.StudioName, row.SeriesName)
+	}
+	if len(row.Tags) != 1 || row.Tags[0] != "美少女" {
+		t.Fatalf("tags = %#v, want kept 美少女", row.Tags)
+	}
+}
+
+func TestApplyTitleZHAndKeepOnReplace(t *testing.T) {
+	gdb := openTestDB(t)
+	ctx := context.Background()
+	idol := models.JavIdol{Name: "Title ZH Idol"}
+	if err := gdb.Create(&idol).Error; err != nil {
+		t.Fatalf("create idol: %v", err)
+	}
+	if err := gdb.Create(&models.Jav{Code: "IPX-001", Title: "中年オヤジ"}).Error; err != nil {
+		t.Fatalf("create jav: %v", err)
+	}
+	if err := ReplaceJavIdolWorks(ctx, idol.ID, []models.JavIdolWork{
+		{JavIdolID: idol.ID, Code: "IPX-001", Title: "中年オヤジ", ReleaseUnix: 50},
+	}); err != nil {
+		t.Fatalf("replace works: %v", err)
+	}
+
+	codes, err := ListCodesMissingTitleZH(ctx)
+	if err != nil {
+		t.Fatalf("list missing title_zh: %v", err)
+	}
+	if len(codes) != 1 || codes[0] != "IPX-001" {
+		t.Fatalf("missing title_zh = %v, want [IPX-001]", codes)
+	}
+	needs, err := CodeNeedsTitleZH(ctx, "IPX-001")
+	if err != nil {
+		t.Fatalf("needs title_zh: %v", err)
+	}
+	if !needs {
+		t.Fatal("expected IPX-001 to need title_zh")
+	}
+
+	if err := ApplyTitleZH(ctx, "IPX-001", "中年父亲与制服美少女"); err != nil {
+		t.Fatalf("apply title_zh: %v", err)
+	}
+	if err := ApplyTitleZH(ctx, "IPX-001", "should not overwrite"); err != nil {
+		t.Fatalf("apply title_zh second: %v", err)
+	}
+
+	var javRow models.Jav
+	if err := gdb.Where("code = ?", "IPX-001").First(&javRow).Error; err != nil {
+		t.Fatalf("reload jav: %v", err)
+	}
+	if javRow.TitleZH != "中年父亲与制服美少女" {
+		t.Fatalf("jav title_zh = %q", javRow.TitleZH)
+	}
+	var work models.JavIdolWork
+	if err := gdb.Where("code = ?", "IPX-001").First(&work).Error; err != nil {
+		t.Fatalf("reload work: %v", err)
+	}
+	if work.TitleZH != "中年父亲与制服美少女" {
+		t.Fatalf("work title_zh = %q", work.TitleZH)
+	}
+
+	codes, err = ListCodesMissingTitleZH(ctx)
+	if err != nil {
+		t.Fatalf("list missing after apply: %v", err)
+	}
+	if len(codes) != 0 {
+		t.Fatalf("missing title_zh after apply = %v, want empty", codes)
+	}
+
+	if err := ReplaceJavIdolWorks(ctx, idol.ID, []models.JavIdolWork{
+		{JavIdolID: idol.ID, Code: "IPX-001", Title: "中年オヤジ", ReleaseUnix: 50},
+	}); err != nil {
+		t.Fatalf("replace without title_zh: %v", err)
+	}
+	var reloaded models.JavIdolWork
+	if err := gdb.Where("code = ?", "IPX-001").First(&reloaded).Error; err != nil {
+		t.Fatalf("reload work after replace: %v", err)
+	}
+	if reloaded.TitleZH != "中年父亲与制服美少女" {
+		t.Fatalf("kept title_zh = %q", reloaded.TitleZH)
+	}
+	item := javFromUnimportedIdolWork(reloaded, nil)
+	if item.TitleZH != reloaded.TitleZH {
+		t.Fatalf("unimported title_zh = %q, want %q", item.TitleZH, reloaded.TitleZH)
 	}
 }
 

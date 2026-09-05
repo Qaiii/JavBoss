@@ -816,6 +816,67 @@ func ListJavWorksByActressURL(ctx context.Context, profileURL string, page int) 
 	return result.Items, result.HasNext, nil
 }
 
+const maxCachedActressWorksPages = 80
+
+// LoadCachedActressWorks returns previously cached JavDB actress listing items
+// for profileURL. Current cache-key versions are tried first, then older ones,
+// so Japanese listing titles captured before a live 403 can still be applied.
+func LoadCachedActressWorks(profileURL string) []*JavInfo {
+	profileURL = strings.TrimSpace(profileURL)
+	if profileURL == "" || !strings.Contains(strings.ToLower(profileURL), "/actors/") {
+		return nil
+	}
+
+	current := lookupCacheKeyVersion(ProviderJavDB, "list_actress_works")
+	versions := []string{current}
+	for _, old := range []string{"v3", "v2", "v1"} {
+		if old == current {
+			continue
+		}
+		versions = append(versions, old)
+	}
+	for _, version := range versions {
+		items := loadCachedActressWorksVersion(profileURL, version)
+		if len(items) > 0 {
+			return items
+		}
+	}
+	return nil
+}
+
+func loadCachedActressWorksVersion(profileURL, version string) []*JavInfo {
+	seen := make(map[string]struct{})
+	items := make([]*JavInfo, 0, 96)
+	for page := 1; page <= maxCachedActressWorksPages; page++ {
+		key := strings.Join([]string{
+			version,
+			"jav",
+			ProviderJavDB.String(),
+			"list_actress_works",
+			fmt.Sprintf("%s|%d", profileURL, page),
+		}, ":")
+		cached, ok, err := lookupCacheGet[javDBWorksPage](key)
+		if !ok || err != nil || cached == nil {
+			break
+		}
+		for _, item := range cached.Items {
+			if item == nil || strings.TrimSpace(item.Code) == "" {
+				continue
+			}
+			codeKey := normalizeJavDBCode(item.Code)
+			if _, exists := seen[codeKey]; exists {
+				continue
+			}
+			seen[codeKey] = struct{}{}
+			items = append(items, item)
+		}
+		if !cached.HasNext {
+			break
+		}
+	}
+	return items
+}
+
 // javDBActressWorksPageURL appends the page query param. Page 1 uses the bare
 // profile URL, matching the default first page served by JavDB.
 func javDBActressWorksPageURL(profileURL string, page int) string {
@@ -849,7 +910,7 @@ func parseJavDBActressWorksPage(root *html.Node, pageURL string) []*JavInfo {
 			Title:       javDBListItemTitle(item, code),
 			Code:        code,
 			CoverURL:    javDBListItemCoverURL(firstSelectionNode(item), pageURL),
-			ReleaseUnix: parseDateUnix(cleanSelectionText(item.Find("div.meta").First())),
+			ReleaseUnix: parseDateUnix(javDBListItemReleaseText(item)),
 			DurationMin: parseRuntimeMinutes(cleanSelectionText(item.Find(".duration").First())),
 			Provider:    ProviderJavDB,
 		}
@@ -881,6 +942,18 @@ func javDBListItemTitle(item *goquery.Selection, code string) string {
 		return title
 	}
 	return trimJavDBListTitle(cleanSelectionText(item.Find("div.video-title").First()), code)
+}
+
+func javDBListItemReleaseText(item *goquery.Selection) string {
+	if item == nil {
+		return ""
+	}
+	for _, selector := range []string{"div.meta", ".meta", "div.item-meta", "time"} {
+		if text := cleanSelectionText(item.Find(selector).First()); parseDateUnix(text) != 0 {
+			return text
+		}
+	}
+	return cleanSelectionText(item)
 }
 
 func trimJavDBListTitle(title, code string) string {

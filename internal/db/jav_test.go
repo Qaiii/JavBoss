@@ -2402,6 +2402,142 @@ func TestListJavsMissingUncensored(t *testing.T) {
 	}
 }
 
+func TestListJavScrapeHealthItemsMarksTagAndIdolFlags(t *testing.T) {
+	gdb := openTestDB(t)
+	ctx := context.Background()
+	now := time.Unix(1710000000, 0).UTC()
+	studio := models.JavStudio{Name: "Health Studio"}
+	if err := gdb.Create(&studio).Error; err != nil {
+		t.Fatalf("create studio: %v", err)
+	}
+	series := models.JavSeries{Name: "Health Series"}
+	if err := gdb.Create(&series).Error; err != nil {
+		t.Fatalf("create series: %v", err)
+	}
+	idol := models.JavIdol{Name: "Health Idol"}
+	if err := gdb.Create(&idol).Error; err != nil {
+		t.Fatalf("create idol: %v", err)
+	}
+	scrapedTag := models.JavTag{Name: "刮削标签"}
+	userTag := models.JavTag{Name: "用户标签", IsUser: true}
+	tags := []models.JavTag{scrapedTag, userTag}
+	if err := gdb.Create(&tags).Error; err != nil {
+		t.Fatalf("create tags: %v", err)
+	}
+	scrapedTag = tags[0]
+	userTag = tags[1]
+
+	complete := models.Jav{
+		Code:        "HAVE-ALL",
+		Title:       "完整作品",
+		StudioID:    &studio.ID,
+		SeriesID:    &series.ID,
+		ReleaseUnix: now.Unix(),
+		DurationMin: 120,
+		FetchedAt:   now,
+		CreatedAt:   now,
+	}
+	userOnly := models.Jav{Code: "USER-TAGS", Title: "仅用户标签", FetchedAt: now, CreatedAt: now}
+	empty := models.Jav{Code: "EMPTY-001", FetchedAt: now, CreatedAt: now}
+	javs := []models.Jav{complete, userOnly, empty}
+	if err := gdb.Create(&javs).Error; err != nil {
+		t.Fatalf("create jav rows: %v", err)
+	}
+	complete = javs[0]
+	userOnly = javs[1]
+
+	if err := gdb.Create(&[]models.JavTagMap{
+		{JavID: complete.ID, JavTagID: scrapedTag.ID, Provider: int(jav.ProviderJavBus)},
+		{JavID: userOnly.ID, JavTagID: userTag.ID, Provider: int(jav.ProviderUser)},
+	}).Error; err != nil {
+		t.Fatalf("create tag maps: %v", err)
+	}
+	if err := gdb.Create(&models.JavIdolMap{JavID: complete.ID, JavIdolID: idol.ID}).Error; err != nil {
+		t.Fatalf("create idol map: %v", err)
+	}
+
+	items, err := ListJavScrapeHealthItems(ctx)
+	if err != nil {
+		t.Fatalf("ListJavScrapeHealthItems: %v", err)
+	}
+	byCode := map[string]JavScrapeHealthItem{}
+	for _, item := range items {
+		byCode[item.Code] = item
+	}
+	if len(byCode) != 3 {
+		t.Fatalf("item count = %d, want 3", len(byCode))
+	}
+	got := byCode["HAVE-ALL"]
+	if !got.HasTags || !got.HasScrapedTags || !got.HasIdols || got.StudioID == nil || got.SeriesID == nil {
+		t.Fatalf("complete item flags = %#v", got)
+	}
+	got = byCode["USER-TAGS"]
+	if !got.HasTags || got.HasScrapedTags || got.HasIdols {
+		t.Fatalf("user-only item flags = %#v", got)
+	}
+	got = byCode["EMPTY-001"]
+	if got.HasTags || got.HasScrapedTags || got.HasIdols || strings.TrimSpace(got.Title) != "" {
+		t.Fatalf("empty item flags = %#v", got)
+	}
+}
+
+func TestListUnimportedJavScrapeHealthItemsSkipsLibraryCodes(t *testing.T) {
+	gdb := openTestDB(t)
+	ctx := context.Background()
+	now := time.Unix(1710000000, 0).UTC()
+	idol := models.JavIdol{Name: "External Idol"}
+	if err := gdb.Create(&idol).Error; err != nil {
+		t.Fatalf("create idol: %v", err)
+	}
+	library := models.Jav{Code: "LIB-001", Title: "入库作品", FetchedAt: now, CreatedAt: now}
+	if err := gdb.Create(&library).Error; err != nil {
+		t.Fatalf("create library jav: %v", err)
+	}
+	if err := gdb.Create(&[]models.JavIdolWork{
+		{JavIdolID: idol.ID, Code: "LIB-001", Title: "同番号未入库副本", CoverURL: "https://cover/lib.jpg"},
+		{
+			JavIdolID:   idol.ID,
+			Code:        "EXT-001",
+			Title:       "未入库完整",
+			CoverURL:    "https://cover/ext.jpg",
+			StudioName:  "片商",
+			SeriesName:  "系列",
+			SourceURL:   "https://javdb.com/v/ext",
+			Source:      int(jav.ProviderJavDB),
+			Tags:        models.JavStringList{"标签"},
+			ReleaseUnix: now.Unix(),
+			DurationMin: 90,
+		},
+		{JavIdolID: idol.ID, Code: "EXT-EMPTY", Title: ""},
+		{JavIdolID: idol.ID, Code: "ext-empty", Title: "同番号第二行", CoverURL: "https://cover/empty.jpg"},
+	}).Error; err != nil {
+		t.Fatalf("create idol works: %v", err)
+	}
+
+	items, err := ListUnimportedJavScrapeHealthItems(ctx)
+	if err != nil {
+		t.Fatalf("ListUnimportedJavScrapeHealthItems: %v", err)
+	}
+	byCode := map[string]UnimportedJavScrapeHealthItem{}
+	for _, item := range items {
+		byCode[strings.ToUpper(item.Code)] = item
+	}
+	if _, ok := byCode["LIB-001"]; ok {
+		t.Fatalf("library code should be omitted: %#v", items)
+	}
+	if len(byCode) != 2 {
+		t.Fatalf("item count = %d, want 2: %#v", len(byCode), byCode)
+	}
+	complete := byCode["EXT-001"]
+	if complete.Title == "" || complete.CoverURL == "" || !complete.HasTags || complete.StudioName == "" || complete.SeriesName == "" || complete.SourceURL == "" {
+		t.Fatalf("complete unimported = %#v", complete)
+	}
+	empty := byCode["EXT-EMPTY"]
+	if empty.CoverURL != "https://cover/empty.jpg" || strings.TrimSpace(empty.Title) == "" {
+		t.Fatalf("merged empty code = %#v", empty)
+	}
+}
+
 func TestListUncensoredJavsMissingAvsoxMetadata(t *testing.T) {
 	gdb := openTestDB(t)
 	ctx := context.Background()

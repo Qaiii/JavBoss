@@ -8,6 +8,8 @@ import SortableList from '@/components/SortableList'
 import { zh } from '@/utils/i18n'
 import { getErrorMessage } from '@/utils/errors'
 import { getIdolDisplayName } from '@/utils/javIdol'
+import { getJavDisplayTitle, javTitlePrefersChinese } from '@/utils/jav'
+import { useStore } from '@/store'
 
 export default function JavFavoriteManageModal({
   open,
@@ -608,7 +610,11 @@ function favoriteItemLabel(entityType, item, preferChineseName) {
   const name = String(item?.name || '').trim()
   if (name) return name
   if (entityType === 'jav') {
-    return [item?.code, item?.title].filter(Boolean).join(' ') || zh('未知作品', 'Unknown JAV')
+    return (
+      [item?.code, getJavDisplayTitle(item, javTitlePrefersChinese(useStore.getState().config))]
+        .filter(Boolean)
+        .join(' ') || zh('未知作品', 'Unknown JAV')
+    )
   }
   if (entityType === 'studio') return zh('未知片商', 'Unknown studio')
   if (entityType === 'series') return zh('未知系列', 'Unknown series')

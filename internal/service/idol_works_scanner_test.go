@@ -223,6 +223,121 @@ func TestScrapeIdolWorksFallsBackToJavDatabaseWhenJavDBProfileMissing(t *testing
 	}
 }
 
+func TestScrapeIdolWorksPrefersJavDBWhenStoredURLIsJavDatabase(t *testing.T) {
+	gdb := openServiceTestDB(t)
+	ctx := context.Background()
+	idol := seedScrapeIdol(t, gdb, "Pinned Fallback Idol", "IPX-004")
+	if err := dbpkg.MarkJavIdolTrackScraped(ctx, idol.ID, "https://www.javdatabase.com/idols/pinned/", 1, time.Now()); err != nil {
+		t.Fatalf("seed track: %v", err)
+	}
+
+	javdbResolve, javdbList, _, jdbList := stubWorksSources(t)
+	listJavWorksByActressURL = func(ctx context.Context, profileURL string, page int) ([]*jav.JavInfo, bool, error) {
+		(*javdbList)++
+		return []*jav.JavInfo{
+			{Code: "ABP-777", Title: "ケースの女", Provider: jav.ProviderJavDB},
+		}, false, nil
+	}
+
+	if err := ScrapeIdolWorks(ctx, idol.ID); err != nil {
+		t.Fatalf("scrape: %v", err)
+	}
+
+	items, total, err := dbpkg.ListJavIdolWorks(ctx, idol.ID, 24, 0)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if total != 1 || len(items) != 1 {
+		t.Fatalf("total=%d items=%d, want 1 from JavDB", total, len(items))
+	}
+	if items[0].Source != int(jav.ProviderJavDB) {
+		t.Fatalf("work source = %d, want ProviderJavDB", items[0].Source)
+	}
+	if items[0].Title != "ケースの女" {
+		t.Fatalf("title = %q, want Japanese JavDB listing title", items[0].Title)
+	}
+	track, err := dbpkg.GetJavIdolTrack(ctx, idol.ID)
+	if err != nil {
+		t.Fatalf("get track: %v", err)
+	}
+	if track.JavdbURL != "https://javdb.com/actors/scrape-test" {
+		t.Fatalf("javdb url = %q, want upgraded JavDB actor URL", track.JavdbURL)
+	}
+	if *javdbResolve != 1 {
+		t.Fatalf("javdb profile resolutions = %d, want 1", *javdbResolve)
+	}
+	if *javdbList != 1 {
+		t.Fatalf("javdb list calls = %d, want 1", *javdbList)
+	}
+	if *jdbList != 0 {
+		t.Fatalf("javdatabase list calls = %d, want 0", *jdbList)
+	}
+}
+
+func TestScrapeIdolWorksKeepsJavDBURLAfterJavDatabaseFallback(t *testing.T) {
+	gdb := openServiceTestDB(t)
+	ctx := context.Background()
+	idol := seedScrapeIdol(t, gdb, "Keep JavDB URL Idol", "IPX-005")
+	stored := "https://javdb.com/actors/k4O90"
+	if err := dbpkg.MarkJavIdolTrackScraped(ctx, idol.ID, stored, 1, time.Now()); err != nil {
+		t.Fatalf("seed track: %v", err)
+	}
+
+	_, javdbList, jdbResolve, jdbList := stubWorksSources(t)
+	listJavWorksByActressURL = func(ctx context.Context, profileURL string, page int) ([]*jav.JavInfo, bool, error) {
+		(*javdbList)++
+		return nil, false, errors.New("javdb blocked")
+	}
+	listJavDatabaseWorksByActressURL = func(ctx context.Context, profileURL string, page int) ([]*jav.JavInfo, bool, error) {
+		(*jdbList)++
+		return []*jav.JavInfo{
+			{Code: "ABP-888", Title: "English Fallback Title", Provider: jav.ProviderJavDatabase},
+		}, false, nil
+	}
+
+	if err := ScrapeIdolWorks(ctx, idol.ID); err != nil {
+		t.Fatalf("scrape: %v", err)
+	}
+
+	track, err := dbpkg.GetJavIdolTrack(ctx, idol.ID)
+	if err != nil {
+		t.Fatalf("get track: %v", err)
+	}
+	if track.JavdbURL != stored {
+		t.Fatalf("javdb url = %q, want stored JavDB actor URL kept", track.JavdbURL)
+	}
+	if *javdbList != 1 {
+		t.Fatalf("javdb list calls = %d, want 1", *javdbList)
+	}
+	if *jdbResolve != 1 {
+		t.Fatalf("javdatabase profile resolutions = %d, want 1", *jdbResolve)
+	}
+	if *jdbList != 1 {
+		t.Fatalf("javdatabase list calls = %d, want 1", *jdbList)
+	}
+}
+
+func TestPersistIdolWorksProfileURL(t *testing.T) {
+	javdb := "https://javdb.com/actors/k4O90"
+	jdb := "https://www.javdatabase.com/idols/minamo/"
+	cases := []struct {
+		stored   string
+		scraped  string
+		provider jav.Provider
+		want     string
+	}{
+		{stored: javdb, scraped: jdb, provider: jav.ProviderJavDatabase, want: javdb},
+		{stored: jdb, scraped: javdb, provider: jav.ProviderJavDB, want: javdb},
+		{stored: "", scraped: jdb, provider: jav.ProviderJavDatabase, want: jdb},
+		{stored: javdb, scraped: javdb, provider: jav.ProviderJavDB, want: javdb},
+	}
+	for _, tc := range cases {
+		if got := persistIdolWorksProfileURL(tc.stored, tc.scraped, tc.provider); got != tc.want {
+			t.Fatalf("persist(%q, %q, %s) = %q, want %q", tc.stored, tc.scraped, tc.provider.String(), got, tc.want)
+		}
+	}
+}
+
 func TestScrapeIdolWorksRecordsErrorWhenAllSourcesFail(t *testing.T) {
 	gdb := openServiceTestDB(t)
 	ctx := context.Background()
@@ -250,5 +365,62 @@ func TestScrapeIdolWorksRecordsErrorWhenAllSourcesFail(t *testing.T) {
 	}
 	if !track.Tracked || track.LastError == "" {
 		t.Fatalf("track should exist with last_error set: %+v", track)
+	}
+}
+
+func TestEnrichIdolWorkMetadataWritesStudioSeriesTags(t *testing.T) {
+	gdb := openServiceTestDB(t)
+	ctx := context.Background()
+	idol := seedScrapeIdol(t, gdb, "Meta Enrich Idol", "IPX-001")
+	if err := dbpkg.ReplaceJavIdolWorks(ctx, idol.ID, []models.JavIdolWork{
+		{JavIdolID: idol.ID, Code: "IPX-001", Title: "Old English", ReleaseUnix: 10},
+	}); err != nil {
+		t.Fatalf("seed work: %v", err)
+	}
+
+	prevLookup := lookupJavForIdolWorkMetadata
+	lookupJavForIdolWorkMetadata = func(code string, provider jav.Provider) (*jav.JavInfo, error) {
+		if provider != jav.ProviderJavBus {
+			t.Fatalf("provider = %s, want javbus first", provider.String())
+		}
+		return &jav.JavInfo{
+			Code:        code,
+			Title:       "中年オヤジ",
+			Studio:      "IDEA POCKET",
+			Series:      "中年オヤジ",
+			Tags:        []string{"美少女"},
+			DurationMin: 170,
+			Provider:    provider,
+		}, nil
+	}
+	t.Cleanup(func() { lookupJavForIdolWorkMetadata = prevLookup })
+	prevTitle := lookupMissAVChineseTitle
+	lookupMissAVChineseTitle = func(code string) (string, error) {
+		if code != "IPX-001" {
+			t.Fatalf("title lookup code = %q", code)
+		}
+		return "中年父亲与制服美少女", nil
+	}
+	t.Cleanup(func() { lookupMissAVChineseTitle = prevTitle })
+	prevDelay := idolWorkMetadataDelay
+	idolWorkMetadataDelay = 0
+	t.Cleanup(func() { idolWorkMetadataDelay = prevDelay })
+
+	if err := enrichIdolWorkMetadata(ctx, "IPX-001"); err != nil {
+		t.Fatalf("enrich: %v", err)
+	}
+
+	var row models.JavIdolWork
+	if err := gdb.Where("code = ?", "IPX-001").First(&row).Error; err != nil {
+		t.Fatalf("reload work: %v", err)
+	}
+	if row.StudioName != "IDEA POCKET" || row.SeriesName != "中年オヤジ" || row.DurationMin != 170 {
+		t.Fatalf("enriched work = %+v", row)
+	}
+	if len(row.Tags) != 1 || row.Tags[0] != "美少女" {
+		t.Fatalf("enriched tags = %#v", row.Tags)
+	}
+	if row.TitleZH != "中年父亲与制服美少女" {
+		t.Fatalf("title_zh = %q", row.TitleZH)
 	}
 }

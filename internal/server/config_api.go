@@ -111,6 +111,7 @@ func updateConfig(c *gin.Context) {
 		JavSortRules           *javSortRulesConfig   `json:"jav_sort_rules"`
 		IdolSort               string                `json:"idol_sort"`
 		JavIdolPreferChinese   *bool                 `json:"jav_idol_prefer_chinese_name"`
+		JavTitleLanguage       *string               `json:"jav_title_language"`
 		JavTagShowSimplified   *bool                 `json:"jav_tag_show_simplified"`
 		DefaultPlayer          string                `json:"default_player"`
 		InitialViewMode        string                `json:"initial_view_mode"`
@@ -304,6 +305,17 @@ func updateConfig(c *gin.Context) {
 	}
 	if req.JavIdolPreferChinese != nil {
 		entries["jav_idol_prefer_chinese_name"] = strconv.FormatBool(*req.JavIdolPreferChinese)
+	}
+	if req.JavTitleLanguage != nil {
+		switch strings.ToLower(strings.TrimSpace(*req.JavTitleLanguage)) {
+		case "chinese", "zh", "cn":
+			entries["jav_title_language"] = "chinese"
+		case "original", "japanese", "ja", "jp", "":
+			entries["jav_title_language"] = "original"
+		default:
+			respondLocalizedError(c, http.StatusBadRequest, "标题显示语言无效", "Invalid title display language")
+			return
+		}
 	}
 	if req.JavTagShowSimplified != nil {
 		entries["jav_tag_show_simplified"] = strconv.FormatBool(*req.JavTagShowSimplified)

@@ -219,3 +219,35 @@ func (p *countingLookupProvider) LookupSeriesURLByCode(string) (string, error) {
 func (p *countingLookupProvider) LookupStudioURLByCode(string) (string, error) {
 	return p.studioURL, p.err
 }
+
+func TestCachedJavInfoPrefersJapaneseSourceThenFillsGaps(t *testing.T) {
+	cache := newMemoryLookupCache()
+	SetCache(cache)
+	t.Cleanup(func() { SetCache(nil) })
+
+	lookupCacheSetHit(lookupCacheKey(ProviderJavBus, "lookup_jav", "IPX-001"), JavInfo{
+		Code:   "IPX-001",
+		Studio: "IDEA POCKET",
+		Tags:   []string{"美少女"},
+	})
+	lookupCacheSetHit(lookupCacheKey(ProviderJavDatabase, "lookup_jav", "IPX-001"), JavInfo{
+		Code:   "IPX-001",
+		Studio: "Idea Pocket English",
+		Series: "Middle-aged Man",
+		Tags:   []string{"Beautiful Girl"},
+	})
+
+	got := CachedJavInfo("ipx-001")
+	if got == nil {
+		t.Fatal("expected cached info")
+	}
+	if got.Studio != "IDEA POCKET" {
+		t.Fatalf("studio = %q, want Japanese JavBus name", got.Studio)
+	}
+	if got.Series != "Middle-aged Man" {
+		t.Fatalf("series = %q, want filled from later cache", got.Series)
+	}
+	if len(got.Tags) != 1 || got.Tags[0] != "美少女" {
+		t.Fatalf("tags = %#v, want JavBus tags kept", got.Tags)
+	}
+}

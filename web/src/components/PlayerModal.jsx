@@ -39,6 +39,13 @@ import {
 } from '@/utils/playerHotkeys'
 import { zh } from '@/utils/i18n'
 import { getErrorMessage } from '@/utils/errors'
+import {
+  DEFAULT_SUBTITLE_STYLE,
+  loadSubtitleStyle,
+  saveSubtitleStyle,
+  subtitleStyleCssVars,
+} from '@/utils/subtitleStyle'
+import SubtitleStylePanel from '@/components/SubtitleStylePanel'
 
 const VOLUME_STORAGE_KEY = 'javboss.player.volume'
 const CONTROLS_HIDE_DELAY_MS = 3000
@@ -175,10 +182,11 @@ export default function PlayerModal({
   const [subSearchItems, setSubSearchItems] = useState([])
   const [subSearchQuery, setSubSearchQuery] = useState('')
   const [subDetailTracks, setSubDetailTracks] = useState({}) // { [code]: { loading, title, tracks, lookupCode, error } }
-  const [subMenu, setSubMenu] = useState(null) // null | 'local' | 'search'
+  const [subMenu, setSubMenu] = useState(null) // null | 'local' | 'search' | 'style'
   const [subSearchBusy, setSubSearchBusy] = useState(false)
   const [subPreview, setSubPreview] = useState(null) // { label, text }
   const [subNotice, setSubNotice] = useState('')
+  const [subtitleStyle, setSubtitleStyle] = useState(loadSubtitleStyle)
   const [screenshotNotice, setScreenshotNotice] = useState(false)
   const [videoSize, setVideoSize] = useState(null) // { width, height } of the source video
   const [playing, setPlaying] = useState(false)
@@ -400,6 +408,14 @@ export default function PlayerModal({
       subNoticeTimerRef.current = null
       setSubNotice('')
     }, 2000)
+  }, [])
+
+  const updateSubtitleStyle = useCallback((patch) => {
+    setSubtitleStyle((prev) => saveSubtitleStyle({ ...prev, ...patch }))
+  }, [])
+
+  const resetSubtitleStyle = useCallback(() => {
+    setSubtitleStyle(saveSubtitleStyle(DEFAULT_SUBTITLE_STYLE))
   }, [])
 
   // 打开播放器时加载同目录本地字幕
@@ -1525,6 +1541,7 @@ export default function PlayerModal({
             className={`player-shell relative w-full bg-black ${controlsVisible ? '' : 'cursor-none'}`}
             style={{
               aspectRatio: videoSize ? `${videoSize.width} / ${videoSize.height}` : '16 / 9',
+              ...subtitleStyleCssVars(subtitleStyle),
             }}
           >
             {screenshotNotice || pipNotice || hotkeyHintVisible ? (
@@ -1835,8 +1852,8 @@ export default function PlayerModal({
                     {subMenu != null ? (
                       <div className="absolute bottom-12 right-0 z-30 w-96 overflow-hidden rounded-xl border border-white/10 bg-black/90 shadow-2xl backdrop-blur-sm">
                         {/* 顶栏：本地 / 搜索 切换 */}
-                        <div className="flex items-center justify-between border-b border-white/10 px-3 py-2.5">
-                          <div className="flex gap-1">
+                        <div className="flex items-center justify-between gap-2 border-b border-white/10 px-3 py-2.5">
+                          <div className="flex min-w-0 flex-1 flex-wrap gap-1">
                             <button
                               type="button"
                               onClick={() => setSubMenu('local')}
@@ -1858,6 +1875,17 @@ export default function PlayerModal({
                               }`}
                             >
                               {zh('搜索字幕', 'Search')}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setSubMenu('style')}
+                              className={`rounded px-2.5 py-1.5 text-sm transition-colors ${
+                                subMenu === 'style'
+                                  ? 'bg-white/15 font-semibold text-white'
+                                  : 'text-white/60 hover:text-white'
+                              }`}
+                            >
+                              {zh('样式', 'Style')}
                             </button>
                           </div>
                           <button
@@ -1882,7 +1910,7 @@ export default function PlayerModal({
                             {localSubtitles.length === 0 ? (
                               <div className="px-4 py-3 text-sm text-white/50">
                                 {zh(
-                                  '未找到同目录字幕，可前往「搜索字幕」在线查找',
+                                  '未找到本地字幕，可前往「搜索字幕」在线查找',
                                   'No local subtitles found. Try the online search tab.'
                                 )}
                               </div>
@@ -1903,6 +1931,12 @@ export default function PlayerModal({
                               ))
                             )}
                           </div>
+                        ) : subMenu === 'style' ? (
+                          <SubtitleStylePanel
+                            style={subtitleStyle}
+                            onChange={updateSubtitleStyle}
+                            onReset={resetSubtitleStyle}
+                          />
                         ) : (
                           <div className="max-h-96 overflow-y-auto">
                             <div className="flex gap-2 p-2.5">
