@@ -451,12 +451,14 @@ func avmooMovieInfoFromAPI(movie *avmooAPIMovie) *JavInfo {
 		return nil
 	}
 	isUncensored := false
+	coverURL, posterURL := SelectCoverAndPoster(movie.PosterLarge, movie.PosterSmall)
 	info := &JavInfo{
 		Title:       firstNonEmpty(movie.Title, movie.TitleTW, movie.TitleCN, movie.TitleJA, movie.TitleEN),
 		Code:        strings.TrimSpace(movie.MovieFanHao),
 		ReleaseUnix: parseDateUnix(movie.ReleaseDate),
 		DurationMin: movie.Length,
-		CoverURL:    firstNonEmpty(movie.PosterLarge, movie.PosterSmall),
+		CoverURL:    coverURL,
+		PosterURL:   posterURL,
 		SampleImages: sampleImagesFromURLs(
 			movie.SampleSmall,
 			movie.SampleLarge,
@@ -669,6 +671,7 @@ func parseAvmooMovieInfo(root *html.Node) *JavInfo {
 	}
 
 	isUncensored := false
+	coverURL := parseAvmooCoverURL(root, "")
 	info := &JavInfo{
 		Title:        title,
 		Code:         strings.TrimSpace(fields.Code),
@@ -677,7 +680,8 @@ func parseAvmooMovieInfo(root *html.Node) *JavInfo {
 		DurationMin:  parseRuntimeMinutes(fields.Runtime),
 		Tags:         dedupeNonEmpty(fields.Tags),
 		Actors:       dedupeNonEmpty(fields.Actors),
-		CoverURL:     parseAvmooCoverURL(root, ""),
+		CoverURL:     coverURL,
+		PosterURL:    DerivePosterURL(coverURL),
 		SampleImages: parseSampleImages(root, ""),
 		IsUncensored: &isUncensored,
 		Provider:     ProviderAvmoo,

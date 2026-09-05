@@ -630,6 +630,7 @@ export async function fetchJavs({
   sort = '',
   seed = null,
   favoriteGroupId = null,
+  includeExternal = false,
 } = {}) {
   const params = new URLSearchParams()
   params.set('limit', String(limit))
@@ -648,6 +649,7 @@ export async function fetchJavs({
   if (sort) params.set('sort', sort)
   if (seed != null) params.set('seed', String(seed))
   if (favoriteGroupId) params.set('favorite_group_id', String(favoriteGroupId))
+  if (includeExternal) params.set('include_external', '1')
   const res = await apiFetch(`/jav?${params.toString()}`)
   if (!res.ok) {
     throw await apiError(res)
@@ -1395,6 +1397,18 @@ export async function fetchJavExternalWorks(idolId, { page = 1 } = {}) {
   const res = await apiFetch(
     `/jav/idols/${encodeURIComponent(idolId)}/external-works?${params.toString()}`
   )
+  if (!res.ok) {
+    throw await apiError(res)
+  }
+  return res.json()
+}
+
+export async function dislikeJavIdolWork(idolId, code) {
+  const res = await apiFetch(`/jav/idols/${encodeURIComponent(idolId)}/works/dislike`, {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify({ code }),
+  })
   if (!res.ok) {
     throw await apiError(res)
   }

@@ -98,6 +98,7 @@ export default function PlayerModal({
   const clickTimerRef = useRef(null)
   const dragRef = useRef({ active: false })
   const menuOpenRef = useRef(null)
+  const subMenuRef = useRef(null)
   const screenshotInFlightRef = useRef(false)
   const screenshotNoticeTimerRef = useRef(null)
   const pendingSeekTimerRef = useRef(null)
@@ -173,7 +174,7 @@ export default function PlayerModal({
   const [activeSubtitle, setActiveSubtitle] = useState(null) // { kind:'local', name } | { kind:'online', id }
   const [subSearchItems, setSubSearchItems] = useState([])
   const [subSearchQuery, setSubSearchQuery] = useState('')
-  const [subDetailTracks, setSubDetailTracks] = useState([]) // { code, title, tracks }
+  const [subDetailTracks, setSubDetailTracks] = useState({}) // { [code]: { loading, title, tracks, lookupCode, error } }
   const [subMenu, setSubMenu] = useState(null) // null | 'local' | 'search'
   const [subSearchBusy, setSubSearchBusy] = useState(false)
   const [subPreview, setSubPreview] = useState(null) // { label, text }
@@ -301,6 +302,10 @@ export default function PlayerModal({
   }, [menuOpen])
 
   useEffect(() => {
+    subMenuRef.current = subMenu
+  }, [subMenu])
+
+  useEffect(() => {
     isPiPRef.current = isPiP
   }, [isPiP])
 
@@ -360,7 +365,7 @@ export default function PlayerModal({
     }
     hideTimerRef.current = window.setTimeout(() => {
       hideTimerRef.current = null
-      if (dragRef.current.active || menuOpenRef.current) {
+      if (dragRef.current.active || menuOpenRef.current || subMenuRef.current) {
         return
       }
       setControlsVisible(false)
@@ -521,8 +526,9 @@ export default function PlayerModal({
       }
       setSubSearchBusy(true)
       setSubSearchItems([])
-      setSubDetailTracks([])
+      setSubDetailTracks({})
       setSubPreview(null)
+      pokeControls()
       try {
         const data = await searchJavSubtitles(video.id, { query })
         const items = Array.isArray(data?.items) ? data.items : []
@@ -538,7 +544,7 @@ export default function PlayerModal({
         setSubSearchBusy(false)
       }
     },
-    [video, subSearchQuery, videoJavCode, showSubNotice]
+    [video, subSearchQuery, videoJavCode, showSubNotice, pokeControls]
   )
 
   // 打开搜索字幕 tab：把输入框预填为当前视频番号（若已填别的内容则保留）
@@ -552,29 +558,38 @@ export default function PlayerModal({
 
   // 加载某部影片的语言轨道列表（行内展开在搜索列表里，保持搜索面板不切换）
   const openSubtitleDetail = useCallback(
-    async (code) => {
+    async (item) => {
       if (!video?.id) return
+      const rowCode = String(item?.code || '').trim()
+      if (!rowCode) return
+      const lookupCode = String(item?.canonical_code || item?.code || '').trim() || rowCode
+      setSubMenu('search')
       setSubPreview(null)
-      setSubDetailTracks((prev) => ({ ...prev, [code]: { loading: true } }))
+      pokeControls()
+      setSubDetailTracks((prev) => ({
+        ...prev,
+        [rowCode]: { ...(prev?.[rowCode] || {}), loading: true, error: '', lookupCode },
+      }))
       try {
-        const data = await fetchJavSubtitleDetail(video.id, code)
+        const data = await fetchJavSubtitleDetail(video.id, lookupCode)
         const tracks = Array.isArray(data?.subtitles) ? data.subtitles : []
         setSubDetailTracks((prev) => ({
           ...prev,
-          [code]: {
+          [rowCode]: {
             loading: false,
-            title: data?.title || code,
+            title: data?.title || rowCode,
             tracks,
+            lookupCode: data?.code || lookupCode,
           },
         }))
       } catch (err) {
         setSubDetailTracks((prev) => ({
           ...prev,
-          [code]: { loading: false, error: getErrorMessage(err) },
+          [rowCode]: { loading: false, error: getErrorMessage(err), lookupCode },
         }))
       }
     },
-    [video]
+    [video, pokeControls]
   )
 
   // 预览字幕文本（转成 SRT 便于阅读）
@@ -781,7 +796,7 @@ export default function PlayerModal({
       setActiveSubtitle(null)
       setSubSearchItems([])
       setSubSearchQuery('')
-      setSubDetailTracks([])
+      setSubDetailTracks({})
       setSubMenu(null)
       setSubPreview(null)
       setSubNotice('')
@@ -1888,9 +1903,7 @@ export default function PlayerModal({
                               ))
                             )}
                           </div>
-                        ) : null}
-
-                        {subMenu === 'search' ? (
+                        ) : (
                           <div className="max-h-96 overflow-y-auto">
                             <div className="flex gap-2 p-2.5">
                               <input
@@ -1930,11 +1943,17 @@ export default function PlayerModal({
                               const detail = subDetailTracks[item.code]
                               const tracks = detail?.tracks || []
                               const versions = item.versions || []
+                              const lookupCode =
+                                detail?.lookupCode || item.canonical_code || item.code
                               return (
                                 <div key={item.code} className="border-t border-white/5">
                                   <button
                                     type="button"
-                                    onClick={() => openSubtitleDetail(item.code)}
+                                    onClick={(event) => {
+                                      event.preventDefault()
+                                      event.stopPropagation()
+                                      openSubtitleDetail(item)
+                                    }}
                                     className="flex w-full items-center justify-between gap-2 px-4 py-2.5 text-left text-sm transition-colors hover:bg-white/10"
                                   >
                                     <span className="min-w-0 flex-1">
@@ -1983,7 +2002,7 @@ export default function PlayerModal({
                                             onClick={() =>
                                               previewSubtitle({
                                                 kind: 'online',
-                                                code: item.code,
+                                                code: lookupCode,
                                                 id: track.id,
                                                 label: track.label || track.lang,
                                               })
@@ -1998,7 +2017,7 @@ export default function PlayerModal({
                                             onClick={() =>
                                               saveSubtitle({
                                                 kind: 'online',
-                                                code: item.code,
+                                                code: lookupCode,
                                                 id: track.id,
                                                 label: track.label || track.lang,
                                               })
@@ -2014,7 +2033,7 @@ export default function PlayerModal({
                               )
                             })}
                           </div>
-                        ) : null}
+                        )}
                       </div>
                     ) : null}
                     {/* 字幕预览弹层 */}

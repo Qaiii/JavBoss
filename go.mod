@@ -11,10 +11,12 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.22
 	github.com/pelletier/go-toml/v2 v2.2.4
 	github.com/pressly/goose/v3 v3.26.0
+	github.com/saintfish/chardet v0.0.0-20230101081208-5e3ef4b5456d
 	golang.org/x/crypto v0.40.0
 	golang.org/x/net v0.42.0
 	golang.org/x/sys v0.35.0
 	golang.org/x/term v0.33.0
+	golang.org/x/text v0.27.0
 	google.golang.org/grpc v1.75.0
 	google.golang.org/protobuf v1.36.9
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
@@ -56,7 +58,6 @@ require (
 	golang.org/x/arch v0.20.0 // indirect
 	golang.org/x/mod v0.25.0 // indirect
 	golang.org/x/sync v0.16.0 // indirect
-	golang.org/x/text v0.27.0 // indirect
 	golang.org/x/tools v0.34.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250707201910-8d1bb00bc6a7 // indirect
 )

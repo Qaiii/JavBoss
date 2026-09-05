@@ -528,8 +528,10 @@ func TestParseJavDBActressWorksPage(t *testing.T) {
 <body>
   <div class="movie-list h cols-4 vcols-8">
     <div class="item">
-      <a class="box" href="/v/kKdRm">
-        <div class="video-title"><strong>IPX-228</strong> ケースの女</div>
+      <a class="box" href="/v/kKdRm" title="IPX-228 ケースの女">
+        <div class="video-title"><strong>IPX-228</strong> The Case Woman</div>
+        <span class="origin-title">ケースの女</span>
+        <div class="meta">2018-11-13</div>
         <img class="lazy" data-src="https://c0.jdbstatic.com/covers/kk/kKdRm.jpg">
       </a>
     </div>
@@ -562,6 +564,10 @@ func TestParseJavDBActressWorksPage(t *testing.T) {
 	if items[0].Title != "ケースの女" {
 		t.Fatalf("items[0].Title = %q, want ケースの女", items[0].Title)
 	}
+	wantRelease := time.Date(2018, 11, 13, 0, 0, 0, 0, time.UTC).Unix()
+	if items[0].ReleaseUnix != wantRelease {
+		t.Fatalf("items[0].ReleaseUnix = %d, want %d", items[0].ReleaseUnix, wantRelease)
+	}
 	if items[0].CoverURL != "https://c0.jdbstatic.com/covers/kk/kKdRm.jpg" {
 		t.Fatalf("items[0].CoverURL = %q", items[0].CoverURL)
 	}
@@ -570,6 +576,9 @@ func TestParseJavDBActressWorksPage(t *testing.T) {
 	}
 	if items[1].CoverURL != "https://c0.jdbstatic.com/covers/ab/aBcDe.jpg" {
 		t.Fatalf("items[1].CoverURL = %q", items[1].CoverURL)
+	}
+	if items[1].Title != "Some Title" {
+		t.Fatalf("items[1].Title = %q, want Some Title", items[1].Title)
 	}
 }
 

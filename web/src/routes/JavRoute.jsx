@@ -228,16 +228,6 @@ function JavListRoute({
   activeJavLoading,
   alternatePlayerLabel,
   buildJavUrl,
-  externalError,
-  externalHasNext,
-  externalItems,
-  externalLastScrapedAt,
-  externalLoading,
-  externalPage,
-  externalScrapeError,
-  externalSourceURL,
-  externalTotal,
-  externalTracked,
   hasMore,
   javResolvedSort,
   javSortSource,
@@ -253,7 +243,6 @@ function JavListRoute({
   javTitleMaxRows,
   javTotal,
   loadingMore,
-  onExternalPageChange,
   onIdolClick,
   onLoadMore,
   onOpenFavorites,
@@ -280,6 +269,7 @@ function JavListRoute({
   onStudioClick,
   onTagClick,
   onShowExternalWorksChange,
+  onDislikeWork,
   onWaterfallModeChange,
   setJavPage,
   setJavTempSort,
@@ -337,18 +327,8 @@ function JavListRoute({
       hasMore={hasMore}
       showExternalWorks={showExternalWorks}
       onShowExternalWorksChange={onShowExternalWorksChange}
-      externalItems={externalItems}
-      externalPage={externalPage}
-      externalHasNext={externalHasNext}
-      externalTotal={externalTotal}
-      externalTracked={externalTracked}
-      externalLastScrapedAt={externalLastScrapedAt}
-      externalScrapeError={externalScrapeError}
-      externalLoading={externalLoading}
-      externalError={externalError}
-      externalSourceURL={externalSourceURL}
       activeIdolId={activeIdolId}
-      onExternalPageChange={onExternalPageChange}
+      onDislikeWork={onDislikeWork}
     />
   )
 }

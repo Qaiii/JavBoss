@@ -329,6 +329,8 @@ export default function JavSettingsModal({
   onJavHideTagsChange,
   javHideActionsInput = false,
   onJavHideActionsChange,
+  javCoverOrientationInput = 'landscape',
+  onJavCoverOrientationChange,
   javFavoriteRatingShowFullInput = false,
   onJavFavoriteRatingShowFullChange,
   javWaterfallDefaultInput = false,
@@ -401,6 +403,7 @@ export default function JavSettingsModal({
         onJavHideIdolsChange?.(false)
         onJavHideTagsChange?.(false)
         onJavHideActionsChange?.(false)
+        onJavCoverOrientationChange?.('landscape')
         onJavFavoriteRatingShowFullChange?.(false)
         onJavSortChange?.(JAV_SORT_OPTIONS[0]?.defaultValue || 'recent')
         onJavSortRulesChange?.([])
@@ -494,6 +497,17 @@ export default function JavSettingsModal({
 
             <SettingsSection title={zh('卡片设置', 'Card settings')}>
               <div className="divide-y divide-slate-100 px-1">
+                <SettingsRow label={zh('封面方向', 'Cover orientation')}>
+                  <select
+                    value={javCoverOrientationInput === 'portrait' ? 'portrait' : 'landscape'}
+                    onChange={(e) => onJavCoverOrientationChange?.(e.target.value)}
+                    className={controlClassName}
+                    aria-label={zh('封面方向', 'Cover orientation')}
+                  >
+                    <option value="landscape">{zh('横版', 'Landscape')}</option>
+                    <option value="portrait">{zh('竖版', 'Portrait')}</option>
+                  </select>
+                </SettingsRow>
                 <SettingsRow label={zh('标题最多行数', 'Title max rows')}>
                   <select
                     value={String(javTitleMaxRowsInput ?? 2)}

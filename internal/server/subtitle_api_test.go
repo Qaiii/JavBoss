@@ -80,3 +80,19 @@ func TestNextAvailablePathPreservesExistingContent(t *testing.T) {
 		t.Fatalf("existing file was modified: %q", string(data))
 	}
 }
+
+func TestSubtitleFileStem(t *testing.T) {
+	cases := map[string]string{
+		"SSIS-480":       "SSIS-480",
+		`foo/bar`:        "bar",
+		`bad:name*?.srt`: "bad_name__.srt",
+		"   ":            "subtitle",
+		".":              "subtitle",
+	}
+	for input, want := range cases {
+		got := subtitleFileStem(input)
+		if got != want {
+			t.Fatalf("subtitleFileStem(%q) = %q, want %q", input, got, want)
+		}
+	}
+}

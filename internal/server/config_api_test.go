@@ -68,6 +68,55 @@ func TestUpdateConfigPersistsWaterfallDefaults(t *testing.T) {
 	}
 }
 
+func TestUpdateConfigPersistsJavCoverOrientation(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	database, err := dbpkg.Open(filepath.Join(t.TempDir(), "config.db"))
+	if err != nil {
+		t.Fatalf("open database: %v", err)
+	}
+	sqlDB, err := database.DB()
+	if err != nil {
+		t.Fatalf("database handle: %v", err)
+	}
+	t.Cleanup(func() { _ = sqlDB.Close() })
+	previousDB := common.DB
+	common.DB = database
+	t.Cleanup(func() { common.DB = previousDB })
+
+	router := gin.New()
+	router.PATCH("/config", updateConfig)
+	req := httptest.NewRequest(http.MethodPatch, "/config", bytes.NewReader([]byte(`{"jav_cover_orientation":"portrait"}`)))
+	req.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, req)
+	if response.Code != http.StatusOK {
+		t.Fatalf("update config status = %d, want %d; body=%s", response.Code, http.StatusOK, response.Body.String())
+	}
+
+	got, err := dbpkg.ListConfig(context.Background())
+	if err != nil {
+		t.Fatalf("list config: %v", err)
+	}
+	if got["jav_cover_orientation"] != "portrait" {
+		t.Fatalf("jav_cover_orientation = %q, want portrait", got["jav_cover_orientation"])
+	}
+
+	req = httptest.NewRequest(http.MethodPatch, "/config", bytes.NewReader([]byte(`{"jav_cover_orientation":"sideways"}`)))
+	req.Header.Set("Content-Type", "application/json")
+	response = httptest.NewRecorder()
+	router.ServeHTTP(response, req)
+	if response.Code != http.StatusOK {
+		t.Fatalf("update config status = %d, want %d; body=%s", response.Code, http.StatusOK, response.Body.String())
+	}
+	got, err = dbpkg.ListConfig(context.Background())
+	if err != nil {
+		t.Fatalf("list config: %v", err)
+	}
+	if got["jav_cover_orientation"] != "landscape" {
+		t.Fatalf("jav_cover_orientation = %q, want landscape fallback", got["jav_cover_orientation"])
+	}
+}
+
 func TestUpdateConfigPersistsJavSortRules(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	database, err := dbpkg.Open(filepath.Join(t.TempDir(), "config.db"))

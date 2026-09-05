@@ -480,12 +480,14 @@ func avsoxMovieInfoFromAPI(movie *avsoxAPIMovie) *JavInfo {
 		return nil
 	}
 	isUncensored := true
+	coverURL, posterURL := SelectCoverAndPoster(movie.PosterLarge, movie.PosterSmall)
 	info := &JavInfo{
 		Title:        firstNonEmpty(movie.Title, movie.TitleCN, movie.TitleTW, movie.TitleJA, movie.TitleEN),
 		Code:         strings.TrimSpace(movie.MovieFanHao),
 		ReleaseUnix:  parseDateUnix(movie.ReleaseDate),
 		DurationMin:  movie.Length,
-		CoverURL:     firstNonEmpty(movie.PosterLarge, movie.PosterSmall),
+		CoverURL:     coverURL,
+		PosterURL:    posterURL,
 		IsUncensored: &isUncensored,
 		Provider:     ProviderAvsox,
 	}

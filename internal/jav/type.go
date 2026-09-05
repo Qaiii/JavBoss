@@ -91,6 +91,7 @@ type JavInfo struct {
 	Tags         []string
 	Actors       []string
 	CoverURL     string
+	PosterURL    string
 	SampleImages []SampleImage
 	IsUncensored *bool `json:",omitempty"`
 	Provider     Provider

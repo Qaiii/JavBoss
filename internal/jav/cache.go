@@ -151,6 +151,9 @@ func lookupCacheKeyVersion(provider Provider, method string) string {
 	if provider == ProviderJavDB && method == "lookup_actress_url_code_name" {
 		return "v3"
 	}
+	if provider == ProviderJavDB && method == "list_actress_works" {
+		return "v2"
+	}
 	if provider == ProviderJavDatabase && method == "lookup_actress_code" {
 		return "v2"
 	}

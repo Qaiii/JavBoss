@@ -7,6 +7,7 @@ package subtitle
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -25,9 +26,15 @@ const javSubBrowserUA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/5
 
 var javSubClient = util.NewHTTPClientWithTransport(20*time.Second, nil)
 
+// errJavSubNotFound is returned when javsubtitle.com has no record for a code.
+// Variant codes from search (e.g. "ssis-480-uncensored-leak") often 404 even
+// though the canonical movie ("ssis-480") has the actual subtitle tracks.
+var errJavSubNotFound = errors.New("jav subtitle not found")
+
 // JavSubMovie is a movie (番号/版本) that shows up in a subtitle search.
 type JavSubMovie struct {
 	Code              string   `json:"code"`
+	CanonicalCode     string   `json:"canonical_code"`
 	Title             string   `json:"title"`
 	HasSubtitles      bool     `json:"has_subtitles"`
 	AvailableVersions []string `json:"versions"`
@@ -65,6 +72,7 @@ func SearchJavSubMovies(ctx context.Context, query string) ([]JavSubMovie, error
 	var payload struct {
 		Items []struct {
 			Code              string   `json:"code"`
+			CanonicalCode     string   `json:"canonicalCode"`
 			Title             string   `json:"title"`
 			HasSubtitles      bool     `json:"hasSubtitles"`
 			AvailableVersions []string `json:"availableVersions"`
@@ -76,11 +84,17 @@ func SearchJavSubMovies(ctx context.Context, query string) ([]JavSubMovie, error
 
 	out := make([]JavSubMovie, 0, len(payload.Items))
 	for _, item := range payload.Items {
-		if strings.TrimSpace(item.Code) == "" {
+		code := strings.TrimSpace(item.Code)
+		if code == "" {
 			continue
 		}
+		canonical := strings.TrimSpace(item.CanonicalCode)
+		if !safeCode(canonical) {
+			canonical = ""
+		}
 		out = append(out, JavSubMovie{
-			Code:              item.Code,
+			Code:              code,
+			CanonicalCode:     canonical,
 			Title:             item.Title,
 			HasSubtitles:      item.HasSubtitles,
 			AvailableVersions: item.AvailableVersions,
@@ -93,14 +107,21 @@ func SearchJavSubMovies(ctx context.Context, query string) ([]JavSubMovie, error
 // tracks carry stable identifiers plus a server-side signed download URL that
 // is never serialized to clients.
 func GetJavSubMovieDetail(ctx context.Context, code string) (title string, subtitles []JavSubSubtitle, err error) {
+	var lastErr error
 	for _, candidate := range subtitleDetailCandidates(code) {
-		title, subtitles, err = fetchJavSubMovieDetail(ctx, candidate)
-		if err != nil {
-			return "", nil, err
+		candTitle, candSubs, candErr := fetchJavSubMovieDetail(ctx, candidate)
+		if candErr != nil {
+			lastErr = candErr
+			continue
 		}
-		if len(subtitles) > 0 {
-			return title, subtitles, nil
+		title = candTitle
+		subtitles = candSubs
+		if len(candSubs) > 0 {
+			return candTitle, candSubs, nil
 		}
+	}
+	if len(subtitles) == 0 && lastErr != nil {
+		return "", nil, lastErr
 	}
 	return title, subtitles, nil
 }
@@ -128,7 +149,9 @@ func subtitleDetailCandidates(code string) []string {
 		if strings.HasSuffix(lower, suffix) {
 			base := code[:len(code)-len(suffix)]
 			if safeCode(base) {
-				return []string{code, base}
+				// Base first: variant codes frequently 404, while tracks live on
+				// the canonical movie (e.g. ssis-480-uncensored-leak → ssis-480).
+				return []string{base, code}
 			}
 		}
 	}
@@ -172,7 +195,7 @@ func fetchJavSubMovieDetail(ctx context.Context, code string) (string, []JavSubS
 			Lang:        sub.Lang,
 			Label:       sub.Label,
 			LanguageTag: sub.LanguageTag,
-			vttURL:      javSubBaseURL + sub.VTTURL,
+			vttURL:      resolveJavSubURL(sub.VTTURL),
 		})
 	}
 	return payload.Title, out, nil
@@ -199,14 +222,29 @@ func DownloadJavSubVTT(ctx context.Context, code, subtitleID string) ([]byte, er
 	return javSubGet(ctx, vttURL)
 }
 
+func resolveJavSubURL(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	if strings.HasPrefix(raw, "https://") || strings.HasPrefix(raw, "http://") {
+		return raw
+	}
+	if strings.HasPrefix(raw, "/") {
+		return javSubBaseURL + raw
+	}
+	return javSubBaseURL + "/" + raw
+}
+
 func javSubGet(ctx context.Context, target string) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
 	if err != nil {
 		return nil, fmt.Errorf("jav subtitle request: %w", err)
 	}
 	req.Header.Set("User-Agent", javSubBrowserUA)
-	req.Header.Set("Accept", "application/json, text/plain, */*")
+	req.Header.Set("Accept", "application/json, text/vtt, text/plain, */*")
 	req.Header.Set("Referer", javSubBaseURL+"/")
+	req.Header.Set("Origin", javSubBaseURL)
 
 	resp, err := javSubClient.Do(req)
 	if err != nil {
@@ -214,6 +252,10 @@ func javSubGet(ctx context.Context, target string) ([]byte, error) {
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode == http.StatusNotFound {
+		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
+		return nil, errJavSubNotFound
+	}
 	if resp.StatusCode != http.StatusOK {
 		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
 		return nil, fmt.Errorf("jav subtitle request: unexpected status %d", resp.StatusCode)

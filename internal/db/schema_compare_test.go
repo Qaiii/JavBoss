@@ -54,6 +54,7 @@ func TestMigratedSchemaMatchesGormModels(t *testing.T) {
 		&models.JavIdolMap{},
 		&models.JavIdolTrack{},
 		&models.JavIdolWork{},
+		&models.JavIdolWorkDislike{},
 		&models.DownloaderSettings{},
 		&models.DownloaderProviderSettings{},
 		&models.DownloadJob{},

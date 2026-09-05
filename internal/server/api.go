@@ -131,6 +131,7 @@ func RegisterRoutes(router gin.IRoutes) {
 	router.PUT("/jav/idols/:id/cover", updateJavIdolCover)
 	router.GET("/jav/idols/:id", getJavIdol)
 	router.GET("/jav/idols/:id/external-works", getJavIdolExternalWorks)
+	router.POST("/jav/idols/:id/works/dislike", dislikeJavIdolWork)
 }
 
 const (

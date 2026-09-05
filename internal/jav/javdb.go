@@ -322,7 +322,7 @@ func buildJavDBRequest(ctx context.Context, targetURL, referer string) (*http.Re
 	}
 	req.Header.Set("User-Agent", javDBUserAgent)
 	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-	req.Header.Set("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
+	req.Header.Set("Accept-Language", "ja-JP,ja;q=0.9,zh-CN;q=0.5,en;q=0.3")
 	req.Header.Set("Cookie", "over18=1")
 	if referer != "" {
 		req.Header.Set("Referer", referer)
@@ -804,8 +804,10 @@ func ListJavWorksByActressURL(ctx context.Context, profileURL string, page int) 
 		return nil, false, ResourceNotFonud
 	}
 
+	items := parseJavDBActressWorksPage(doc, targetURL)
+	fillJavDBJapaneseListTitles(ctx, items)
 	result := javDBWorksPage{
-		Items:   parseJavDBActressWorksPage(doc, targetURL),
+		Items:   items,
 		HasNext: hasJavDBNextPage(doc),
 	}
 	cacheableLookupResult(cacheKey, result, nil)
@@ -840,14 +842,14 @@ func parseJavDBActressWorksPage(root *html.Node, pageURL string) []*JavInfo {
 		if code == "" {
 			return
 		}
-		title := cleanSelectionText(item.Find("div.video-title").First())
-		title = strings.TrimSpace(strings.TrimPrefix(title, code))
 
 		info := &JavInfo{
-			Title:    title,
-			Code:     code,
-			CoverURL: javDBListItemCoverURL(firstSelectionNode(item), pageURL),
-			Provider: ProviderJavDB,
+			Title:       javDBListItemTitle(item, code),
+			Code:        code,
+			CoverURL:    javDBListItemCoverURL(firstSelectionNode(item), pageURL),
+			ReleaseUnix: parseDateUnix(cleanSelectionText(item.Find("div.meta").First())),
+			DurationMin: parseRuntimeMinutes(cleanSelectionText(item.Find(".duration").First())),
+			Provider:    ProviderJavDB,
 		}
 		if href := selectionAttr(item.Find(`a[href*="/v/"]`).First(), "href"); href != "" {
 			info.SampleImages = []SampleImage{{DetailURL: resolveURL(pageURL, href)}}
@@ -861,6 +863,66 @@ func parseJavDBActressWorksPage(root *html.Node, pageURL string) []*JavInfo {
 		items = append(items, info)
 	})
 	return items
+}
+
+func javDBListItemTitle(item *goquery.Selection, code string) string {
+	if item == nil {
+		return ""
+	}
+	if title := cleanSelectionText(item.Find("span.origin-title, .origin-title").First()); title != "" {
+		return trimJavDBListTitle(title, code)
+	}
+	if title := trimJavDBListTitle(selectionAttr(item.Find("a.box").First(), "title"), code); title != "" {
+		return title
+	}
+	if title := trimJavDBListTitle(selectionAttr(item.Find("img").First(), "alt"), code); containsJapaneseRunes(title) {
+		return title
+	}
+	return trimJavDBListTitle(cleanSelectionText(item.Find("div.video-title").First()), code)
+}
+
+func trimJavDBListTitle(title, code string) string {
+	title = strings.TrimSpace(title)
+	code = strings.TrimSpace(code)
+	if code != "" {
+		title = strings.TrimSpace(strings.TrimPrefix(title, code))
+	}
+	return title
+}
+
+// fillJavDBJapaneseListTitles replaces English (or other non-Japanese) listing
+// titles with the original Japanese title from each movie detail page.
+func fillJavDBJapaneseListTitles(ctx context.Context, items []*JavInfo) {
+	for _, item := range items {
+		if item == nil || containsJapaneseRunes(item.Title) {
+			continue
+		}
+		detailURL := ""
+		if len(item.SampleImages) > 0 {
+			detailURL = strings.TrimSpace(item.SampleImages[0].DetailURL)
+		}
+		if detailURL == "" {
+			continue
+		}
+		doc, status, err := fetchJavDBHTML(ctx, detailURL, javDBBaseURL)
+		if err != nil || status != http.StatusOK || doc == nil {
+			continue
+		}
+		info := parseJavDBMovieInfo(doc)
+		if info == nil || !containsJapaneseRunes(info.Title) {
+			continue
+		}
+		item.Title = strings.TrimSpace(info.Title)
+		if item.ReleaseUnix == 0 {
+			item.ReleaseUnix = info.ReleaseUnix
+		}
+		if item.DurationMin == 0 {
+			item.DurationMin = info.DurationMin
+		}
+		if strings.TrimSpace(item.CoverURL) == "" {
+			item.CoverURL = info.CoverURL
+		}
+	}
 }
 
 // javDBListItemCoverURL resolves the cover image of a listing item, honoring

@@ -243,3 +243,119 @@ func TestFindJavIdolsByNamesMatchesNameAndAlias(t *testing.T) {
 		t.Fatalf("empty names should return no ids, got %v", empty)
 	}
 }
+
+func TestSearchJavMergesUnimportedIdolWorks(t *testing.T) {
+	gdb := openTestDB(t)
+	ctx := context.Background()
+	now := time.Unix(1710000000, 0).UTC()
+	older := now.Add(-24 * time.Hour)
+
+	dir := models.Directory{Path: "/tmp/media"}
+	if err := gdb.Create(&dir).Error; err != nil {
+		t.Fatalf("create directory: %v", err)
+	}
+	idol := models.JavIdol{Name: "Merge Idol"}
+	if err := gdb.Create(&idol).Error; err != nil {
+		t.Fatalf("create idol: %v", err)
+	}
+
+	libraryHighPlay := models.Jav{Code: "LIB-HIGH", Title: "High plays", CreatedAt: now, FetchedAt: now}
+	libraryLowPlay := models.Jav{Code: "LIB-LOW", Title: "Low plays", CreatedAt: older, FetchedAt: older}
+	if err := gdb.Create(&libraryHighPlay).Error; err != nil {
+		t.Fatalf("create high play jav: %v", err)
+	}
+	if err := gdb.Create(&libraryLowPlay).Error; err != nil {
+		t.Fatalf("create low play jav: %v", err)
+	}
+	if err := gdb.Create(&[]models.JavIdolMap{
+		{JavID: libraryHighPlay.ID, JavIdolID: idol.ID},
+		{JavID: libraryLowPlay.ID, JavIdolID: idol.ID},
+	}).Error; err != nil {
+		t.Fatalf("create idol maps: %v", err)
+	}
+	videos := []models.Video{
+		{DirectoryID: dir.ID, Path: "lib-high.mp4", Filename: "lib-high.mp4", Fingerprint: "fp-lib-high", JavID: int64Ptr(libraryHighPlay.ID), PlayCount: 12, ModifiedAt: now},
+		{DirectoryID: dir.ID, Path: "lib-low.mp4", Filename: "lib-low.mp4", Fingerprint: "fp-lib-low", JavID: int64Ptr(libraryLowPlay.ID), PlayCount: 3, ModifiedAt: older},
+	}
+	if err := gdb.Create(&videos).Error; err != nil {
+		t.Fatalf("create videos: %v", err)
+	}
+	createVideoLocationsForVideos(t, gdb, videos...)
+
+	if err := ReplaceJavIdolWorks(ctx, idol.ID, []models.JavIdolWork{
+		{JavIdolID: idol.ID, Code: "LIB-HIGH", Title: "Also scraped", ReleaseUnix: 300},
+		{JavIdolID: idol.ID, Code: "EXT-NEW", Title: "Unimported", ReleaseUnix: 400, CoverURL: "https://cover/ext-new.jpg", SourceURL: "https://javdb.com/ext-new"},
+		{JavIdolID: idol.ID, Code: "EXT-HIDE", Title: "Disliked unimported", ReleaseUnix: 500},
+	}); err != nil {
+		t.Fatalf("replace works: %v", err)
+	}
+	if err := DislikeJavIdolWork(ctx, idol.ID, "EXT-HIDE"); err != nil {
+		t.Fatalf("dislike unimported: %v", err)
+	}
+	if err := DislikeJavIdolWork(ctx, idol.ID, "LIB-HIGH"); err != nil {
+		t.Fatalf("dislike imported: %v", err)
+	}
+
+	filters := JavSearchFilters{StudioID: -1, IncludeExternal: true}
+	items, total, err := SearchJavWithPrefixFilters(ctx, []int64{idol.ID}, nil, "", "", "play_count", 20, 0, nil, nil, filters, nil, nil)
+	if err != nil {
+		t.Fatalf("search merged play_count: %v", err)
+	}
+	if total != 3 {
+		t.Fatalf("total = %d, want 3 (library + unimported, disliked unimported hidden)", total)
+	}
+	got := make([]string, 0, len(items))
+	for _, item := range items {
+		got = append(got, item.Code)
+	}
+	want := []string{"LIB-HIGH", "LIB-LOW", "EXT-NEW"}
+	if len(got) != len(want) {
+		t.Fatalf("codes = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("codes = %v, want %v", got, want)
+		}
+	}
+	if items[2].InLibrary == nil || *items[2].InLibrary {
+		t.Fatalf("EXT-NEW in_library = %#v, want false", items[2].InLibrary)
+	}
+	if items[2].CoverURL != "https://cover/ext-new.jpg" || items[2].SourceURL != "https://javdb.com/ext-new" {
+		t.Fatalf("EXT-NEW cover/source = %+v", items[2])
+	}
+	if !items[2].CreatedAt.Equal(javExternalEpoch) {
+		t.Fatalf("unimported created_at = %v, want epoch %v", items[2].CreatedAt, javExternalEpoch)
+	}
+
+	recent, _, err := SearchJavWithPrefixFilters(ctx, []int64{idol.ID}, nil, "", "", "recent", 20, 0, nil, nil, filters, nil, nil)
+	if err != nil {
+		t.Fatalf("search merged recent: %v", err)
+	}
+	if len(recent) != 3 || recent[0].Code != "LIB-HIGH" || recent[1].Code != "LIB-LOW" || recent[2].Code != "EXT-NEW" {
+		t.Fatalf("recent order = %v, want LIB-HIGH, LIB-LOW, EXT-NEW", codesOf(recent))
+	}
+
+	recentAsc, _, err := SearchJavWithPrefixFilters(ctx, []int64{idol.ID}, nil, "", "", "recent_asc", 20, 0, nil, nil, filters, nil, nil)
+	if err != nil {
+		t.Fatalf("search merged recent_asc: %v", err)
+	}
+	if len(recentAsc) != 3 || recentAsc[0].Code != "EXT-NEW" {
+		t.Fatalf("recent_asc first = %v, want EXT-NEW first", codesOf(recentAsc))
+	}
+
+	withoutExternal, total, err := SearchJavWithPrefixFilters(ctx, []int64{idol.ID}, nil, "", "", "code", 20, 0, nil, nil, JavSearchFilters{StudioID: -1}, nil, nil)
+	if err != nil {
+		t.Fatalf("search without external: %v", err)
+	}
+	if total != 2 || len(withoutExternal) != 2 {
+		t.Fatalf("without external total=%d len=%d, want 2", total, len(withoutExternal))
+	}
+}
+
+func codesOf(items []models.Jav) []string {
+	out := make([]string, 0, len(items))
+	for _, item := range items {
+		out = append(out, item.Code)
+	}
+	return out
+}

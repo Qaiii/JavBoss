@@ -175,6 +175,9 @@ type JavSearchFilters struct {
 	FavoriteGroupID   int64
 	FavoriteRatingMin *float64
 	FavoriteRatingMax *float64
+	// IncludeExternal merges unimported idol works into the list when a single
+	// idol filter is active (the actress works page).
+	IncludeExternal bool
 }
 
 // SearchJavWithPrefix lists Jav metadata filtered by an exact code prefix plus other filters.
@@ -202,6 +205,16 @@ func SearchJavWithPrefixFilters(ctx context.Context, idolIDs []int64, tagIDs []i
 	search = strings.TrimSpace(search)
 	prefix = normalizeJavCodePrefix(prefix)
 	sort = strings.ToLower(strings.TrimSpace(sort))
+
+	if canIncludeExternalIdolWorks(idolIDs, tagIDs, filters) {
+		libraryFilters := filters
+		libraryFilters.IncludeExternal = false
+		library, _, err := SearchJavWithPrefixFilters(ctx, idolIDs, tagIDs, search, prefix, sort, javExternalMergeLibraryLimit, 0, seed, directoryIDs, libraryFilters, closedSubdirs, subpaths)
+		if err != nil {
+			return nil, 0, err
+		}
+		return searchJavIncludingExternal(ctx, idolIDs[0], search, prefix, sort, limit, offset, seed, library)
+	}
 
 	filtered := buildJavFilter(ctx, idolIDs, tagIDs, search, prefix, directoryIDs, filters, closedSubdirs, subpaths)
 

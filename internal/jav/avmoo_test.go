@@ -79,6 +79,9 @@ func TestParseAvmooMovieInfoFromFixture(t *testing.T) {
 	if info.CoverURL != "https://jp.netcdn.space/digital/video/ipx00228/ipx00228pl.jpg" {
 		t.Fatalf("unexpected cover url: %q", info.CoverURL)
 	}
+	if info.PosterURL != "https://jp.netcdn.space/digital/video/ipx00228/ipx00228ps.jpg" {
+		t.Fatalf("unexpected poster url: %q", info.PosterURL)
+	}
 
 	wantRelease := time.Date(2018, 11, 10, 0, 0, 0, 0, time.UTC).Unix()
 	if info.ReleaseUnix != wantRelease {
@@ -148,6 +151,12 @@ func TestAvmooMovieInfoFromAPI(t *testing.T) {
 	}
 	if info.Series != "中年オヤジと制服美少女の汗だく唾液みどろ特濃ベロキス性交" {
 		t.Fatalf("unexpected series: %q", info.Series)
+	}
+	if info.CoverURL != "https://jp.netcdn.space/digital/video/ipx00228/ipx00228pl.jpg" {
+		t.Fatalf("unexpected cover url: %q", info.CoverURL)
+	}
+	if info.PosterURL != "https://jp.netcdn.space/digital/video/ipx00228/ipx00228ps.jpg" {
+		t.Fatalf("unexpected poster url: %q", info.PosterURL)
 	}
 	wantRelease := time.Date(2018, 11, 10, 0, 0, 0, 0, time.UTC).Unix()
 	if info.ReleaseUnix != wantRelease {

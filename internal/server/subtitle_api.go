@@ -25,9 +25,11 @@ type localSubtitleItem struct {
 }
 
 type subtitleSearchItem struct {
-	Code     string   `json:"code"`
-	Title    string   `json:"title"`
-	Versions []string `json:"versions"`
+	Code          string   `json:"code"`
+	CanonicalCode string   `json:"canonical_code,omitempty"`
+	Title         string   `json:"title"`
+	HasSubtitles  bool     `json:"has_subtitles"`
+	Versions      []string `json:"versions"`
 }
 
 type subtitleDetailItem struct {
@@ -139,11 +141,12 @@ func serveLocalSubtitleVTT(c *gin.Context, videoPath, name string) {
 		respondLocalizedError(c, http.StatusInternalServerError, "读取本地字幕失败", "Failed to read local subtitle")
 		return
 	}
-	vtt, err := subtitle.VTT(string(data))
+	text := subtitle.DecodeToUTF8(data)
+	vtt, err := subtitle.VTT(text)
 	if err != nil {
-		// Raw VTT files pass through; srt files are converted.
+		// Raw VTT files pass through as UTF-8; srt files are converted.
 		if filepath.Ext(base) == ".vtt" {
-			serveVTTResponse(c, data)
+			serveVTTResponse(c, []byte(text))
 			return
 		}
 		logging.Error("convert local subtitle to vtt error: %v", err)
@@ -166,8 +169,8 @@ func serveOnlineSubtitleVTT(c *gin.Context, video *models.Video, code, subID str
 		return
 	}
 	// Online tracks are already WebVTT; normalize through the parser so the
-	// output is a clean, renderable VTT.
-	vtt, err := subtitle.VTT(string(data))
+	// output is a clean, renderable UTF-8 VTT.
+	vtt, err := subtitle.VTT(subtitle.DecodeToUTF8(data))
 	if err != nil {
 		logging.Error("normalize online subtitle error: %v", err)
 		respondLocalizedError(c, http.StatusUnprocessableEntity, "字幕解析失败", "Failed to parse subtitle")
@@ -207,9 +210,11 @@ func searchJavSubtitles(c *gin.Context) {
 	out := make([]subtitleSearchItem, 0, len(items))
 	for _, item := range items {
 		out = append(out, subtitleSearchItem{
-			Code:     item.Code,
-			Title:    item.Title,
-			Versions: item.AvailableVersions,
+			Code:          item.Code,
+			CanonicalCode: item.CanonicalCode,
+			Title:         item.Title,
+			HasSubtitles:  item.HasSubtitles,
+			Versions:      item.AvailableVersions,
 		})
 	}
 	c.JSON(http.StatusOK, gin.H{"query": query, "items": out})
@@ -275,7 +280,7 @@ func saveJavSubtitle(c *gin.Context) {
 	if format != "srt" && format != "vtt" {
 		format = "srt"
 	}
-	text := string(data)
+	text := subtitle.DecodeToUTF8(data)
 	if format == "srt" {
 		converted, cerr := subtitle.SRT(text)
 		if cerr != nil {
@@ -284,12 +289,15 @@ func saveJavSubtitle(c *gin.Context) {
 			return
 		}
 		text = converted
+	} else if converted, cerr := subtitle.VTT(text); cerr == nil {
+		text = converted
 	}
 
 	name := videoCodeOf(video)
 	if name == "" {
 		name = strings.TrimSuffix(filepath.Base(fullPath), filepath.Ext(fullPath))
 	}
+	name = subtitleFileStem(name)
 	savePath, err := nextAvailablePath(filepath.Join(filepath.Dir(fullPath), name+"."+format))
 	if err != nil {
 		logging.Error("resolve subtitle save path error: %v", err)
@@ -297,7 +305,11 @@ func saveJavSubtitle(c *gin.Context) {
 		return
 	}
 	if err := os.WriteFile(savePath, []byte(text), 0o644); err != nil {
-		logging.Error("write subtitle file error: %v", err)
+		logging.Error("write subtitle file error: path=%s err=%v", savePath, err)
+		if errors.Is(err, os.ErrPermission) {
+			respondLocalizedError(c, http.StatusInternalServerError, "保存字幕失败：没有写入权限", "Failed to save subtitle: permission denied")
+			return
+		}
 		respondLocalizedError(c, http.StatusInternalServerError, "保存字幕失败", "Failed to save subtitle")
 		return
 	}
@@ -327,6 +339,36 @@ func nextAvailablePath(path string) (string, error) {
 func pathExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
+}
+
+// subtitleFileStem returns a filename stem that is safe to write next to a
+// video on Windows and Unix. Path separators and reserved characters are
+// replaced so os.WriteFile cannot be pointed at another directory.
+func subtitleFileStem(name string) string {
+	name = strings.TrimSpace(name)
+	name = filepath.Base(name)
+	if name == "." || name == string(filepath.Separator) {
+		name = ""
+	}
+	var b strings.Builder
+	b.Grow(len(name))
+	for _, r := range name {
+		switch r {
+		case '<', '>', ':', '"', '/', '\\', '|', '?', '*':
+			b.WriteByte('_')
+		default:
+			if r < 32 {
+				b.WriteByte('_')
+				continue
+			}
+			b.WriteRune(r)
+		}
+	}
+	name = strings.Trim(b.String(), " .")
+	if name == "" {
+		return "subtitle"
+	}
+	return name
 }
 
 // videoCodeOf returns the JAV 番号 of a video when available.

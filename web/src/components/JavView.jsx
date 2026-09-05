@@ -1,7 +1,6 @@
 import SwapVertIcon from '@mui/icons-material/SwapVert'
 import { Popover, Switch } from '@mui/material'
 import { useState } from 'react'
-import ExternalJavGrid from '@/components/ExternalJavGrid'
 import JavGrid from '@/components/JavGrid'
 import Pagination from '@/components/Pagination'
 import WaterfallLoader from '@/components/WaterfallLoader'
@@ -70,18 +69,8 @@ export default function JavView({
   hasMore,
   showExternalWorks,
   onShowExternalWorksChange,
-  externalItems,
-  externalPage,
-  externalHasNext,
-  externalTotal,
-  externalTracked,
-  externalLastScrapedAt,
-  externalScrapeError,
-  externalLoading,
-  externalError,
-  externalSourceURL,
-  onExternalPageChange,
   activeIdolId = 0,
+  onDislikeWork,
 }) {
   const contentClass = javRandomMode ? 'mt-4' : ''
   const [sortAnchorEl, setSortAnchorEl] = useState(null)
@@ -263,6 +252,8 @@ export default function JavView({
             onManageVideoRename={onManageVideoRename}
             onManageVideoDelete={onManageVideoDelete}
             onManageVideoTagClick={onManageVideoTagClick}
+            activeIdolId={activeIdolId}
+            onDislikeWork={onDislikeWork}
           />
         </div>
       )}
@@ -272,21 +263,6 @@ export default function JavView({
         loading={loadingMore}
         onLoadMore={onLoadMore}
       />
-      {showExternalWorks && hasSingleIdolFilter ? (
-        <ExternalJavGrid
-          items={externalItems}
-          page={externalPage}
-          hasNext={externalHasNext}
-          total={externalTotal}
-          tracked={externalTracked}
-          lastScrapedAt={externalLastScrapedAt}
-          scrapeError={externalScrapeError}
-          loading={externalLoading}
-          error={externalError}
-          sourceURL={externalSourceURL}
-          onPageChange={onExternalPageChange}
-        />
-      ) : null}
     </>
   )
 }

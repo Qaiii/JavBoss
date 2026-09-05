@@ -197,6 +197,7 @@ func TestJavIdolTrackRoutesRegistered(t *testing.T) {
 	}
 	for _, want := range []string{
 		"GET /jav/idols/:id/external-works",
+		"POST /jav/idols/:id/works/dislike",
 	} {
 		if !got[want] {
 			t.Fatalf("route %s is not registered", want)

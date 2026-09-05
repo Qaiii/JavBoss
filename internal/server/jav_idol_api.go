@@ -429,6 +429,43 @@ func getJavIdolExternalWorks(c *gin.Context) {
 	})
 }
 
+func dislikeJavIdolWork(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || id <= 0 {
+		respondLocalizedError(c, http.StatusBadRequest, "女优 ID 无效", "Invalid idol ID")
+		return
+	}
+	var req struct {
+		Code string `json:"code"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondLocalizedError(c, http.StatusBadRequest, "请求无效", "Invalid request")
+		return
+	}
+	code := strings.TrimSpace(req.Code)
+	if code == "" {
+		respondLocalizedError(c, http.StatusBadRequest, "番号不能为空", "JAV code is required")
+		return
+	}
+
+	if _, err := dbpkg.GetJavIdolSummary(c.Request.Context(), id, nil); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			respondLocalizedError(c, http.StatusNotFound, "女优不存在", "Idol was not found")
+			return
+		}
+		logging.Error("dislike jav idol work idol id=%d: %v", id, err)
+		respondLocalizedError(c, http.StatusInternalServerError, "加载女优信息失败", "Failed to load idol information")
+		return
+	}
+
+	if err := dbpkg.DislikeJavIdolWork(c.Request.Context(), id, code); err != nil {
+		logging.Error("dislike jav idol work idol=%d code=%s: %v", id, code, err)
+		respondLocalizedError(c, http.StatusInternalServerError, "标记不喜欢失败", "Failed to dislike the work")
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
 func getJavIdolJavDBURL(c *gin.Context) {
 	code := strings.TrimSpace(c.Query("code"))
 	name := strings.TrimSpace(c.Query("name"))

@@ -94,6 +94,7 @@ func updateConfig(c *gin.Context) {
 		JavHideIdols           *bool                 `json:"jav_hide_idols"`
 		JavHideTags            *bool                 `json:"jav_hide_tags"`
 		JavHideActions         *bool                 `json:"jav_hide_actions"`
+		JavCoverOrientation    *string               `json:"jav_cover_orientation"`
 		JavFavoriteRatingFull  *bool                 `json:"jav_favorite_rating_show_full"`
 		JavWaterfallDefault    *bool                 `json:"jav_waterfall_default"`
 		IdolPageSize           *int                  `json:"idol_page_size"`
@@ -224,6 +225,13 @@ func updateConfig(c *gin.Context) {
 	}
 	if req.JavHideActions != nil {
 		entries["jav_hide_actions"] = strconv.FormatBool(*req.JavHideActions)
+	}
+	if req.JavCoverOrientation != nil {
+		orientation := strings.ToLower(strings.TrimSpace(*req.JavCoverOrientation))
+		if orientation != "portrait" {
+			orientation = "landscape"
+		}
+		entries["jav_cover_orientation"] = orientation
 	}
 	if req.JavFavoriteRatingFull != nil {
 		entries["jav_favorite_rating_show_full"] = strconv.FormatBool(*req.JavFavoriteRatingFull)

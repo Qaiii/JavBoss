@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -310,4 +311,290 @@ func ListJavIdolWorks(ctx context.Context, idolID int64, limit, offset int) ([]J
 		})
 	}
 	return items, total, nil
+}
+
+// javExternalEpoch is the "time origin" used when sorting unimported idol
+// works by added time (加入时间). Unix epoch keeps them stably at the oldest end.
+var javExternalEpoch = time.Unix(0, 0).UTC()
+
+const javExternalMergeLibraryLimit = 100000
+
+func canIncludeExternalIdolWorks(idolIDs []int64, tagIDs []int64, filters JavSearchFilters) bool {
+	if !filters.IncludeExternal || len(idolIDs) != 1 || idolIDs[0] <= 0 {
+		return false
+	}
+	if len(tagIDs) > 0 || filters.SeriesID > 0 || filters.SoloOnly || filters.FavoriteGroupID > 0 {
+		return false
+	}
+	if filters.StudioID >= 0 {
+		return false
+	}
+	if filters.FavoriteRatingMin != nil || filters.FavoriteRatingMax != nil {
+		return false
+	}
+	return true
+}
+
+func searchJavIncludingExternal(ctx context.Context, idolID int64, search, prefix, sort string, limit, offset int, seed *int64, library []models.Jav) ([]models.Jav, int64, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	works, err := listUnimportedJavIdolWorks(ctx, idolID, search, prefix)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	merged := make([]models.Jav, 0, len(library)+len(works))
+	merged = append(merged, library...)
+	inLibraryFalse := false
+	for _, work := range works {
+		merged = append(merged, javFromUnimportedIdolWork(work, &inLibraryFalse))
+	}
+	sortMergedJavItems(merged, sort, seed)
+
+	total := int64(len(merged))
+	if offset >= len(merged) {
+		return []models.Jav{}, total, nil
+	}
+	end := offset + limit
+	if end > len(merged) {
+		end = len(merged)
+	}
+	return merged[offset:end], total, nil
+}
+
+func listUnimportedJavIdolWorks(ctx context.Context, idolID int64, search, prefix string) ([]models.JavIdolWork, error) {
+	query := common.DB.WithContext(ctx).Model(&models.JavIdolWork{}).
+		Where("jav_idol_id = ?", idolID).
+		Where(`NOT EXISTS (
+			SELECT 1 FROM jav WHERE UPPER(jav.code) = UPPER(jav_idol_work.code)
+		)`).
+		Where(`NOT EXISTS (
+			SELECT 1 FROM jav_idol_work_dislike d
+			WHERE d.jav_idol_id = jav_idol_work.jav_idol_id
+				AND UPPER(d.code) = UPPER(jav_idol_work.code)
+		)`)
+	if search != "" {
+		like := fmt.Sprintf("%%%s%%", search)
+		query = query.Where("code LIKE ? OR title LIKE ?", like, like)
+	}
+	if prefix != "" {
+		query = query.Where(javCodePrefixSQL("code")+" = ?", prefix)
+	}
+
+	var works []models.JavIdolWork
+	if err := query.Find(&works).Error; err != nil {
+		return nil, fmt.Errorf("list unimported jav idol works: %w", err)
+	}
+	return works, nil
+}
+
+func javFromUnimportedIdolWork(work models.JavIdolWork, inLibrary *bool) models.Jav {
+	return models.Jav{
+		Code:        work.Code,
+		Title:       work.Title,
+		ReleaseUnix: work.ReleaseUnix,
+		DurationMin: work.DurationMin,
+		CreatedAt:   javExternalEpoch,
+		InLibrary:   inLibrary,
+		CoverURL:    work.CoverURL,
+		SourceURL:   work.SourceURL,
+	}
+}
+
+// DislikeJavIdolWork records that this actress's work should be hidden when it
+// is not in the library. Imported works keep showing even if disliked.
+func DislikeJavIdolWork(ctx context.Context, idolID int64, code string) error {
+	code = strings.ToUpper(strings.TrimSpace(code))
+	if idolID <= 0 {
+		return errors.New("idol id must be positive")
+	}
+	if code == "" {
+		return errors.New("jav code is required")
+	}
+	if _, err := GetJavIdolBasic(ctx, idolID); err != nil {
+		return err
+	}
+	record := models.JavIdolWorkDislike{
+		JavIdolID: idolID,
+		Code:      code,
+		CreatedAt: time.Now(),
+	}
+	if err := common.DB.WithContext(ctx).
+		Clauses(clause.OnConflict{DoNothing: true}).
+		Create(&record).Error; err != nil {
+		return fmt.Errorf("dislike jav idol work: %w", err)
+	}
+	return nil
+}
+
+func sortMergedJavItems(items []models.Jav, sortKey string, seed *int64) {
+	lessCreatedDesc := func(i, j int) bool {
+		a, b := items[i], items[j]
+		if !a.CreatedAt.Equal(b.CreatedAt) {
+			return a.CreatedAt.After(b.CreatedAt)
+		}
+		return javSortTieID(a) > javSortTieID(b)
+	}
+	lessCreatedAsc := func(i, j int) bool {
+		a, b := items[i], items[j]
+		if !a.CreatedAt.Equal(b.CreatedAt) {
+			return a.CreatedAt.Before(b.CreatedAt)
+		}
+		return javSortTieID(a) < javSortTieID(b)
+	}
+
+	switch sortKey {
+	case "code", "code_asc":
+		sort.SliceStable(items, func(i, j int) bool {
+			a, b := items[i].Code, items[j].Code
+			if a != b {
+				return a < b
+			}
+			return javSortTieID(items[i]) < javSortTieID(items[j])
+		})
+	case "code_desc":
+		sort.SliceStable(items, func(i, j int) bool {
+			a, b := items[i].Code, items[j].Code
+			if a != b {
+				return a > b
+			}
+			return javSortTieID(items[i]) > javSortTieID(items[j])
+		})
+	case "duration", "duration_desc":
+		sort.SliceStable(items, func(i, j int) bool {
+			a, b := items[i], items[j]
+			if a.DurationMin != b.DurationMin {
+				return a.DurationMin > b.DurationMin
+			}
+			return lessCreatedDesc(i, j)
+		})
+	case "duration_asc":
+		sort.SliceStable(items, func(i, j int) bool {
+			a, b := items[i], items[j]
+			if a.DurationMin != b.DurationMin {
+				return a.DurationMin < b.DurationMin
+			}
+			return lessCreatedAsc(i, j)
+		})
+	case "release", "release_desc":
+		sort.SliceStable(items, func(i, j int) bool {
+			a, b := items[i], items[j]
+			aMissing, bMissing := a.ReleaseUnix == 0, b.ReleaseUnix == 0
+			if aMissing != bMissing {
+				return !aMissing && bMissing
+			}
+			if a.ReleaseUnix != b.ReleaseUnix {
+				return a.ReleaseUnix > b.ReleaseUnix
+			}
+			if a.Code != b.Code {
+				return a.Code < b.Code
+			}
+			return javSortTieID(a) < javSortTieID(b)
+		})
+	case "release_asc":
+		sort.SliceStable(items, func(i, j int) bool {
+			a, b := items[i], items[j]
+			aMissing, bMissing := a.ReleaseUnix == 0, b.ReleaseUnix == 0
+			if aMissing != bMissing {
+				return !aMissing && bMissing
+			}
+			if a.ReleaseUnix != b.ReleaseUnix {
+				return a.ReleaseUnix < b.ReleaseUnix
+			}
+			if a.Code != b.Code {
+				return a.Code < b.Code
+			}
+			return javSortTieID(a) < javSortTieID(b)
+		})
+	case "play_count", "play_count_desc":
+		sort.SliceStable(items, func(i, j int) bool {
+			a, b := javPlayCount(items[i]), javPlayCount(items[j])
+			if a != b {
+				return a > b
+			}
+			return lessCreatedDesc(i, j)
+		})
+	case "play_count_asc":
+		sort.SliceStable(items, func(i, j int) bool {
+			a, b := javPlayCount(items[i]), javPlayCount(items[j])
+			if a != b {
+				return a < b
+			}
+			return lessCreatedAsc(i, j)
+		})
+	case "favorite_rating", "favorite_rating_desc":
+		sort.SliceStable(items, func(i, j int) bool {
+			a, b := items[i], items[j]
+			if a.FavoriteRating != b.FavoriteRating {
+				return a.FavoriteRating > b.FavoriteRating
+			}
+			return lessCreatedDesc(i, j)
+		})
+	case "favorite_rating_asc":
+		sort.SliceStable(items, func(i, j int) bool {
+			a, b := items[i], items[j]
+			aZero, bZero := a.FavoriteRating == 0, b.FavoriteRating == 0
+			if aZero != bZero {
+				return !aZero && bZero
+			}
+			if a.FavoriteRating != b.FavoriteRating {
+				return a.FavoriteRating < b.FavoriteRating
+			}
+			return lessCreatedDesc(i, j)
+		})
+	case "recent_asc":
+		sort.SliceStable(items, lessCreatedAsc)
+	case "random":
+		if seed != nil && *seed > 0 {
+			s := *seed
+			sort.SliceStable(items, func(i, j int) bool {
+				a, b := items[i], items[j]
+				ra, rb := stableRandomRankSQL(javRandomRankID(a), s), stableRandomRankSQL(javRandomRankID(b), s)
+				if ra != rb {
+					return ra < rb
+				}
+				return javSortTieID(a) < javSortTieID(b)
+			})
+		} else {
+			sort.SliceStable(items, func(i, j int) bool {
+				return javSortTieID(items[i]) < javSortTieID(items[j])
+			})
+		}
+	default:
+		sort.SliceStable(items, lessCreatedDesc)
+	}
+}
+
+func javPlayCount(item models.Jav) int64 {
+	var total int64
+	for _, video := range item.Videos {
+		total += video.PlayCount
+	}
+	return total
+}
+
+func javSortTieID(item models.Jav) int64 {
+	if item.ID > 0 {
+		return item.ID
+	}
+	return javRandomRankID(item)
+}
+
+func javRandomRankID(item models.Jav) int64 {
+	if item.ID > 0 {
+		return item.ID
+	}
+	var h int64
+	for _, c := range strings.ToUpper(strings.TrimSpace(item.Code)) {
+		h = h*31 + int64(c)
+	}
+	if h == 0 {
+		h = -1
+	}
+	return h
 }

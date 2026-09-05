@@ -103,6 +103,11 @@ type Jav struct {
 	Idols          []JavIdol       `json:"idols,omitempty" gorm:"many2many:jav_idol_map"`
 	Videos         []Video         `json:"videos,omitempty" gorm:"-"`
 	FavoriteCount  int64           `json:"favorite_count" gorm:"-"`
+	// InLibrary is omitted for normal library rows. Unimported idol works set
+	// it to false so the actress page can badge and gray out those cards.
+	InLibrary *bool  `json:"in_library,omitempty" gorm:"-"`
+	CoverURL  string `json:"cover_url,omitempty" gorm:"-"`
+	SourceURL string `json:"source_url,omitempty" gorm:"-"`
 }
 
 type JavStudio struct {
@@ -258,4 +263,19 @@ type JavIdolWork struct {
 
 func (JavIdolWork) TableName() string {
 	return "jav_idol_work"
+}
+
+// JavIdolWorkDislike hides an unimported idol work from that actress's works
+// page. It is stored separately from jav_idol_work so a scrape refresh does
+// not revive a disliked title. Imported library rows still appear even when
+// a matching dislike exists.
+type JavIdolWorkDislike struct {
+	JavIdolID int64     `json:"jav_idol_id" gorm:"primaryKey"`
+	JavIdol   JavIdol   `json:"-" gorm:"foreignKey:JavIdolID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	Code      string    `json:"code" gorm:"primaryKey"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+func (JavIdolWorkDislike) TableName() string {
+	return "jav_idol_work_dislike"
 }

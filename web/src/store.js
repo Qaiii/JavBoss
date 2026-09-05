@@ -14,6 +14,7 @@ import {
   fetchJavs,
   fetchJavIdols,
   fetchJavExternalWorks,
+  dislikeJavIdolWork as postJavIdolWorkDislike,
   fetchJavFavoriteGroups,
   fetchJavStudios,
   fetchJavSeries,
@@ -284,6 +285,7 @@ const javListRequestKey = (state, directoryIds = directoryQueryIds(state)) => {
       : '',
     state.javFavoriteGroupId || '',
     effectiveSort,
+    state.javShowExternalWorks && (state.javIdolIds || []).length === 1 ? 'ext' : '',
     state.javRandomMode ? state.javRandomSeed || '' : '',
     directoryIds.join(','),
     closedSubdirsKey(state),
@@ -416,6 +418,7 @@ export const useStore = create((set, get) => ({
   javExternalLoading: false,
   javExternalError: null,
   javExternalSourceURL: '',
+  javShowExternalWorks: true,
   idolPage: 1,
   idolPageSize: JAV_PAGE_SIZE,
   idolSort: 'work',
@@ -1010,6 +1013,7 @@ export const useStore = create((set, get) => ({
     } = get()
     const search = javSearchTerm || ''
     const effectiveSort = resolveJavSort(get()).sort
+    const includeExternal = Boolean(get().javShowExternalWorks) && (javIdolIds || []).length === 1
     const key = javListRequestKey(get())
     if (!options.force && key === lastJavFetchKey) {
       return
@@ -1034,6 +1038,7 @@ export const useStore = create((set, get) => ({
         favoriteGroupId: javFavoriteGroupId,
         sort: effectiveSort,
         seed: javRandomMode ? javRandomSeed : null,
+        includeExternal,
       })
       if (reqId !== javLoadSeq || key !== javListRequestKey(get())) return
       const items = resp.items || []
@@ -1060,6 +1065,8 @@ export const useStore = create((set, get) => ({
 
     const search = state.javSearchTerm || ''
     const effectiveSort = resolveJavSort(state).sort
+    const includeExternal =
+      Boolean(state.javShowExternalWorks) && (state.javIdolIds || []).length === 1
     const requestKey = javListRequestKey(state)
     const loadReqId = javLoadSeq
     const loadMoreReqId = (javLoadMoreSeq += 1)
@@ -1080,6 +1087,7 @@ export const useStore = create((set, get) => ({
         favoriteRatingMax: state.javFavoriteRatingMax,
         favoriteGroupId: state.javFavoriteGroupId,
         sort: effectiveSort,
+        includeExternal,
       })
       if (
         loadReqId !== javLoadSeq ||
@@ -1162,6 +1170,29 @@ export const useStore = create((set, get) => ({
         set({ javExternalLoading: false })
       }
     }
+  },
+  dislikeJavIdolWork: async (idolId, item) => {
+    const code = String(item?.code || '').trim()
+    const idol = Number(idolId)
+    if (!code || !Number.isFinite(idol) || idol <= 0) return
+    const unimported = item?.in_library === false
+    await postJavIdolWorkDislike(idol, code)
+    if (!unimported) return
+    set((state) => {
+      const nextItems = (state.javItems || []).filter((current) => {
+        if (current?.in_library !== false) return true
+        return (
+          String(current?.code || '')
+            .trim()
+            .toUpperCase() !== code.toUpperCase()
+        )
+      })
+      const removed = (state.javItems || []).length - nextItems.length
+      return {
+        javItems: nextItems,
+        javTotal: Math.max(0, (state.javTotal || 0) - removed),
+      }
+    })
   },
   loadJavIdols: async (options = {}) => {
     const { idolPage, idolPageSize, javSearchTerm, idolFavoriteGroupId, idolProfileFilters } = get()
@@ -1716,9 +1747,7 @@ export const useStore = create((set, get) => ({
     const activeSet = new Set(active)
     const scopedSubpaths = cleanSubpaths.filter((item) => activeSet.has(item.directoryId))
     const mode =
-      active.length > 0 &&
-      cleanIds.length === active.length &&
-      scopedSubpaths.length === 0
+      active.length > 0 && cleanIds.length === active.length && scopedSubpaths.length === 0
         ? DIRECTORY_FILTER_ALL
         : DIRECTORY_FILTER_CUSTOM
     const currentMode = get().directoryFilterMode

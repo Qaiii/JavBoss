@@ -115,6 +115,7 @@ func searchJav(c *gin.Context) {
 		FavoriteGroupID:   filterQuery.FavoriteGroupID,
 		FavoriteRatingMin: filterQuery.FavoriteRatingMin,
 		FavoriteRatingMax: filterQuery.FavoriteRatingMax,
+		IncludeExternal:   queryBool(c, "include_external", false),
 	}, parseClosedSubdirectories(c.Query("closed_subdirs")), parseDirectorySubpaths(c.Query("directory_subpaths")))
 	if err != nil {
 		logging.Error("SearchJav: %v", err)

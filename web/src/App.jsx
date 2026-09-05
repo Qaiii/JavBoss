@@ -86,6 +86,7 @@ import { isChineseLocale, zh } from '@/utils/i18n'
 import { getErrorMessage } from '@/utils/errors'
 import { buildVideoFullPath } from '@/utils/display'
 import { getIdolDisplayName } from '@/utils/javIdol'
+import { normalizeJavCoverOrientation } from '@/utils/jav'
 import { withJavTagDisplayName } from '@/utils/javTag'
 import { displayHostPath } from '@/utils/hostPath'
 import {
@@ -265,16 +266,7 @@ export default function App() {
     javLoadingMore,
     javError,
     loadJavExternalWorks,
-    javExternalItems,
-    javExternalPage,
-    javExternalHasNext,
-    javExternalTotal,
-    javExternalTracked,
-    javExternalLastScrapedAt,
-    javExternalScrapeError,
-    javExternalLoading,
-    javExternalError,
-    javExternalSourceURL,
+    dislikeJavIdolWork,
     javTagOptions,
     loadJavTags,
     loadConfig,
@@ -386,6 +378,10 @@ export default function App() {
   const isJavMode = viewMode === 'jav'
 
   useEffect(() => {
+    useStore.setState({ javShowExternalWorks: Boolean(showExternalWorks) })
+  }, [showExternalWorks])
+
+  useEffect(() => {
     if (javTab !== 'download') return
     setDownloadOpen(true)
     useStore.setState({ javTab: 'list' })
@@ -454,6 +450,9 @@ export default function App() {
   const [javHideTagsInput, setJavHideTagsInput] = useState(configFlag(config?.jav_hide_tags))
   const [javHideActionsInput, setJavHideActionsInput] = useState(
     configFlag(config?.jav_hide_actions)
+  )
+  const [javCoverOrientationInput, setJavCoverOrientationInput] = useState(
+    normalizeJavCoverOrientation(config?.jav_cover_orientation)
   )
   const [javFavoriteRatingShowFullInput, setJavFavoriteRatingShowFullInput] = useState(
     configFlag(config?.jav_favorite_rating_show_full, false)
@@ -1788,10 +1787,12 @@ export default function App() {
     loadJavStudios,
     loadJavSeries,
     configLoaded,
+    showExternalWorks,
   ])
 
   // Automatically fetch the selected idol's JavDB works when viewing a single
-  // idol's works list. The show/hide switch only controls the rendered block.
+  // idol's works list so the background scrape queue stays primed. Unimported
+  // titles are merged into the main grid when the switch is on.
   const activeExternalIdolId = javIdolIds.length === 1 ? Number(javIdolIds[0]) : 0
 
   useEffect(() => {
@@ -1924,14 +1925,6 @@ export default function App() {
     setShowExternalWorks(Boolean(enabled))
     saveShowExternalWorks(Boolean(enabled))
   }, [])
-
-  const handleExternalPageChange = useCallback(
-    (targetPage) => {
-      if (!targetPage || targetPage < 1) return
-      loadJavExternalWorks(targetPage)
-    },
-    [loadJavExternalWorks]
-  )
 
   const canPrev = page > 1
   const canNext = hasNext
@@ -2691,6 +2684,7 @@ export default function App() {
     setJavHideIdolsInput(configFlag(config?.jav_hide_idols))
     setJavHideTagsInput(configFlag(config?.jav_hide_tags))
     setJavHideActionsInput(configFlag(config?.jav_hide_actions))
+    setJavCoverOrientationInput(normalizeJavCoverOrientation(config?.jav_cover_orientation))
     setJavFavoriteRatingShowFullInput(configFlag(config?.jav_favorite_rating_show_full, false))
     setJavWaterfallDefaultInput(configFlag(config?.jav_waterfall_default))
     setIdolPageSizeInput(idolPageSize)
@@ -2713,6 +2707,7 @@ export default function App() {
     config?.jav_hide_idols,
     config?.jav_hide_tags,
     config?.jav_hide_actions,
+    config?.jav_cover_orientation,
     config?.jav_favorite_rating_show_full,
     config?.jav_waterfall_default,
     config?.idol_waterfall_default,
@@ -2829,6 +2824,7 @@ export default function App() {
         jav_hide_idols: Boolean(javHideIdolsInput),
         jav_hide_tags: Boolean(javHideTagsInput),
         jav_hide_actions: Boolean(javHideActionsInput),
+        jav_cover_orientation: normalizeJavCoverOrientation(javCoverOrientationInput),
         jav_favorite_rating_show_full: Boolean(javFavoriteRatingShowFullInput),
         jav_waterfall_default: waterfallDefaults.jav,
         idol_page_size: idolSize,
@@ -2908,6 +2904,7 @@ export default function App() {
       setJavHideIdolsInput(configFlag(config?.jav_hide_idols))
       setJavHideTagsInput(configFlag(config?.jav_hide_tags))
       setJavHideActionsInput(configFlag(config?.jav_hide_actions))
+      setJavCoverOrientationInput(normalizeJavCoverOrientation(config?.jav_cover_orientation))
       setJavFavoriteRatingShowFullInput(configFlag(config?.jav_favorite_rating_show_full, false))
       setJavWaterfallDefaultInput(configFlag(config?.jav_waterfall_default))
       setIdolPageSizeInput(idolPageSize)
@@ -2930,6 +2927,7 @@ export default function App() {
     config?.jav_hide_idols,
     config?.jav_hide_tags,
     config?.jav_hide_actions,
+    config?.jav_cover_orientation,
     config?.jav_favorite_rating_show_full,
     config?.jav_waterfall_default,
     config?.idol_waterfall_default,
@@ -4428,18 +4426,12 @@ export default function App() {
               hasMore: javWaterfallHasMore,
               showExternalWorks,
               onShowExternalWorksChange: handleShowExternalWorksChange,
-              externalItems: javExternalItems,
-              externalPage: javExternalPage,
-              externalHasNext: javExternalHasNext,
-              externalTotal: javExternalTotal,
-              externalTracked: javExternalTracked,
-              externalLastScrapedAt: javExternalLastScrapedAt,
-              externalScrapeError: javExternalScrapeError,
-              externalLoading: javExternalLoading,
-              externalError: javExternalError,
-              externalSourceURL: javExternalSourceURL,
               activeIdolId: Number(javIdolIds[0]) || 0,
-              onExternalPageChange: handleExternalPageChange,
+              onDislikeWork: (item) => {
+                const idolId = Number(javIdolIds[0]) || 0
+                if (idolId <= 0) return
+                return dislikeJavIdolWork(idolId, item)
+              },
             }}
           />
         ) : (
@@ -4580,6 +4572,8 @@ export default function App() {
         onJavHideTagsChange={setJavHideTagsInput}
         javHideActionsInput={javHideActionsInput}
         onJavHideActionsChange={setJavHideActionsInput}
+        javCoverOrientationInput={javCoverOrientationInput}
+        onJavCoverOrientationChange={setJavCoverOrientationInput}
         javFavoriteRatingShowFullInput={javFavoriteRatingShowFullInput}
         onJavFavoriteRatingShowFullChange={setJavFavoriteRatingShowFullInput}
         javWaterfallDefaultInput={javWaterfallDefaultInput}

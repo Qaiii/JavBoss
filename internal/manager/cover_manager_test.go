@@ -3,6 +3,9 @@ package manager
 import (
 	"context"
 	"errors"
+	"image"
+	"image/color"
+	"image/jpeg"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -164,5 +167,70 @@ func TestHandleTaskRetriesAfterSmallCover(t *testing.T) {
 	}
 	if info.Size() != minValidCoverSizeBytes {
 		t.Fatalf("final cover size = %d, want %d", info.Size(), minValidCoverSizeBytes)
+	}
+}
+
+func TestParseCoverKind(t *testing.T) {
+	if got := ParseCoverKind("portrait"); got != CoverKindPortrait {
+		t.Fatalf("ParseCoverKind(portrait) = %q", got)
+	}
+	if got := ParseCoverKind("LANDSCAPE"); got != CoverKindLandscape {
+		t.Fatalf("ParseCoverKind(LANDSCAPE) = %q", got)
+	}
+	if got := ParseCoverKind(""); got != CoverKindLandscape {
+		t.Fatalf("ParseCoverKind() = %q", got)
+	}
+}
+
+func TestEnsurePosterCoverCropsLandscape(t *testing.T) {
+	dir := t.TempDir()
+	src := filepath.Join(dir, "abc-001.jpg")
+	writeTestJPEG(t, src, 800, 538)
+	path, ok := EnsurePosterCover(dir, "ABC-001")
+	if !ok {
+		t.Fatal("expected poster cover to be generated")
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		t.Fatalf("open poster: %v", err)
+	}
+	defer file.Close()
+	img, _, err := image.Decode(file)
+	if err != nil {
+		t.Fatalf("decode poster: %v", err)
+	}
+	wantWidth := 538 * 2 / 3
+	if img.Bounds().Dx() != wantWidth || img.Bounds().Dy() != 538 {
+		t.Fatalf("poster size = %dx%d, want %dx538", img.Bounds().Dx(), img.Bounds().Dy(), wantWidth)
+	}
+	if _, ok := FindCoverPathKind(dir, "ABC-001", CoverKindPortrait); !ok {
+		t.Fatal("generated poster should be findable")
+	}
+}
+
+func TestEnsurePosterCoverSkipsPortraitSource(t *testing.T) {
+	dir := t.TempDir()
+	src := filepath.Join(dir, "abc-001.jpg")
+	writeTestJPEG(t, src, 400, 600)
+	if _, ok := EnsurePosterCover(dir, "ABC-001"); ok {
+		t.Fatal("portrait source should not produce a cropped poster")
+	}
+}
+
+func writeTestJPEG(t *testing.T, path string, width, height int) {
+	t.Helper()
+	img := image.NewRGBA(image.Rect(0, 0, width, height))
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			img.SetRGBA(x, y, color.RGBA{R: uint8(x), G: uint8(y), B: uint8(x + y), A: 255})
+		}
+	}
+	file, err := os.Create(path)
+	if err != nil {
+		t.Fatalf("create jpeg: %v", err)
+	}
+	defer file.Close()
+	if err := jpeg.Encode(file, img, &jpeg.Options{Quality: 90}); err != nil {
+		t.Fatalf("encode jpeg: %v", err)
 	}
 }
