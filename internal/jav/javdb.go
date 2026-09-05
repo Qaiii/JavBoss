@@ -37,6 +37,7 @@ var (
 		sync.Mutex
 		next time.Time
 	}{}
+	fetchJavDBHTMLPage = fetchJavDBHTML
 )
 
 // LookupActressByName implements lookupProvider.
@@ -777,6 +778,8 @@ type javDBWorksPage struct {
 // ListJavWorksByActressURL fetches one page of an actress's works from her
 // JavDB profile page. The returned bool reports whether more pages exist.
 // Results (and 404s) are cached in the persistent lookup cache.
+// Listing titles stay as parsed from the actress page (including origin-title
+// when present) so one page does not trigger a serial movie-detail request per item.
 func ListJavWorksByActressURL(ctx context.Context, profileURL string, page int) ([]*JavInfo, bool, error) {
 	profileURL = strings.TrimSpace(profileURL)
 	if profileURL == "" || !strings.Contains(strings.ToLower(profileURL), "/actors/") {
@@ -795,7 +798,7 @@ func ListJavWorksByActressURL(ctx context.Context, profileURL string, page int) 
 		return cached.Items, cached.HasNext, nil
 	}
 
-	doc, status, err := fetchJavDBHTML(ctx, targetURL, javDBBaseURL)
+	doc, status, err := fetchJavDBHTMLPage(ctx, targetURL, javDBBaseURL)
 	if err != nil {
 		return nil, false, err
 	}
@@ -805,7 +808,6 @@ func ListJavWorksByActressURL(ctx context.Context, profileURL string, page int) 
 	}
 
 	items := parseJavDBActressWorksPage(doc, targetURL)
-	fillJavDBJapaneseListTitles(ctx, items)
 	result := javDBWorksPage{
 		Items:   items,
 		HasNext: hasJavDBNextPage(doc),
@@ -888,41 +890,6 @@ func trimJavDBListTitle(title, code string) string {
 		title = strings.TrimSpace(strings.TrimPrefix(title, code))
 	}
 	return title
-}
-
-// fillJavDBJapaneseListTitles replaces English (or other non-Japanese) listing
-// titles with the original Japanese title from each movie detail page.
-func fillJavDBJapaneseListTitles(ctx context.Context, items []*JavInfo) {
-	for _, item := range items {
-		if item == nil || containsJapaneseRunes(item.Title) {
-			continue
-		}
-		detailURL := ""
-		if len(item.SampleImages) > 0 {
-			detailURL = strings.TrimSpace(item.SampleImages[0].DetailURL)
-		}
-		if detailURL == "" {
-			continue
-		}
-		doc, status, err := fetchJavDBHTML(ctx, detailURL, javDBBaseURL)
-		if err != nil || status != http.StatusOK || doc == nil {
-			continue
-		}
-		info := parseJavDBMovieInfo(doc)
-		if info == nil || !containsJapaneseRunes(info.Title) {
-			continue
-		}
-		item.Title = strings.TrimSpace(info.Title)
-		if item.ReleaseUnix == 0 {
-			item.ReleaseUnix = info.ReleaseUnix
-		}
-		if item.DurationMin == 0 {
-			item.DurationMin = info.DurationMin
-		}
-		if strings.TrimSpace(item.CoverURL) == "" {
-			item.CoverURL = info.CoverURL
-		}
-	}
 }
 
 // javDBListItemCoverURL resolves the cover image of a listing item, honoring

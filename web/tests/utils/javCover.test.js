@@ -4,6 +4,7 @@ import test from 'node:test'
 import {
   JAV_COVER_ORIENTATION_LANDSCAPE,
   JAV_COVER_ORIENTATION_PORTRAIT,
+  javCardCoverSrc,
   javCoverAspectClass,
   javCoverGridMinmax,
   javCoverSrc,
@@ -31,4 +32,47 @@ test('uses portrait card geometry for portrait covers', () => {
   assert.equal(javCoverAspectClass('landscape'), 'aspect-[800/538]')
   assert.equal(javCoverGridMinmax('portrait'), '12rem')
   assert.equal(javCoverGridMinmax('landscape'), '21rem')
+})
+
+test('uses remote cover_url for unimported cards in either orientation', () => {
+  assert.equal(
+    javCardCoverSrc({
+      code: 'EXT-NEW',
+      inLibrary: false,
+      coverUrl: 'https://cover/ext-new.jpg',
+      orientation: 'portrait',
+    }),
+    'https://cover/ext-new.jpg'
+  )
+  assert.equal(
+    javCardCoverSrc({
+      code: 'EXT-NEW',
+      inLibrary: false,
+      coverUrl: 'https://cover/ext-new.jpg',
+      orientation: 'landscape',
+    }),
+    'https://cover/ext-new.jpg'
+  )
+  assert.equal(
+    javCardCoverSrc({
+      code: 'EXT-NEW',
+      inLibrary: false,
+      coverUrl: '  ',
+      orientation: 'portrait',
+    }),
+    null
+  )
+})
+
+test('uses local cover API for in-library cards', () => {
+  assert.equal(
+    javCardCoverSrc({
+      code: 'ABC-001',
+      inLibrary: true,
+      coverUrl: 'https://cover/ignored.jpg',
+      orientation: 'portrait',
+      version: 2,
+    }),
+    '/jav/ABC-001/cover?orientation=portrait&v=2'
+  )
 })

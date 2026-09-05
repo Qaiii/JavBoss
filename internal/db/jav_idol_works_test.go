@@ -258,9 +258,13 @@ func TestSearchJavMergesUnimportedIdolWorks(t *testing.T) {
 	if err := gdb.Create(&idol).Error; err != nil {
 		t.Fatalf("create idol: %v", err)
 	}
+	studio := models.JavStudio{Name: "Merge Studio"}
+	if err := gdb.Create(&studio).Error; err != nil {
+		t.Fatalf("create studio: %v", err)
+	}
 
-	libraryHighPlay := models.Jav{Code: "LIB-HIGH", Title: "High plays", CreatedAt: now, FetchedAt: now}
-	libraryLowPlay := models.Jav{Code: "LIB-LOW", Title: "Low plays", CreatedAt: older, FetchedAt: older}
+	libraryHighPlay := models.Jav{Code: "LIB-HIGH", Title: "High plays", StudioID: &studio.ID, CreatedAt: now, FetchedAt: now}
+	libraryLowPlay := models.Jav{Code: "LIB-LOW", Title: "Low plays", StudioID: &studio.ID, CreatedAt: older, FetchedAt: older}
 	if err := gdb.Create(&libraryHighPlay).Error; err != nil {
 		t.Fatalf("create high play jav: %v", err)
 	}
@@ -325,6 +329,39 @@ func TestSearchJavMergesUnimportedIdolWorks(t *testing.T) {
 	}
 	if !items[2].CreatedAt.Equal(javExternalEpoch) {
 		t.Fatalf("unimported created_at = %v, want epoch %v", items[2].CreatedAt, javExternalEpoch)
+	}
+	if len(items[0].Videos) == 0 || items[0].Videos[0].PlayCount != 12 {
+		t.Fatalf("LIB-HIGH videos = %+v, want hydrated play count 12", items[0].Videos)
+	}
+
+	byCode, _, err := SearchJavWithPrefixFilters(ctx, []int64{idol.ID}, nil, "", "", "code", 20, 0, nil, nil, filters, nil, nil)
+	if err != nil {
+		t.Fatalf("search merged code: %v", err)
+	}
+	if len(byCode) != 3 || byCode[0].Code != "EXT-NEW" || byCode[1].Code != "LIB-HIGH" || byCode[2].Code != "LIB-LOW" {
+		t.Fatalf("code order = %v, want EXT-NEW, LIB-HIGH, LIB-LOW", codesOf(byCode))
+	}
+
+	byRelease, _, err := SearchJavWithPrefixFilters(ctx, []int64{idol.ID}, nil, "", "", "release", 20, 0, nil, nil, filters, nil, nil)
+	if err != nil {
+		t.Fatalf("search merged release: %v", err)
+	}
+	if len(byRelease) != 3 || byRelease[0].Code != "EXT-NEW" {
+		t.Fatalf("release order = %v, want EXT-NEW first", codesOf(byRelease))
+	}
+
+	page, total, err := SearchJavWithPrefixFilters(ctx, []int64{idol.ID}, nil, "", "", "code", 1, 1, nil, nil, filters, nil, nil)
+	if err != nil {
+		t.Fatalf("search merged page: %v", err)
+	}
+	if total != 3 || len(page) != 1 || page[0].Code != "LIB-HIGH" {
+		t.Fatalf("page offset 1 = %v total=%d, want [LIB-HIGH] total 3", codesOf(page), total)
+	}
+	if page[0].Studio == nil || page[0].Studio.Name != "Merge Studio" {
+		t.Fatalf("paginated library item studio = %+v, want hydrated Merge Studio", page[0].Studio)
+	}
+	if len(page[0].Idols) != 1 || page[0].Idols[0].ID != idol.ID {
+		t.Fatalf("paginated library item idols = %+v, want hydrated idol", page[0].Idols)
 	}
 
 	recent, _, err := SearchJavWithPrefixFilters(ctx, []int64{idol.ID}, nil, "", "", "recent", 20, 0, nil, nil, filters, nil, nil)

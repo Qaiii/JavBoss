@@ -19,6 +19,14 @@ export function javCoverSrc(code, { orientation, version } = {}) {
   return `/jav/${encodeURIComponent(trimmed)}/cover?${params.toString()}`
 }
 
+export function javCardCoverSrc({ code, inLibrary = true, coverUrl, orientation, version } = {}) {
+  const trimmedCode = String(code || '').trim()
+  if (inLibrary && trimmedCode) {
+    return javCoverSrc(trimmedCode, { orientation, version })
+  }
+  return String(coverUrl || '').trim() || null
+}
+
 export function javCoverAspectClass(orientation) {
   return normalizeJavCoverOrientation(orientation) === JAV_COVER_ORIENTATION_PORTRAIT
     ? 'aspect-[2/3]'

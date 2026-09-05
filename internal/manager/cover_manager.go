@@ -35,6 +35,7 @@ type CoverManager struct {
 }
 
 const minValidCoverSizeBytes int64 = 30 * 1024
+const minValidPosterSizeBytes int64 = 1024
 
 const posterFileSuffix = "-poster"
 
@@ -224,7 +225,7 @@ func (m *CoverManager) downloadCoverFromProviders(ctx context.Context, code stri
 			logging.Error("download cover failed: provider=%s code=%s err=%v", provider.String(), code, err)
 			continue
 		}
-		if !coverKindExists(m.coverDir, code, CoverKindPortrait) && posterURL != "" && !strings.EqualFold(posterURL, coverURL) {
+		if posterURL != "" && !strings.EqualFold(posterURL, coverURL) {
 			if err := m.downloadCoverKind(ctx, code, posterURL, CoverKindPortrait); err != nil {
 				if !errors.Is(err, util.ErrCachedNotFound) && !errors.Is(err, errInvalidCover) {
 					logging.Error("download poster failed: provider=%s code=%s err=%v", provider.String(), code, err)
@@ -296,12 +297,15 @@ func (m *CoverManager) downloadCoverKind(ctx context.Context, code, coverURL str
 		_ = os.Remove(tmp)
 		return fmt.Errorf("close cover: %w", err)
 	}
-	if written < minValidCoverSizeBytes {
-		_ = os.Remove(tmp)
-		return fmt.Errorf("%w: size %d below minimum %d", errInvalidCover, written, minValidCoverSizeBytes)
-	}
 	if kind == "" {
+		if written < minValidCoverSizeBytes {
+			_ = os.Remove(tmp)
+			return fmt.Errorf("%w: size %d below minimum %d", errInvalidCover, written, minValidCoverSizeBytes)
+		}
 		kind = classifyCoverFile(tmp)
+	} else if written < minValidCoverBytes(kind) {
+		_ = os.Remove(tmp)
+		return fmt.Errorf("%w: size %d below minimum %d", errInvalidCover, written, minValidCoverBytes(kind))
 	}
 	target := filepath.Join(m.coverDir, coverFileBase(code, kind)+ext)
 	removeCoverFilesKind(m.coverDir, code, kind)
@@ -311,9 +315,15 @@ func (m *CoverManager) downloadCoverKind(ctx context.Context, code, coverURL str
 	}
 	if kind == CoverKindLandscape {
 		removeCoverFilesKind(m.coverDir, code, CoverKindPortrait)
-		_, _ = EnsurePosterCover(m.coverDir, code)
 	}
 	return nil
+}
+
+func minValidCoverBytes(kind CoverKind) int64 {
+	if kind == CoverKindPortrait {
+		return minValidPosterSizeBytes
+	}
+	return minValidCoverSizeBytes
 }
 
 func removeCoverFiles(coverDir, code string) {
@@ -382,11 +392,6 @@ func coverFileBase(code string, kind CoverKind) string {
 	return code
 }
 
-func coverKindExists(dir, code string, kind CoverKind) bool {
-	_, ok := FindCoverPathKind(dir, code, kind)
-	return ok
-}
-
 func classifyCoverFile(path string) CoverKind {
 	file, err := os.Open(path)
 	if err != nil {
@@ -410,10 +415,7 @@ func FindCoverPathKind(dir, code string, kind CoverKind) (string, bool) {
 	if code == "" {
 		return "", false
 	}
-	minSize := minValidCoverSizeBytes
-	if kind == CoverKindPortrait {
-		minSize = 1024
-	}
+	minSize := minValidCoverBytes(kind)
 	base := coverFileBase(code, kind)
 	for _, ext := range knownExts {
 		p := filepath.Join(dir, base+ext)
@@ -442,7 +444,7 @@ func EnsurePosterCover(dir, code string) (string, bool) {
 		return "", false
 	}
 	info, err := os.Stat(tmp)
-	if err != nil || info.Size() < 1024 {
+	if err != nil || info.Size() < minValidPosterSizeBytes {
 		_ = os.Remove(tmp)
 		return "", false
 	}

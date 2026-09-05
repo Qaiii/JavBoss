@@ -582,6 +582,55 @@ func TestParseJavDBActressWorksPage(t *testing.T) {
 	}
 }
 
+func TestListJavWorksByActressURLDoesNotFetchMovieDetails(t *testing.T) {
+	doc, err := html.Parse(strings.NewReader(`
+<!doctype html>
+<html>
+<body>
+  <div class="movie-list h cols-4 vcols-8">
+    <div class="item">
+      <a class="box" href="/v/kKdRm">
+        <div class="video-title"><strong>IPX-228</strong> The Case Woman</div>
+        <img data-src="https://c0.jdbstatic.com/covers/kk/kKdRm.jpg">
+      </a>
+    </div>
+    <div class="item">
+      <a class="box" href="/v/aBcDe">
+        <div class="video-title"><strong>ABP-999</strong> Some Title</div>
+        <img data-original="https://c0.jdbstatic.com/covers/ab/aBcDe.jpg">
+      </a>
+    </div>
+  </div>
+</body>
+</html>`))
+	if err != nil {
+		t.Fatalf("parse html: %v", err)
+	}
+
+	var fetched []string
+	original := fetchJavDBHTMLPage
+	fetchJavDBHTMLPage = func(_ context.Context, targetURL, _ string) (*html.Node, int, error) {
+		fetched = append(fetched, targetURL)
+		return doc, 200, nil
+	}
+	t.Cleanup(func() { fetchJavDBHTMLPage = original })
+
+	profileURL := "https://javdb.com/actors/test-no-detail-fetch"
+	items, _, err := ListJavWorksByActressURL(context.Background(), profileURL, 1)
+	if err != nil {
+		t.Fatalf("ListJavWorksByActressURL: %v", err)
+	}
+	if len(fetched) != 1 || fetched[0] != profileURL {
+		t.Fatalf("fetched URLs = %v, want only the actress list page", fetched)
+	}
+	if len(items) != 2 {
+		t.Fatalf("items = %d, want 2", len(items))
+	}
+	if items[0].Title != "The Case Woman" || items[1].Title != "Some Title" {
+		t.Fatalf("titles = %q, %q, want English listing titles kept", items[0].Title, items[1].Title)
+	}
+}
+
 func TestParseJavDBActressWorksPageEmpty(t *testing.T) {
 	items := parseJavDBActressWorksPage(nil, "https://javdb.com/actors/x")
 	if len(items) != 0 {

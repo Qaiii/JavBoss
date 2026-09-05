@@ -317,8 +317,6 @@ func ListJavIdolWorks(ctx context.Context, idolID int64, limit, offset int) ([]J
 // works by added time (加入时间). Unix epoch keeps them stably at the oldest end.
 var javExternalEpoch = time.Unix(0, 0).UTC()
 
-const javExternalMergeLibraryLimit = 100000
-
 func canIncludeExternalIdolWorks(idolIDs []int64, tagIDs []int64, filters JavSearchFilters) bool {
 	if !filters.IncludeExternal || len(idolIDs) != 1 || idolIDs[0] <= 0 {
 		return false
@@ -335,15 +333,30 @@ func canIncludeExternalIdolWorks(idolIDs []int64, tagIDs []int64, filters JavSea
 	return true
 }
 
-func searchJavIncludingExternal(ctx context.Context, idolID int64, search, prefix, sort string, limit, offset int, seed *int64, library []models.Jav) ([]models.Jav, int64, error) {
+func searchJavIncludingExternal(ctx context.Context, idolIDs []int64, tagIDs []int64, search, prefix, sort string, limit, offset int, seed *int64, directoryIDs []int64, filters JavSearchFilters, closedSubdirs []ClosedSubdirectory, subpaths []DirectorySubpath) ([]models.Jav, int64, error) {
 	if limit <= 0 {
 		limit = 100
 	}
 	if offset < 0 {
 		offset = 0
 	}
+	if len(idolIDs) == 0 || idolIDs[0] <= 0 {
+		return []models.Jav{}, 0, nil
+	}
 
-	works, err := listUnimportedJavIdolWorks(ctx, idolID, search, prefix)
+	var library []models.Jav
+	if err := buildJavFilter(ctx, idolIDs, tagIDs, search, prefix, directoryIDs, filters, closedSubdirs, subpaths).
+		Find(&library).Error; err != nil {
+		return nil, 0, fmt.Errorf("list jav for external merge: %w", err)
+	}
+	switch strings.ToLower(strings.TrimSpace(sort)) {
+	case "play_count", "play_count_desc", "play_count_asc":
+		if err := attachJavPlayCountsForSort(ctx, library, directoryIDs, closedSubdirs, subpaths); err != nil {
+			return nil, 0, err
+		}
+	}
+
+	works, err := listUnimportedJavIdolWorks(ctx, idolIDs[0], search, prefix)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -364,7 +377,98 @@ func searchJavIncludingExternal(ctx context.Context, idolID int64, search, prefi
 	if end > len(merged) {
 		end = len(merged)
 	}
-	return merged[offset:end], total, nil
+	page := merged[offset:end]
+	if err := hydrateMergedJavPage(ctx, page, directoryIDs, closedSubdirs, subpaths); err != nil {
+		return nil, 0, err
+	}
+	return page, total, nil
+}
+
+func attachJavPlayCountsForSort(ctx context.Context, items []models.Jav, directoryIDs []int64, closedSubdirs []ClosedSubdirectory, subpaths []DirectorySubpath) error {
+	ids := make([]int64, 0, len(items))
+	for _, item := range items {
+		if item.ID > 0 {
+			ids = append(ids, item.ID)
+		}
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+
+	type row struct {
+		JavID     int64 `gorm:"column:jav_id"`
+		PlayCount int64 `gorm:"column:play_count"`
+	}
+	query := common.DB.WithContext(ctx).
+		Table("video_location vl").
+		Select("vl.jav_id AS jav_id, COALESCE(SUM(COALESCE(v.play_count, 0)), 0) AS play_count").
+		Joins("JOIN directory d ON d.id = vl.directory_id").
+		Joins("JOIN video v ON v.id = vl.video_id").
+		Where("vl.jav_id IN ?", ids).
+		Where(activeLocationWhereSQL("vl", "d")).
+		Group("vl.jav_id")
+	query = applyDirectoryFilter(query, "vl", directoryIDs)
+	query = applyClosedSubdirectoryFilter(query, "vl", closedSubdirs)
+	query = applyDirectorySubpathFilter(query, "vl", subpaths)
+
+	var rows []row
+	if err := query.Scan(&rows).Error; err != nil {
+		return fmt.Errorf("load jav play counts: %w", err)
+	}
+	byID := make(map[int64]int64, len(rows))
+	for _, item := range rows {
+		byID[item.JavID] = item.PlayCount
+	}
+	for i := range items {
+		if count := byID[items[i].ID]; count > 0 {
+			items[i].Videos = []models.Video{{PlayCount: count}}
+		}
+	}
+	return nil
+}
+
+func hydrateMergedJavPage(ctx context.Context, page []models.Jav, directoryIDs []int64, closedSubdirs []ClosedSubdirectory, subpaths []DirectorySubpath) error {
+	ids := make([]int64, 0, len(page))
+	for _, item := range page {
+		if item.ID > 0 {
+			ids = append(ids, item.ID)
+		}
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+
+	var hydrated []models.Jav
+	if err := common.DB.WithContext(ctx).
+		Preload("Studio").
+		Preload("Idols").
+		Preload("Series").
+		Where("id IN ?", ids).
+		Find(&hydrated).Error; err != nil {
+		return fmt.Errorf("hydrate merged jav page: %w", err)
+	}
+	if err := attachJavLocationVideos(ctx, hydrated, directoryIDs, closedSubdirs, subpaths); err != nil {
+		return err
+	}
+	if err := attachVisibleJavTags(ctx, hydrated); err != nil {
+		return err
+	}
+	if err := attachJavFavoriteCounts(ctx, hydrated); err != nil {
+		return err
+	}
+	byID := make(map[int64]models.Jav, len(hydrated))
+	for _, item := range hydrated {
+		byID[item.ID] = item
+	}
+	for i, item := range page {
+		if item.ID <= 0 {
+			continue
+		}
+		if full, ok := byID[item.ID]; ok {
+			page[i] = full
+		}
+	}
+	return nil
 }
 
 func listUnimportedJavIdolWorks(ctx context.Context, idolID int64, search, prefix string) ([]models.JavIdolWork, error) {

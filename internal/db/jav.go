@@ -209,11 +209,7 @@ func SearchJavWithPrefixFilters(ctx context.Context, idolIDs []int64, tagIDs []i
 	if canIncludeExternalIdolWorks(idolIDs, tagIDs, filters) {
 		libraryFilters := filters
 		libraryFilters.IncludeExternal = false
-		library, _, err := SearchJavWithPrefixFilters(ctx, idolIDs, tagIDs, search, prefix, sort, javExternalMergeLibraryLimit, 0, seed, directoryIDs, libraryFilters, closedSubdirs, subpaths)
-		if err != nil {
-			return nil, 0, err
-		}
-		return searchJavIncludingExternal(ctx, idolIDs[0], search, prefix, sort, limit, offset, seed, library)
+		return searchJavIncludingExternal(ctx, idolIDs, tagIDs, search, prefix, sort, limit, offset, seed, directoryIDs, libraryFilters, closedSubdirs, subpaths)
 	}
 
 	filtered := buildJavFilter(ctx, idolIDs, tagIDs, search, prefix, directoryIDs, filters, closedSubdirs, subpaths)

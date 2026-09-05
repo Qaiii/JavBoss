@@ -6,6 +6,7 @@ export {
   JAV_COVER_ORIENTATION_PORTRAIT,
   javCoverAspectClass,
   javCoverGridMinmax,
+  javCardCoverSrc,
   javCoverSrc,
   normalizeJavCoverOrientation,
 } from '@/utils/javCover'

@@ -46,7 +46,7 @@ import {
   javCardExternalSourceKeys,
   javCoverAspectClass,
   javCoverGridMinmax,
-  javCoverSrc,
+  javCardCoverSrc,
   normalizeJavCoverOrientation,
 } from '@/utils/jav'
 import { findJavEditOptionByName } from '@/utils/javEdit'
@@ -2246,13 +2246,13 @@ function JavCard({
   const [customTagEditorOpen, setCustomTagEditorOpen] = useState(false)
   const [detailOpen, setDetailOpen] = useState(false)
   const [disliking, setDisliking] = useState(false)
-  const isPortraitCover = normalizeJavCoverOrientation(coverOrientation) === 'portrait'
-  const cover =
-    inLibrary && code
-      ? javCoverSrc(code, { orientation: coverOrientation, version: coverVersion })
-      : isPortraitCover
-        ? null
-        : String(item?.cover_url || '').trim() || null
+  const cover = javCardCoverSrc({
+    code,
+    inLibrary,
+    coverUrl: item?.cover_url,
+    orientation: coverOrientation,
+    version: coverVersion,
+  })
   const sourceURL = String(item?.source_url || '').trim()
   const canDislike = Number(activeIdolId) > 0 && typeof onDislikeWork === 'function'
 

@@ -1,6 +1,7 @@
 package manager
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"image"
@@ -182,6 +183,116 @@ func TestParseCoverKind(t *testing.T) {
 	}
 }
 
+func TestDownloadCoverPrefersProviderPosterOverCrop(t *testing.T) {
+	landscape := encodeTestJPEG(t, 800, 538)
+	poster := encodeSmallPosterJPEG(t)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "image/jpeg")
+		switch r.URL.Path {
+		case "/cover.jpg":
+			_, _ = w.Write(landscape)
+		case "/poster.jpg":
+			_, _ = w.Write(poster)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	originalLookup := lookupJavByCode
+	lookupJavByCode = func(string, jav.Provider) (*jav.JavInfo, error) {
+		return &jav.JavInfo{
+			CoverURL:  server.URL + "/cover.jpg",
+			PosterURL: server.URL + "/poster.jpg",
+		}, nil
+	}
+	t.Cleanup(func() { lookupJavByCode = originalLookup })
+
+	manager := &CoverManager{
+		coverDir:  t.TempDir(),
+		providers: []jav.Provider{jav.ProviderAvmoo},
+	}
+	if err := manager.handleTask(context.Background(), "ABC-001"); err != nil {
+		t.Fatalf("handleTask: %v", err)
+	}
+
+	path, ok := FindCoverPathKind(manager.coverDir, "ABC-001", CoverKindPortrait)
+	if !ok {
+		t.Fatal("expected downloaded poster")
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		t.Fatalf("open poster: %v", err)
+	}
+	defer file.Close()
+	img, _, err := image.Decode(file)
+	if err != nil {
+		t.Fatalf("decode poster: %v", err)
+	}
+	if img.Bounds().Dx() != 120 || img.Bounds().Dy() != 180 {
+		t.Fatalf("poster size = %dx%d, want official 120x180 (not a landscape crop)", img.Bounds().Dx(), img.Bounds().Dy())
+	}
+}
+
+func TestDownloadPosterAcceptsFileBelowLandscapeMinimum(t *testing.T) {
+	poster := encodeSmallPosterJPEG(t)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "image/jpeg")
+		_, _ = w.Write(poster)
+	}))
+	defer server.Close()
+
+	manager := &CoverManager{coverDir: t.TempDir()}
+	if err := manager.downloadCoverKind(context.Background(), "ABC-001", server.URL+"/poster.jpg", CoverKindPortrait); err != nil {
+		t.Fatalf("downloadCoverKind poster: %v", err)
+	}
+	if _, ok := FindCoverPathKind(manager.coverDir, "ABC-001", CoverKindPortrait); !ok {
+		t.Fatal("small poster should be kept")
+	}
+}
+
+func TestHandleTaskCropsPosterWhenPosterURLMissing(t *testing.T) {
+	landscape := encodeTestJPEG(t, 800, 538)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "image/jpeg")
+		_, _ = w.Write(landscape)
+	}))
+	defer server.Close()
+
+	originalLookup := lookupJavByCode
+	lookupJavByCode = func(string, jav.Provider) (*jav.JavInfo, error) {
+		return &jav.JavInfo{CoverURL: server.URL + "/cover.jpg"}, nil
+	}
+	t.Cleanup(func() { lookupJavByCode = originalLookup })
+
+	manager := &CoverManager{
+		coverDir:  t.TempDir(),
+		providers: []jav.Provider{jav.ProviderAvmoo},
+	}
+	if err := manager.handleTask(context.Background(), "ABC-001"); err != nil {
+		t.Fatalf("handleTask: %v", err)
+	}
+	path, ok := FindCoverPathKind(manager.coverDir, "ABC-001", CoverKindPortrait)
+	if !ok {
+		t.Fatal("expected cropped poster fallback")
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		t.Fatalf("open poster: %v", err)
+	}
+	defer file.Close()
+	img, _, err := image.Decode(file)
+	if err != nil {
+		t.Fatalf("decode poster: %v", err)
+	}
+	wantWidth := 538 * 2 / 3
+	if img.Bounds().Dx() != wantWidth || img.Bounds().Dy() != 538 {
+		t.Fatalf("cropped poster size = %dx%d, want %dx538", img.Bounds().Dx(), img.Bounds().Dy(), wantWidth)
+	}
+}
+
 func TestEnsurePosterCoverCropsLandscape(t *testing.T) {
 	dir := t.TempDir()
 	src := filepath.Join(dir, "abc-001.jpg")
@@ -219,18 +330,39 @@ func TestEnsurePosterCoverSkipsPortraitSource(t *testing.T) {
 
 func writeTestJPEG(t *testing.T, path string, width, height int) {
 	t.Helper()
+	if err := os.WriteFile(path, encodeTestJPEG(t, width, height), 0o644); err != nil {
+		t.Fatalf("write jpeg: %v", err)
+	}
+}
+
+func encodeSmallPosterJPEG(t *testing.T) []byte {
+	t.Helper()
+	data := encodeTestJPEG(t, 120, 180)
+	if int64(len(data)) < minValidPosterSizeBytes {
+		t.Fatalf("test poster size %d is below portrait minimum %d", len(data), minValidPosterSizeBytes)
+	}
+	if int64(len(data)) >= minValidCoverSizeBytes {
+		t.Fatalf("test poster size %d should stay below landscape minimum %d", len(data), minValidCoverSizeBytes)
+	}
+	return data
+}
+
+func encodeTestJPEG(t *testing.T, width, height int) []byte {
+	t.Helper()
 	img := image.NewRGBA(image.Rect(0, 0, width, height))
 	for y := 0; y < height; y++ {
 		for x := 0; x < width; x++ {
 			img.SetRGBA(x, y, color.RGBA{R: uint8(x), G: uint8(y), B: uint8(x + y), A: 255})
 		}
 	}
-	file, err := os.Create(path)
-	if err != nil {
-		t.Fatalf("create jpeg: %v", err)
-	}
-	defer file.Close()
-	if err := jpeg.Encode(file, img, &jpeg.Options{Quality: 90}); err != nil {
+	return encodeJPEG(t, img)
+}
+
+func encodeJPEG(t *testing.T, img image.Image) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: 90}); err != nil {
 		t.Fatalf("encode jpeg: %v", err)
 	}
+	return buf.Bytes()
 }
