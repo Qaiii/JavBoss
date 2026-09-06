@@ -2,58 +2,30 @@ import VideoView from '@/components/VideoView'
 
 export default function VideoRoute({
   alternatePlayerLabel,
-  buildVideoUrl,
-  canNext,
-  canPrev,
-  goToLastPage,
-  lastPage,
-  totalItems,
   loading,
   onDeleteVideo,
   onOpenScreenshots,
   onOpenScrapeSettings,
   onRenameVideo,
   onTagClick,
-  onToggleSelectPage,
   openAlternatePlayer,
   openPlayer,
-  page,
-  randomMode,
   revealFile,
   viewLocation,
   selectedVideoIds,
-  setPage,
   setTagPickerFor,
-  setVideoTempSort,
   toggleSelectVideo,
-  videoGlobalSort,
-  videoTempSort,
   videos,
-  waterfallMode,
-  onWaterfallModeChange,
   onLoadMore,
   loadingMore,
   hasMore,
 }) {
   return (
     <VideoView
-      page={page}
-      lastPage={lastPage}
-      totalItems={totalItems}
-      canPrev={canPrev}
-      canNext={canNext}
       loading={loading}
-      randomMode={randomMode}
-      videoTempSort={videoTempSort}
-      videoGlobalSort={videoGlobalSort}
-      buildVideoUrl={buildVideoUrl}
-      setPage={setPage}
-      setVideoTempSort={setVideoTempSort}
-      goToLastPage={goToLastPage}
       videos={videos}
       selectedVideoIds={selectedVideoIds}
       toggleSelectVideo={toggleSelectVideo}
-      onToggleSelectPage={onToggleSelectPage}
       openPlayer={openPlayer}
       openAlternatePlayer={openAlternatePlayer}
       revealFile={revealFile}
@@ -65,8 +37,6 @@ export default function VideoRoute({
       onRenameVideo={onRenameVideo}
       onDeleteVideo={onDeleteVideo}
       onTagClick={onTagClick}
-      waterfallMode={waterfallMode}
-      onWaterfallModeChange={onWaterfallModeChange}
       onLoadMore={onLoadMore}
       loadingMore={loadingMore}
       hasMore={hasMore}

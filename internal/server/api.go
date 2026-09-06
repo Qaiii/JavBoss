@@ -15,6 +15,7 @@ func RegisterRoutes(router gin.IRoutes) {
 	router.POST("/tools/ffmpeg/download", downloadFFmpeg)
 	router.GET("/tools/jav-scrape-check", getJavScrapeCheck)
 	router.POST("/tools/jav-scrape-check", runJavScrapeCheck)
+	router.GET("/tools/jav-scrape-status", getJavScrapeStatus)
 	router.GET("/tools/scraped-data-cleanup", getScrapedDataCleanup)
 	router.POST("/tools/scraped-data-cleanup", runScrapedDataCleanup)
 	router.GET("/videos", listVideos)

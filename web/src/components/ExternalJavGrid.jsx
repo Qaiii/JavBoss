@@ -1,3 +1,6 @@
+import JavDisplayCover from '@/components/JavDisplayCover'
+import { useStore } from '@/store'
+import { cardCoverOrientation, cardGridMinmax } from '@/utils/cardLayout'
 import { zh } from '@/utils/i18n'
 
 // ExternalJavGrid renders an idol's persisted JavDB works (scraped in the
@@ -18,6 +21,8 @@ export default function ExternalJavGrid({
   sourceURL = '',
   onPageChange,
 }) {
+  const cardMinmax = useStore((state) => cardGridMinmax('jav', state.config))
+  const coverOrientation = useStore((state) => cardCoverOrientation('jav', state.config))
   const hasItems = Array.isArray(items) && items.length > 0
 
   const renderBadge = (inLibrary) =>
@@ -112,7 +117,7 @@ export default function ExternalJavGrid({
       </div>
       <div
         className="grid gap-4"
-        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(21rem, 1fr))' }}
+        style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${cardMinmax}, 1fr))` }}
       >
         {items.map((item, index) => {
           const inLibrary = Boolean(item?.in_library)
@@ -127,28 +132,27 @@ export default function ExternalJavGrid({
                 inLibrary ? 'border-gray-200' : 'border-amber-300 bg-amber-50/40'
               }`}
             >
-              <a
-                href={href || undefined}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="group relative block aspect-[800/538] overflow-hidden bg-white"
-                aria-label={zh(`在 JavDB 中查看 ${code}`, `View ${code} on JavDB`)}
-              >
-                {cover ? (
-                  <img
-                    src={cover}
-                    alt={code || zh('JavDB 封面', 'JavDB cover')}
-                    loading="lazy"
-                    referrerPolicy="no-referrer"
-                    className="h-full w-full object-contain"
-                  />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 text-lg font-semibold text-gray-600">
+              <JavDisplayCover
+                src={cover || null}
+                alt={code || zh('JavDB 封面', 'JavDB cover')}
+                orientation={coverOrientation}
+                referrerPolicy="no-referrer"
+                className="group relative block overflow-hidden bg-white"
+                fallback={
+                  <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 text-lg font-semibold text-gray-600">
                     {code || zh('未知番号', 'Unknown code')}
                   </div>
-                )}
+                }
+              >
+                <a
+                  href={href || undefined}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="absolute inset-0"
+                  aria-label={zh(`在 JavDB 中查看 ${code}`, `View ${code} on JavDB`)}
+                />
                 <div className="absolute right-2 top-2 z-10">{renderBadge(inLibrary)}</div>
-              </a>
+              </JavDisplayCover>
               <div className="flex flex-1 flex-col gap-1 p-3">
                 <div className="text-sm leading-tight">
                   {code ? <span className="font-semibold text-gray-800">{code}</span> : null}

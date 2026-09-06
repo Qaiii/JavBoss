@@ -107,8 +107,8 @@ func TestParseJavDatabaseMovieInfo(t *testing.T) {
 }
 
 func TestJavDatabaseRateLimiterInterval(t *testing.T) {
-	if javDatabaseRequestInterval != 1500*time.Millisecond {
-		t.Fatalf("javdatabase interval = %s, want 1.5s", javDatabaseRequestInterval)
+	if javDatabaseRequestInterval < 4*time.Second {
+		t.Fatalf("javdatabase interval = %s, want at least 4s", javDatabaseRequestInterval)
 	}
 }
 
@@ -117,14 +117,14 @@ func TestJavDatabaseRateLimiterSpacesRequests(t *testing.T) {
 	t.Cleanup(resetJavDatabaseRateLimiterForTest)
 
 	start := time.Now()
-	for i := 0; i < 3; i++ {
+	for i := 0; i < 2; i++ {
 		if err := waitForJavDatabaseRateLimit(context.Background()); err != nil {
 			t.Fatalf("waitForJavDatabaseRateLimit() request %d: %v", i+1, err)
 		}
 	}
 
-	if elapsed := time.Since(start); elapsed < (2*javDatabaseRequestInterval - 50*time.Millisecond) {
-		t.Fatalf("rate limiter allowed 3 requests in %s", elapsed)
+	if elapsed := time.Since(start); elapsed < (javDatabaseRequestInterval - 50*time.Millisecond) {
+		t.Fatalf("rate limiter allowed 2 requests in %s", elapsed)
 	}
 }
 
@@ -390,12 +390,21 @@ func TestHasJavDatabaseNextIdolPage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse html: %v", err)
 	}
-	if !hasJavDatabaseNextIdolPage(doc) {
+	if !hasJavDatabaseNextIdolPage(doc, 1) {
 		t.Fatal("hasJavDatabaseNextIdolPage() = false, want true")
 	}
+	if hasJavDatabaseNextIdolPage(doc, 2) {
+		t.Fatal("hasJavDatabaseNextIdolPage() on page 2 with only ipage=2 = true, want false")
+	}
 
-	last, _ := html.Parse(strings.NewReader(`<html><body><div class="row"></div></body></html>`))
-	if hasJavDatabaseNextIdolPage(last) {
+	last, _ := html.Parse(strings.NewReader(`
+<html><body>
+  <nav aria-label="Page navigation"><ul class="pagination justify-content-center">
+    <li class="page-item"><a class="page-link" href="https://www.javdatabase.com/idols/kanna-sasaki/?ipage=1">1</a></li>
+    <li class="page-item active"><span class="page-link">2</span></li>
+  </ul></nav>
+</body></html>`))
+	if hasJavDatabaseNextIdolPage(last, 2) {
 		t.Fatal("hasJavDatabaseNextIdolPage() = true for last page, want false")
 	}
 }

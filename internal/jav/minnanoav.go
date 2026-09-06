@@ -27,7 +27,7 @@ var minnanoAVProvider lookupProvider = minnanoAV{}
 
 const (
 	minnanoAVBaseURL         = "https://www.minnano-av.com"
-	minnanoAVRequestInterval = 500 * time.Millisecond
+	minnanoAVRequestInterval = 3 * time.Second
 )
 
 var (

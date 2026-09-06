@@ -917,6 +917,9 @@ func manualVideoJavScrape(c *gin.Context) {
 		return
 	}
 	service.EnqueueIdolWorksForActors(c.Request.Context(), info.Actors)
+	if len(info.MaleActors) == 0 {
+		service.EnqueueMaleActorLookup(c.Request.Context(), javRec.ID, info.Code)
+	}
 
 	video, err := dbpkg.GetVideoForLocation(c.Request.Context(), id, loc.ID)
 	if err != nil {

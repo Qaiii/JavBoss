@@ -10,6 +10,7 @@ import WebHotkeySettings from '@/components/WebHotkeySettings'
 import {
   downloadFFmpeg,
   fetchJavScrapeCheck,
+  fetchJavScrapeStatus,
   fetchScrapedDataCleanup,
   fetchTools,
   runJavScrapeCheck,
@@ -19,6 +20,13 @@ import { parsePlayerHotkeys } from '@/utils/playerHotkeys'
 import { zh } from '@/utils/i18n'
 import { getErrorMessage } from '@/utils/errors'
 import { javScrapeCheckFieldCounts, javScrapeCheckHasPending } from '@/utils/javScrapeCheck'
+import {
+  formatScrapeIntervalMs,
+  javScrapeDataLabels,
+  javScrapePendingTotal,
+  javScrapeQueues,
+  javScrapeSourceName,
+} from '@/utils/javScrapeStatus'
 import { scrapedDataCleanupCounts, scrapedDataCleanupTotal } from '@/utils/scrapedDataCleanup'
 
 const SETTINGS_SECTIONS = [
@@ -41,6 +49,11 @@ const SETTINGS_SECTIONS = [
     id: 'network',
     title: { zh: '网络与代理', en: 'Network & Proxy' },
     summary: { zh: '网络连接与代理设置', en: 'Network connection and proxy settings' },
+  },
+  {
+    id: 'scrape',
+    title: { zh: '信息抓取', en: 'Scraping' },
+    summary: { zh: '抓取来源、间隔与待处理队列', en: 'Sources, intervals, and pending queues' },
   },
   {
     id: 'tools',
@@ -175,6 +188,8 @@ export default function GlobalSettingsModal({
   const [scrapedDataCleanupLoading, setScrapedDataCleanupLoading] = useState(false)
   const [scrapedDataCleanupError, setScrapedDataCleanupError] = useState('')
   const [scrapedDataJustCleaned, setScrapedDataJustCleaned] = useState(false)
+  const [javScrapeStatus, setJavScrapeStatus] = useState(null)
+  const [javScrapeStatusError, setJavScrapeStatusError] = useState('')
 
   const normalizedPlayerHotkeys = parsePlayerHotkeys(playerHotkeys)
   const ffmpegInstalledLabel =
@@ -355,6 +370,29 @@ export default function GlobalSettingsModal({
       window.clearInterval(timer)
     }
   }, [open, activeSection, javScrapeCheck])
+
+  useEffect(() => {
+    if (!open) return undefined
+    let cancelled = false
+    const loadStatus = () => {
+      fetchJavScrapeStatus()
+        .then((status) => {
+          if (!cancelled) {
+            setJavScrapeStatus(status)
+            setJavScrapeStatusError('')
+          }
+        })
+        .catch((err) => {
+          if (!cancelled) setJavScrapeStatusError(getErrorMessage(err))
+        })
+    }
+    loadStatus()
+    const timer = window.setInterval(loadStatus, 3000)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [open])
 
   // Close the whole settings modal with Esc, unless a nested dialog is open.
   useEffect(() => {
@@ -1218,6 +1256,133 @@ export default function GlobalSettingsModal({
     </div>
   )
 
+  const renderScrapePanel = () => {
+    const queues = javScrapeQueues(javScrapeStatus)
+    const sources = Array.isArray(javScrapeStatus?.sources) ? javScrapeStatus.sources : []
+    const pendingTotal = javScrapePendingTotal(javScrapeStatus)
+    const formatInterval = (ms) => {
+      const { value, unit } = formatScrapeIntervalMs(ms)
+      if (unit === 'minute') return zh(`${value} 分钟`, `${value} min`)
+      if (unit === 'second') return zh(`${value} 秒`, `${value}s`)
+      return zh(`${value} 毫秒`, `${value}ms`)
+    }
+
+    return (
+      <div className="space-y-5">
+        <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h4 className="text-sm font-semibold text-zinc-900">
+                {zh('待抓取队列', 'Pending queues')}
+              </h4>
+              <p className="mt-2 max-w-2xl text-sm text-zinc-500">
+                {zh(
+                  '后台正在排队处理的封面、元数据和女优作品数量。请求会按站点间隔慢慢发出，避免触发反爬。',
+                  'Cover, metadata, and idol-work jobs waiting in the background. Requests are spaced per site to avoid anti-bot blocks.'
+                )}
+              </p>
+            </div>
+            <span
+              className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                pendingTotal > 0 ? 'bg-blue-50 text-blue-700' : 'bg-zinc-100 text-zinc-600'
+              }`}
+            >
+              {zh(`合计 ${pendingTotal}`, `Total ${pendingTotal}`)}
+            </span>
+          </div>
+          {queues.length > 0 ? (
+            <ul className="mt-4 grid gap-2 sm:grid-cols-2">
+              {queues.map((queue) => (
+                <li
+                  key={queue.id}
+                  className="flex items-center justify-between rounded-xl border border-zinc-100 bg-zinc-50 px-3 py-2 text-sm text-zinc-700"
+                >
+                  <span>{zh(queue.name[0], queue.name[1])}</span>
+                  <span
+                    className={`font-medium ${queue.pending > 0 ? 'text-blue-700' : 'text-zinc-900'}`}
+                  >
+                    {queue.pending}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-4 text-sm text-zinc-500">{zh('正在读取队列…', 'Loading queues...')}</p>
+          )}
+        </section>
+
+        <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+          <h4 className="text-sm font-semibold text-zinc-900">
+            {zh('抓取手段', 'Scrape sources')}
+          </h4>
+          <p className="mt-2 max-w-2xl text-sm text-zinc-500">
+            {zh(
+              '每个站点请求的 URL 和取出的字段。同一站点连续请求之间会等待下面的间隔。',
+              'URLs each site is called with, and the fields taken from the response. Consecutive requests to the same site wait for the interval below.'
+            )}
+          </p>
+          {sources.length > 0 ? (
+            <ul className="mt-4 space-y-3">
+              {sources.map((source) => {
+                const name = javScrapeSourceName(source)
+                const data = javScrapeDataLabels(source.data)
+                const urls = Array.isArray(source.urls) ? source.urls : []
+                return (
+                  <li
+                    key={source.id}
+                    className="rounded-xl border border-zinc-100 bg-zinc-50 px-4 py-3"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="text-sm font-semibold text-zinc-900">
+                        {zh(name[0], name[1])}
+                      </div>
+                      <span className="rounded-full bg-white px-2 py-0.5 text-xs font-medium text-zinc-600">
+                        {zh(
+                          `间隔 ${formatInterval(source.interval_ms)}`,
+                          `Every ${formatInterval(source.interval_ms)}`
+                        )}
+                      </span>
+                    </div>
+                    <ul className="mt-2 space-y-1">
+                      {urls.map((url) => (
+                        <li
+                          key={url}
+                          className="break-all font-mono text-[11px] leading-5 text-zinc-500"
+                        >
+                          {url}
+                        </li>
+                      ))}
+                    </ul>
+                    {data.length > 0 ? (
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {data.map((field) => (
+                          <span
+                            key={field.key}
+                            className="rounded-full bg-white px-2 py-0.5 text-[11px] text-zinc-600"
+                          >
+                            {zh(field.label[0], field.label[1])}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+                  </li>
+                )
+              })}
+            </ul>
+          ) : (
+            <p className="mt-4 text-sm text-zinc-500">
+              {zh('正在读取抓取来源…', 'Loading scrape sources...')}
+            </p>
+          )}
+        </section>
+
+        {javScrapeStatusError ? (
+          <div className="text-sm text-red-600">{javScrapeStatusError}</div>
+        ) : null}
+      </div>
+    )
+  }
+
   const renderToolsPanel = () => {
     const installed = Boolean(ffmpegStatus?.installed)
     const upgradeAvailable = Boolean(ffmpegStatus?.upgrade_available)
@@ -1737,7 +1902,12 @@ export default function GlobalSettingsModal({
             <div className="flex gap-2 overflow-x-auto md:flex-col">
               {visibleSections.map((section) => {
                 const selected = currentSection === section.id
-                const badgeText = section.id === 'directories' ? String(directories.length) : ''
+                const badgeText =
+                  section.id === 'directories'
+                    ? String(directories.length)
+                    : section.id === 'scrape' && javScrapePendingTotal(javScrapeStatus) > 0
+                      ? String(javScrapePendingTotal(javScrapeStatus))
+                      : ''
 
                 return (
                   <button
@@ -1776,6 +1946,7 @@ export default function GlobalSettingsModal({
             {currentSection === 'display' && renderDisplayPanel()}
             {currentSection === 'shortcuts' && renderShortcutsPanel()}
             {currentSection === 'network' && renderNetworkPanel()}
+            {currentSection === 'scrape' && renderScrapePanel()}
             {currentSection === 'tools' && renderToolsPanel()}
             {currentSection === 'player' && renderPlayerPanel()}
             {currentSection === 'directories' && renderDirectoriesPanel()}

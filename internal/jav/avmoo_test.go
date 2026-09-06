@@ -297,14 +297,14 @@ func TestAvmooRateLimiterSpacesRequests(t *testing.T) {
 	t.Cleanup(resetAvmooRateLimiterForTest)
 
 	start := time.Now()
-	for i := 0; i < 3; i++ {
+	for i := 0; i < 2; i++ {
 		if err := waitForAvmooRateLimit(context.Background()); err != nil {
 			t.Fatalf("waitForAvmooRateLimit() request %d: %v", i+1, err)
 		}
 	}
 
-	if elapsed := time.Since(start); elapsed < (2*avmooRequestInterval - 50*time.Millisecond) {
-		t.Fatalf("rate limiter allowed 3 requests in %s", elapsed)
+	if elapsed := time.Since(start); elapsed < (avmooRequestInterval - 50*time.Millisecond) {
+		t.Fatalf("rate limiter allowed 2 requests in %s", elapsed)
 	}
 }
 

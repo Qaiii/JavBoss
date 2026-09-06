@@ -22,6 +22,7 @@ type ScrapedDataCleanupReport struct {
 	Javs         int        `json:"javs"`
 	ScrapedTags  int        `json:"scraped_tags"`
 	Idols        int        `json:"idols"`
+	Actors       int        `json:"actors"`
 	Studios      int        `json:"studios"`
 	Series       int        `json:"series"`
 	Covers       int        `json:"covers"`
@@ -31,7 +32,7 @@ type ScrapedDataCleanupReport struct {
 }
 
 func (report ScrapedDataCleanupReport) withTotal() ScrapedDataCleanupReport {
-	report.Total = report.Javs + report.ScrapedTags + report.Idols + report.Studios + report.Series + report.Covers + report.ExpiredCache
+	report.Total = report.Javs + report.ScrapedTags + report.Idols + report.Actors + report.Studios + report.Series + report.Covers + report.ExpiredCache
 	return report
 }
 
@@ -83,6 +84,7 @@ func previewScrapedDataCleanup(ctx context.Context) (ScrapedDataCleanupReport, e
 		Javs:         counts.Javs,
 		ScrapedTags:  counts.ScrapedTags,
 		Idols:        counts.Idols,
+		Actors:       counts.Actors,
 		Studios:      counts.Studios,
 		Series:       counts.Series,
 		Covers:       covers,
@@ -115,6 +117,7 @@ func runScrapedDataCleanup(ctx context.Context) (ScrapedDataCleanupReport, error
 		Javs:         counts.Javs,
 		ScrapedTags:  counts.ScrapedTags,
 		Idols:        counts.Idols,
+		Actors:       counts.Actors,
 		Studios:      counts.Studios,
 		Series:       counts.Series,
 		Covers:       covers,
@@ -154,10 +157,11 @@ func CleanScrapedData(ctx context.Context) (ScrapedDataCleanupReport, error) {
 		return ScrapedDataCleanupReport{}, err
 	}
 	logging.Info(
-		"scraped data cleanup javs=%d tags=%d idols=%d studios=%d series=%d covers=%d cache=%d",
+		"scraped data cleanup javs=%d tags=%d idols=%d actors=%d studios=%d series=%d covers=%d cache=%d",
 		report.Javs,
 		report.ScrapedTags,
 		report.Idols,
+		report.Actors,
 		report.Studios,
 		report.Series,
 		report.Covers,

@@ -124,7 +124,7 @@ func TestDeleteUnusedScrapedDataRemovesUnreferencedMetadataOnly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("preview: %v", err)
 	}
-	if preview != (UnusedScrapedDataCounts{Javs: 1, ScrapedTags: 1, Idols: 1, Studios: 1, Series: 1}) {
+	if preview != (UnusedScrapedDataCounts{Javs: 1, ScrapedTags: 1, Idols: 1, Actors: 0, Studios: 1, Series: 1}) {
 		t.Fatalf("preview = %#v", preview)
 	}
 

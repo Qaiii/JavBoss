@@ -70,7 +70,7 @@ export default function JavIdolHero({ idolId }) {
   )
   const { primaryName, secondaryName } = getIdolDisplayNames(idol, preferChineseName)
   const metaItems = useMemo(() => buildIdolMetaItems(idol), [idol])
-  const blurPx = 4 + scrollProgress * 22
+  const blurPx = 18 + scrollProgress * 22
   const infoOpacity = Math.max(0, 1 - scrollProgress * 1.35)
   const coverSrc = javCoverSrc(idol?.cover_code)
   const cropLeft = normalizeIdolCoverCropLeft(idol?.cover_crop_left ?? IDOL_COVER_DEFAULT_CROP_LEFT)
@@ -80,11 +80,15 @@ export default function JavIdolHero({ idolId }) {
 
   return (
     <>
-      <section className="idol-hero" aria-label={primaryName || zh('女优', 'Idol')}>
-        <div
-          className="idol-hero__poster"
-          style={{ filter: `blur(${blurPx}px)`, transform: `scale(${1 + scrollProgress * 0.04})` }}
-        >
+      <section
+        className="idol-hero"
+        aria-label={primaryName || zh('女优', 'Idol')}
+        style={{
+          '--idol-hero-blur': `${blurPx}px`,
+          '--idol-hero-scroll': String(scrollProgress),
+        }}
+      >
+        <div className="idol-hero__poster">
           {posterImages.length > 0 ? (
             <div
               className={`idol-hero__collage idol-hero__collage--${Math.min(posterImages.length, 6)}`}
@@ -114,7 +118,7 @@ export default function JavIdolHero({ idolId }) {
             </div>
           )}
         </div>
-        <div className="idol-hero__shade" />
+        <div className="idol-hero__blur" />
         <div className="idol-hero__info" style={{ opacity: infoOpacity }}>
           <div className="idol-hero__info-fade" />
           <div className="idol-hero__info-body">

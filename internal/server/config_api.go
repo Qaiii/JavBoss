@@ -22,8 +22,8 @@ import (
 const maxPageSize = 500
 const maxJavDisplayRows = 12
 const maxJavSortRules = 50
-const minIdolCardMinWidth = 8
-const maxIdolCardMinWidth = 24
+const minCardMinWidth = 8
+const maxCardMinWidth = 24
 
 var validWebHotkeyActions = map[string]struct{}{
 	"content_page_up":        {},
@@ -60,6 +60,7 @@ var validJavSortValues = map[string]struct{}{
 	"recent": {}, "recent_asc": {}, "code": {}, "code_desc": {},
 	"duration": {}, "duration_asc": {}, "release": {}, "release_asc": {},
 	"play_count": {}, "play_count_asc": {}, "favorite_rating": {}, "favorite_rating_asc": {},
+	"random": {},
 }
 
 func getConfig(c *gin.Context) {
@@ -85,53 +86,62 @@ func updateConfig(c *gin.Context) {
 	}
 
 	var req struct {
-		VideoPageSize          *int                  `json:"video_page_size"`
-		VideoWaterfallDefault  *bool                 `json:"video_waterfall_default"`
-		JavPageSize            *int                  `json:"jav_page_size"`
-		JavGridColumns         *int                  `json:"jav_grid_columns"`
-		JavTitleMaxRows        *int                  `json:"jav_title_max_rows"`
-		JavIdolTagMaxRows      *int                  `json:"jav_idol_tag_max_rows"`
-		JavTagMaxRows          *int                  `json:"jav_tag_max_rows"`
-		JavHideSeries          *bool                 `json:"jav_hide_series"`
-		JavHideIdols           *bool                 `json:"jav_hide_idols"`
-		JavHideTags            *bool                 `json:"jav_hide_tags"`
-		JavHideActions         *bool                 `json:"jav_hide_actions"`
-		JavCoverOrientation    *string               `json:"jav_cover_orientation"`
-		JavFavoriteRatingFull  *bool                 `json:"jav_favorite_rating_show_full"`
-		JavWaterfallDefault    *bool                 `json:"jav_waterfall_default"`
-		IdolPageSize           *int                  `json:"idol_page_size"`
-		IdolCardMinWidth       *int                  `json:"idol_card_min_width"`
-		IdolWaterfallDefault   *bool                 `json:"idol_waterfall_default"`
-		StudioPageSize         *int                  `json:"studio_page_size"`
-		StudioWaterfallDefault *bool                 `json:"studio_waterfall_default"`
-		SeriesPageSize         *int                  `json:"series_page_size"`
-		SeriesWaterfallDefault *bool                 `json:"series_waterfall_default"`
-		JavIdolRefreshDays     *int                  `json:"jav_idol_refresh_days"`
-		JavIdolRetryMinutes    *int                  `json:"jav_idol_retry_minutes"`
-		VideoHideJav           *bool                 `json:"video_hide_jav"`
-		VideoSort              string                `json:"video_sort"`
-		JavSort                string                `json:"jav_sort"`
-		JavSortRules           *javSortRulesConfig   `json:"jav_sort_rules"`
-		IdolSort               string                `json:"idol_sort"`
-		JavIdolPreferChinese   *bool                 `json:"jav_idol_prefer_chinese_name"`
-		JavTitleLanguage       *string               `json:"jav_title_language"`
-		JavTagShowSimplified   *bool                 `json:"jav_tag_show_simplified"`
-		DefaultPlayer          string                `json:"default_player"`
-		InitialViewMode        string                `json:"initial_view_mode"`
-		AllowLANAccess         *bool                 `json:"allow_lan_access"`
-		ProxyHost              *string               `json:"proxy_host"`
-		ProxyPort              *int                  `json:"proxy_port"`
-		PlayerWindowSize       *int                  `json:"player_window_size"`
-		PlayerWindowWidth      *int                  `json:"player_window_width"`
-		PlayerWindowHeight     *int                  `json:"player_window_height"`
-		PlayerVolume           *int                  `json:"player_volume"`
-		PlayerOntop            *bool                 `json:"player_ontop"`
-		PlayerReuseWindow      *bool                 `json:"player_reuse_window"`
-		PlayerResumePlayback   *bool                 `json:"player_resume_playback"`
-		PlayerShowHotkeyHint   *bool                 `json:"player_show_hotkey_hint"`
-		BrowserShowHotkeyHint  *bool                 `json:"browser_player_show_hotkey_hint"`
-		PlayerHotkeys          []playerHotkeyPayload `json:"player_hotkeys"`
-		WebHotkeys             []webHotkeyPayload    `json:"web_hotkeys"`
+		VideoPageSize            *int                  `json:"video_page_size"`
+		VideoWaterfallDefault    *bool                 `json:"video_waterfall_default"`
+		JavPageSize              *int                  `json:"jav_page_size"`
+		JavGridColumns           *int                  `json:"jav_grid_columns"`
+		JavTitleMaxRows          *int                  `json:"jav_title_max_rows"`
+		JavIdolTagMaxRows        *int                  `json:"jav_idol_tag_max_rows"`
+		JavTagMaxRows            *int                  `json:"jav_tag_max_rows"`
+		JavHideSeries            *bool                 `json:"jav_hide_series"`
+		JavHideIdols             *bool                 `json:"jav_hide_idols"`
+		JavHideTags              *bool                 `json:"jav_hide_tags"`
+		JavHideActions           *bool                 `json:"jav_hide_actions"`
+		JavCoverOrientation      *string               `json:"jav_cover_orientation"`
+		JavCardLandscapeWidth    *int                  `json:"jav_card_landscape_width"`
+		JavCardPortraitWidth     *int                  `json:"jav_card_portrait_width"`
+		JavFavoriteRatingFull    *bool                 `json:"jav_favorite_rating_show_full"`
+		JavWaterfallDefault      *bool                 `json:"jav_waterfall_default"`
+		IdolPageSize             *int                  `json:"idol_page_size"`
+		IdolCardMinWidth         *int                  `json:"idol_card_min_width"`
+		IdolWaterfallDefault     *bool                 `json:"idol_waterfall_default"`
+		StudioPageSize           *int                  `json:"studio_page_size"`
+		StudioCoverOrientation   *string               `json:"studio_cover_orientation"`
+		StudioCardLandscapeWidth *int                  `json:"studio_card_landscape_width"`
+		StudioCardPortraitWidth  *int                  `json:"studio_card_portrait_width"`
+		StudioWaterfallDefault   *bool                 `json:"studio_waterfall_default"`
+		SeriesPageSize           *int                  `json:"series_page_size"`
+		SeriesCoverOrientation   *string               `json:"series_cover_orientation"`
+		SeriesCardLandscapeWidth *int                  `json:"series_card_landscape_width"`
+		SeriesCardPortraitWidth  *int                  `json:"series_card_portrait_width"`
+		SeriesWaterfallDefault   *bool                 `json:"series_waterfall_default"`
+		VideoCardMinWidth        *int                  `json:"video_card_min_width"`
+		JavIdolRefreshDays       *int                  `json:"jav_idol_refresh_days"`
+		JavIdolRetryMinutes      *int                  `json:"jav_idol_retry_minutes"`
+		VideoHideJav             *bool                 `json:"video_hide_jav"`
+		VideoSort                string                `json:"video_sort"`
+		JavSort                  string                `json:"jav_sort"`
+		JavSortRules             *javSortRulesConfig   `json:"jav_sort_rules"`
+		IdolSort                 string                `json:"idol_sort"`
+		JavIdolPreferChinese     *bool                 `json:"jav_idol_prefer_chinese_name"`
+		JavTitleLanguage         *string               `json:"jav_title_language"`
+		JavTagShowSimplified     *bool                 `json:"jav_tag_show_simplified"`
+		DefaultPlayer            string                `json:"default_player"`
+		InitialViewMode          string                `json:"initial_view_mode"`
+		AllowLANAccess           *bool                 `json:"allow_lan_access"`
+		ProxyHost                *string               `json:"proxy_host"`
+		ProxyPort                *int                  `json:"proxy_port"`
+		PlayerWindowSize         *int                  `json:"player_window_size"`
+		PlayerWindowWidth        *int                  `json:"player_window_width"`
+		PlayerWindowHeight       *int                  `json:"player_window_height"`
+		PlayerVolume             *int                  `json:"player_volume"`
+		PlayerOntop              *bool                 `json:"player_ontop"`
+		PlayerReuseWindow        *bool                 `json:"player_reuse_window"`
+		PlayerResumePlayback     *bool                 `json:"player_resume_playback"`
+		PlayerShowHotkeyHint     *bool                 `json:"player_show_hotkey_hint"`
+		BrowserShowHotkeyHint    *bool                 `json:"browser_player_show_hotkey_hint"`
+		PlayerHotkeys            []playerHotkeyPayload `json:"player_hotkeys"`
+		WebHotkeys               []webHotkeyPayload    `json:"web_hotkeys"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		respondLocalizedError(c, http.StatusBadRequest, "配置请求无效", "Invalid configuration request")
@@ -231,11 +241,13 @@ func updateConfig(c *gin.Context) {
 		entries["jav_hide_actions"] = strconv.FormatBool(*req.JavHideActions)
 	}
 	if req.JavCoverOrientation != nil {
-		orientation := strings.ToLower(strings.TrimSpace(*req.JavCoverOrientation))
-		if orientation != "portrait" {
-			orientation = "landscape"
-		}
-		entries["jav_cover_orientation"] = orientation
+		entries["jav_cover_orientation"] = normalizeStoredCoverOrientation(*req.JavCoverOrientation)
+	}
+	if req.JavCardLandscapeWidth != nil {
+		entries["jav_card_landscape_width"] = strconv.Itoa(clampCardWidth(*req.JavCardLandscapeWidth))
+	}
+	if req.JavCardPortraitWidth != nil {
+		entries["jav_card_portrait_width"] = strconv.Itoa(clampCardWidth(*req.JavCardPortraitWidth))
 	}
 	if req.JavFavoriteRatingFull != nil {
 		entries["jav_favorite_rating_show_full"] = strconv.FormatBool(*req.JavFavoriteRatingFull)
@@ -249,14 +261,7 @@ func updateConfig(c *gin.Context) {
 		}
 	}
 	if req.IdolCardMinWidth != nil {
-		width := *req.IdolCardMinWidth
-		if width < minIdolCardMinWidth {
-			width = minIdolCardMinWidth
-		}
-		if width > maxIdolCardMinWidth {
-			width = maxIdolCardMinWidth
-		}
-		entries["idol_card_min_width"] = strconv.Itoa(width)
+		entries["idol_card_min_width"] = strconv.Itoa(clampCardWidth(*req.IdolCardMinWidth))
 	}
 	if req.IdolWaterfallDefault != nil {
 		entries["idol_waterfall_default"] = strconv.FormatBool(*req.IdolWaterfallDefault)
@@ -266,6 +271,15 @@ func updateConfig(c *gin.Context) {
 			entries["studio_page_size"] = v
 		}
 	}
+	if req.StudioCoverOrientation != nil {
+		entries["studio_cover_orientation"] = normalizeStoredCoverOrientation(*req.StudioCoverOrientation)
+	}
+	if req.StudioCardLandscapeWidth != nil {
+		entries["studio_card_landscape_width"] = strconv.Itoa(clampCardWidth(*req.StudioCardLandscapeWidth))
+	}
+	if req.StudioCardPortraitWidth != nil {
+		entries["studio_card_portrait_width"] = strconv.Itoa(clampCardWidth(*req.StudioCardPortraitWidth))
+	}
 	if req.StudioWaterfallDefault != nil {
 		entries["studio_waterfall_default"] = strconv.FormatBool(*req.StudioWaterfallDefault)
 	}
@@ -274,15 +288,27 @@ func updateConfig(c *gin.Context) {
 			entries["series_page_size"] = v
 		}
 	}
+	if req.SeriesCoverOrientation != nil {
+		entries["series_cover_orientation"] = normalizeStoredCoverOrientation(*req.SeriesCoverOrientation)
+	}
+	if req.SeriesCardLandscapeWidth != nil {
+		entries["series_card_landscape_width"] = strconv.Itoa(clampCardWidth(*req.SeriesCardLandscapeWidth))
+	}
+	if req.SeriesCardPortraitWidth != nil {
+		entries["series_card_portrait_width"] = strconv.Itoa(clampCardWidth(*req.SeriesCardPortraitWidth))
+	}
 	if req.SeriesWaterfallDefault != nil {
 		entries["series_waterfall_default"] = strconv.FormatBool(*req.SeriesWaterfallDefault)
+	}
+	if req.VideoCardMinWidth != nil {
+		entries["video_card_min_width"] = strconv.Itoa(clampCardWidth(*req.VideoCardMinWidth))
 	}
 	if req.VideoHideJav != nil {
 		entries["video_hide_jav"] = strconv.FormatBool(*req.VideoHideJav)
 	}
 	if s := strings.ToLower(strings.TrimSpace(req.VideoSort)); s != "" {
 		switch s {
-		case "recent", "recent_asc", "filename", "filename_desc", "duration", "duration_asc", "play_count", "play_count_asc":
+		case "recent", "recent_asc", "filename", "filename_desc", "duration", "duration_asc", "play_count", "play_count_asc", "random":
 			entries["video_sort"] = s
 		default:
 			// ignore invalid values
@@ -633,6 +659,23 @@ func normalizedPlayerHotkeyAmount(action string, amount float64) float64 {
 		return 0
 	}
 	return amount
+}
+
+func normalizeStoredCoverOrientation(value string) string {
+	if strings.ToLower(strings.TrimSpace(value)) == "portrait" {
+		return "portrait"
+	}
+	return "landscape"
+}
+
+func clampCardWidth(n int) int {
+	if n < minCardMinWidth {
+		return minCardMinWidth
+	}
+	if n > maxCardMinWidth {
+		return maxCardMinWidth
+	}
+	return n
 }
 
 func normalizeJavSortRulesConfig(config javSortRulesConfig) (javSortRulesConfig, bool) {

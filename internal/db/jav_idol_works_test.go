@@ -182,6 +182,38 @@ func TestReplaceJavIdolWorksKeepsJapaneseTitles(t *testing.T) {
 	}
 }
 
+func TestReplaceJavIdolWorksDedupesDuplicateCodes(t *testing.T) {
+	gdb := openTestDB(t)
+	ctx := context.Background()
+
+	idol := models.JavIdol{Name: "Dedupe Idol"}
+	if err := gdb.Create(&idol).Error; err != nil {
+		t.Fatalf("create idol: %v", err)
+	}
+	if err := ReplaceJavIdolWorks(ctx, idol.ID, []models.JavIdolWork{
+		{JavIdolID: idol.ID, Code: "IPX-001", Title: "First"},
+		{JavIdolID: idol.ID, Code: "ipx-001", Title: "ケースの女", CoverURL: "https://example.com/cover.jpg"},
+		{JavIdolID: idol.ID, Code: "ABP-999", Title: "Other"},
+	}); err != nil {
+		t.Fatalf("replace works: %v", err)
+	}
+
+	items, total, err := ListJavIdolWorks(ctx, idol.ID, 24, 0)
+	if err != nil {
+		t.Fatalf("list works: %v", err)
+	}
+	if total != 2 {
+		t.Fatalf("total = %d, want 2 after duplicate codes collapsed", total)
+	}
+	byCode := map[string]string{}
+	for _, item := range items {
+		byCode[item.Code] = item.Title
+	}
+	if byCode["IPX-001"] != "ケースの女" {
+		t.Fatalf("IPX-001 title = %q, want Japanese from the duplicate row", byCode["IPX-001"])
+	}
+}
+
 func TestListIdolsNeedingWorksScrape(t *testing.T) {
 	gdb := openTestDB(t)
 	ctx := context.Background()
@@ -446,6 +478,58 @@ func TestSearchJavMergesUnimportedIdolWorks(t *testing.T) {
 	}
 	if total != 2 || len(withoutExternal) != 2 {
 		t.Fatalf("without external total=%d len=%d, want 2", total, len(withoutExternal))
+	}
+
+	unimportedOnly, total, err := SearchJavWithPrefixFilters(ctx, []int64{idol.ID}, nil, "", "", "code", 20, 0, nil, nil, JavSearchFilters{StudioID: -1, UnimportedOnly: true}, nil, nil)
+	if err != nil {
+		t.Fatalf("search unimported only: %v", err)
+	}
+	if total != 1 || len(unimportedOnly) != 1 || unimportedOnly[0].Code != "EXT-NEW" {
+		t.Fatalf("unimported only = %v total=%d, want [EXT-NEW]", codesOf(unimportedOnly), total)
+	}
+	if unimportedOnly[0].InLibrary == nil || *unimportedOnly[0].InLibrary {
+		t.Fatalf("unimported only in_library = %#v, want false", unimportedOnly[0].InLibrary)
+	}
+
+	blockedUnimported, total, err := SearchJavWithPrefixFilters(ctx, []int64{idol.ID}, []int64{1}, "", "", "code", 20, 0, nil, nil, JavSearchFilters{StudioID: -1, UnimportedOnly: true}, nil, nil)
+	if err != nil {
+		t.Fatalf("search blocked unimported only: %v", err)
+	}
+	if total != 0 || len(blockedUnimported) != 0 {
+		t.Fatalf("blocked unimported only = %v total=%d, want empty", codesOf(blockedUnimported), total)
+	}
+
+	other := models.JavIdol{Name: "Other Merge Idol"}
+	if err := gdb.Create(&other).Error; err != nil {
+		t.Fatalf("create other idol: %v", err)
+	}
+	if err := ReplaceJavIdolWorks(ctx, other.ID, []models.JavIdolWork{
+		{JavIdolID: other.ID, Code: "EXT-NEW", Title: "Also unimported", CoverURL: "https://cover/dup.jpg"},
+	}); err != nil {
+		t.Fatalf("replace other works: %v", err)
+	}
+
+	globalAll, total, err := SearchJavWithPrefixFilters(ctx, nil, nil, "", "", "code", 20, 0, nil, nil, JavSearchFilters{StudioID: -1, IncludeExternal: true}, nil, nil)
+	if err != nil {
+		t.Fatalf("search global all: %v", err)
+	}
+	if total != 3 {
+		t.Fatalf("global all total=%d codes=%v, want 3", total, codesOf(globalAll))
+	}
+	gotGlobal := codesOf(globalAll)
+	if gotGlobal[0] != "EXT-NEW" || gotGlobal[1] != "LIB-HIGH" || gotGlobal[2] != "LIB-LOW" {
+		t.Fatalf("global all codes = %v, want EXT-NEW, LIB-HIGH, LIB-LOW", gotGlobal)
+	}
+	if len(globalAll[0].Idols) != 2 {
+		t.Fatalf("global unimported idols = %+v, want 2 idols", globalAll[0].Idols)
+	}
+
+	globalUnimported, total, err := SearchJavWithPrefixFilters(ctx, nil, nil, "", "", "code", 20, 0, nil, nil, JavSearchFilters{StudioID: -1, UnimportedOnly: true}, nil, nil)
+	if err != nil {
+		t.Fatalf("search global unimported: %v", err)
+	}
+	if total != 1 || len(globalUnimported) != 1 || globalUnimported[0].Code != "EXT-NEW" {
+		t.Fatalf("global unimported = %v total=%d, want [EXT-NEW]", codesOf(globalUnimported), total)
 	}
 }
 

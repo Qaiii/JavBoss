@@ -16,10 +16,10 @@ import JavDisplayCover from '@/components/JavDisplayCover'
 import { useStore } from '@/store'
 import { getIdolDisplayNames } from '@/utils/javIdol'
 import { javCoverSrc } from '@/utils/jav'
+import { cardGridMinmax } from '@/utils/cardLayout'
 import { openJavDBWithAssist } from '@/utils/javdb'
 import { zh } from '@/utils/i18n'
 import { getErrorMessage } from '@/utils/errors'
-import { normalizeIdolCardMinWidth } from '@/constants/jav'
 
 export { getIdolDisplayName, getIdolDisplayNames } from '@/utils/javIdol'
 
@@ -45,9 +45,7 @@ export default function JavIdolGrid({
   onMerged,
 }) {
   const { coverAspectPercent } = getIdolCardLayoutProps()
-  const cardMinWidth = useStore((state) =>
-    normalizeIdolCardMinWidth(state.config?.idol_card_min_width)
-  )
+  const cardMinmax = useStore((state) => cardGridMinmax('idol', state.config))
   const [coverEditorItem, setCoverEditorItem] = useState(null)
   const [editItem, setEditItem] = useState(null)
   const [coverOverrides, setCoverOverrides] = useState(() => new Map())
@@ -74,7 +72,7 @@ export default function JavIdolGrid({
       <div
         className="grid gap-3 bg-white"
         style={{
-          gridTemplateColumns: `repeat(auto-fill, minmax(${cardMinWidth}rem, 1fr))`,
+          gridTemplateColumns: `repeat(auto-fill, minmax(${cardMinmax}, 1fr))`,
         }}
       >
         {displayItems.map((item) => (

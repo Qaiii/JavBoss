@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"javboss/internal/common/logging"
@@ -21,7 +22,15 @@ type thePornDB struct{}
 
 var thePornDBProvider lookupProvider = thePornDB{}
 
-const thePornDBBearerToken = "uqtWi1LRXC2ngClxz8QrqfOERuH2qbuh89CQAiXx85088612"
+const (
+	thePornDBBearerToken     = "uqtWi1LRXC2ngClxz8QrqfOERuH2qbuh89CQAiXx85088612"
+	thePornDBRequestInterval = 4 * time.Second
+)
+
+var thePornDBRateLimiter = struct {
+	sync.Mutex
+	next time.Time
+}{}
 
 // LookupActressByCode implements lookupProvider.
 func (thePornDB) LookupActressByCode(code string) (*ActressInfo, error) {
@@ -80,6 +89,9 @@ func fetchThePornDBJavByCode(ctx context.Context, code string) (*thePornDBRespon
 	code = strings.ToLower(strings.TrimSpace(code))
 	if code == "" {
 		return nil, ResourceNotFonud
+	}
+	if err := waitForThePornDBRateLimit(ctx); err != nil {
+		return nil, err
 	}
 
 	targetURL := fmt.Sprintf("https://api.theporndb.net/jav?external_id=%s", url.QueryEscape(code))
@@ -260,4 +272,31 @@ func normalizeThePornDBCodeDisplay(value string) string {
 		return strings.ToUpper(matches[1]) + "-" + strings.ToUpper(matches[2]) + strings.ToUpper(matches[3])
 	}
 	return value
+}
+
+func waitForThePornDBRateLimit(ctx context.Context) error {
+	for {
+		thePornDBRateLimiter.Lock()
+		now := time.Now()
+		if !now.Before(thePornDBRateLimiter.next) {
+			thePornDBRateLimiter.next = now.Add(thePornDBRequestInterval)
+			thePornDBRateLimiter.Unlock()
+			return nil
+		}
+		wait := time.Until(thePornDBRateLimiter.next)
+		thePornDBRateLimiter.Unlock()
+
+		timer := time.NewTimer(wait)
+		select {
+		case <-ctx.Done():
+			if !timer.Stop() {
+				select {
+				case <-timer.C:
+				default:
+				}
+			}
+			return fmt.Errorf("theporndb: rate limit wait: %w", ctx.Err())
+		case <-timer.C:
+		}
+	}
 }

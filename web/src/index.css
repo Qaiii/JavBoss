@@ -48,24 +48,38 @@ body.has-page-scroll .sticky-pagination {
   box-shadow: 0 8px 18px -13px rgba(15, 23, 42, 0.38);
 }
 
-.pagination-toolbar-grid {
-  gap: 10.8px;
+.jav-library-scope {
+  display: inline-grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
 }
 
-.pagination-root {
-  min-height: 29px;
-  gap: 3.6px;
-  padding-top: 3.6px;
-  padding-bottom: 3.6px;
-  font-size: 13px;
+.jav-library-scope button {
+  height: 26px;
+  border: 0;
+  background: transparent;
+  padding: 0 10px;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
-.pagination-waterfall {
-  left: calc(var(--side-tabs-width) + 22px);
-  top: calc(var(--topbar-height) + 0.9rem);
-  height: 25px;
-  gap: 3.6px;
-  font-size: 11px;
+.jav-library-scope button + button {
+  border-left: 1px solid #e2e8f0;
+}
+
+.jav-library-scope button:hover {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.jav-library-scope button.is-active {
+  background: #eff6ff;
+  color: #1d4ed8;
 }
 
 .side-tabs {
@@ -659,271 +673,6 @@ body.has-page-scroll .sticky-pagination {
   font-weight: 600;
 }
 
-.pagination-waterfall-total {
-  margin-left: 3.6px;
-}
-
-.pagination-waterfall-action {
-  margin-left: 3.6px;
-}
-
-.pagination-waterfall-switch.MuiSwitch-root {
-  width: 36px !important;
-  height: 22px !important;
-  padding: 5px !important;
-}
-
-.pagination-waterfall-switch .MuiSwitch-switchBase {
-  padding: 4px !important;
-}
-
-.pagination-waterfall-switch .MuiSwitch-switchBase.Mui-checked {
-  transform: translateX(14px) !important;
-}
-
-.pagination-waterfall-switch .MuiSwitch-thumb {
-  width: 14px !important;
-  height: 14px !important;
-}
-
-.pagination-waterfall-switch .MuiSwitch-track {
-  border-radius: 11px !important;
-}
-
-.pagination-controls {
-  gap: 4.2px;
-}
-
-.pagination-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  border-color: #dbe3ee;
-  border-radius: 7px;
-  border-width: 1px;
-  background: #fff;
-  padding: 1.8px 7.2px;
-  color: #334155;
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 16.25px;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
-}
-
-.pagination-button__icon {
-  flex-shrink: 0;
-  font-size: 14px !important;
-}
-
-.pagination-step-button {
-  gap: 0;
-  padding-right: 5px;
-  padding-left: 5px;
-}
-
-.pagination-step-button--back .pagination-button__icon {
-  margin-left: -2px;
-}
-
-.pagination-step-button--forward .pagination-button__icon {
-  margin-right: -2px;
-}
-
-.pagination-button:not(.pagination-page-button):hover:not([aria-disabled='true']):not(:disabled) {
-  border-color: #bfdbfe;
-  background: #f5f9ff;
-  color: #1e40af;
-  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.07);
-}
-
-.pagination-button:focus-visible {
-  border-color: #60a5fa;
-  outline: none;
-  box-shadow:
-    0 0 0 2px rgba(59, 130, 246, 0.18),
-    0 1px 2px rgba(15, 23, 42, 0.06);
-}
-
-.pagination-button[aria-current='page'] {
-  border-color: #2563eb;
-  background: #2563eb;
-  color: #fff;
-  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.18);
-}
-
-.pagination-button[aria-disabled='true'],
-.pagination-button:disabled {
-  border-color: #e2e8f0;
-  background: #f8fafc;
-  color: #94a3b8;
-  box-shadow: none;
-}
-
-.pagination-page-button {
-  min-width: 29px;
-  padding-left: 9px;
-  padding-right: 9px;
-}
-
-.pagination-jump-panel {
-  position: relative;
-  z-index: 1;
-  max-width: 672px;
-  gap: 10.8px;
-  border-radius: inherit;
-  background: inherit;
-  padding: 10.8px;
-}
-
-.pagination-jump-popover.MuiPaper-root {
-  overflow: visible;
-  margin-top: 12px;
-}
-
-.pagination-jump-popover::before {
-  position: absolute;
-  top: 0;
-  left: 50%;
-  width: 12px;
-  height: 12px;
-  background: inherit;
-  box-shadow: -1px -1px 2px rgba(15, 23, 42, 0.08);
-  content: '';
-  pointer-events: none;
-  transform: translate(-50%, -50%) rotate(45deg);
-}
-
-.pagination-jump-title {
-  font-size: 11px;
-}
-
-.pagination-jump-grid {
-  max-height: 360px;
-  gap: 7.2px;
-  padding-right: 7.2px;
-}
-
-.pagination-jump-button {
-  border-color: #dbe3ee;
-  border-radius: 7px;
-  border-width: 1px;
-  background: #fff;
-  padding: 3.6px 7.2px;
-  color: #334155;
-  font-size: 10px;
-  font-weight: 500;
-  line-height: 13.75px;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.035);
-}
-
-.pagination-jump-button:hover:not([aria-current='page']) {
-  border-color: #bfdbfe;
-  background: #f5f9ff;
-  color: #1e40af;
-  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.06);
-}
-
-.pagination-jump-button[aria-current='page'] {
-  border-color: #2563eb;
-  background: #2563eb;
-  color: #fff;
-  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.16);
-}
-
-.pagination-jump-button:focus-visible {
-  border-color: #60a5fa;
-  outline: none;
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.18);
-}
-
-.pagination-sort-group {
-  gap: 7.2px;
-  margin-top: 3.6px;
-  margin-bottom: 3.6px;
-}
-
-.pagination-sort-label {
-  font-size: 11px;
-}
-
-.pagination-sort-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 5.4px;
-  border-radius: 5.4px;
-  border: 1px solid #d1d5db;
-  background: #fff;
-  padding: 3.6px 7.2px;
-  font-size: 11px;
-  line-height: 14px;
-  color: #374151;
-  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-}
-
-.pagination-sort-button:hover {
-  border-color: #9ca3af;
-}
-
-.pagination-sort-caret {
-  display: block;
-  width: 5.4px;
-  height: 5.4px;
-  transform: rotate(45deg);
-  border-right: 1px solid #9ca3af;
-  border-bottom: 1px solid #9ca3af;
-}
-
-.pagination-sort-menu {
-  display: flex;
-  min-width: 162px;
-  flex-direction: column;
-  padding: 3.6px;
-}
-
-.pagination-sort-row {
-  display: flex;
-  align-items: center;
-  gap: 3.6px;
-  border-radius: 3.6px;
-}
-
-.pagination-sort-option {
-  min-width: 0;
-  padding: 3.6px 7.2px;
-  text-align: left;
-  font-size: 11px;
-}
-
-.pagination-sort-row .pagination-sort-option {
-  flex: 1 1 0%;
-}
-
-.pagination-sort-reverse {
-  margin-right: 3.6px;
-  display: inline-flex;
-  width: 21.6px;
-  height: 21.6px;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-  color: #6b7280;
-}
-
-.pagination-sort-reverse:hover {
-  background: #fff;
-  color: #1d4ed8;
-}
-
-.pagination-selection-action.MuiButton-root {
-  min-width: 0 !important;
-  min-height: 0 !important;
-  padding: 1.8px 7.2px !important;
-  font-size: 11px !important;
-  line-height: 18px !important;
-}
-
 .topbar-selection-action.MuiButton-root {
   min-width: 0 !important;
   min-height: 0 !important;
@@ -1321,6 +1070,43 @@ body.has-page-scroll .sticky-pagination {
 
 .idol-profile {
   position: relative;
+  background: #0b0f16;
+}
+
+.idol-profile .sticky-pagination {
+  background: transparent;
+}
+
+body.has-page-scroll .idol-profile .sticky-pagination {
+  box-shadow: none;
+}
+
+.idol-profile .sticky-pagination .text-gray-500 {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.idol-profile .jav-library-scope {
+  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(15, 23, 42, 0.42);
+  backdrop-filter: blur(8px);
+}
+
+.idol-profile .jav-library-scope button {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.idol-profile .jav-library-scope button + button {
+  border-left-color: rgba(255, 255, 255, 0.18);
+}
+
+.idol-profile .jav-library-scope button:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+.idol-profile .jav-library-scope button.is-active {
+  background: rgba(255, 255, 255, 0.9);
+  color: #0f172a;
 }
 
 .idol-hero {
@@ -1337,7 +1123,10 @@ body.has-page-scroll .sticky-pagination {
 
 .idol-hero__poster {
   position: absolute;
-  inset: -28px;
+  inset: calc(var(--idol-hero-scroll, 0) * -40px);
+  filter: blur(calc(var(--idol-hero-scroll, 0) * 28px));
+  transform: scale(calc(1 + var(--idol-hero-scroll, 0) * 0.04));
+  transform-origin: center;
 }
 
 .idol-hero__collage {
@@ -1383,15 +1172,15 @@ body.has-page-scroll .sticky-pagination {
   grid-template-rows: 1fr 1fr;
 }
 
-.idol-hero__shade {
+.idol-hero__blur {
   position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    90deg,
-    rgba(8, 10, 16, 0.58) 0%,
-    rgba(8, 10, 16, 0.18) 42%,
-    transparent 72%
-  );
+  inset: 0 auto 0 0;
+  width: 58%;
+  backdrop-filter: blur(var(--idol-hero-blur, 22px));
+  -webkit-backdrop-filter: blur(var(--idol-hero-blur, 22px));
+  mask-image: linear-gradient(to right, #000 0%, #000 42%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, #000 0%, #000 42%, transparent 100%);
+  opacity: calc(1 - var(--idol-hero-scroll, 0));
   pointer-events: none;
 }
 
@@ -1408,14 +1197,13 @@ body.has-page-scroll .sticky-pagination {
 
 .idol-hero__info-fade {
   position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 48%;
-  background: linear-gradient(to top, rgba(8, 10, 16, 0.62), transparent);
-  backdrop-filter: blur(22px);
-  -webkit-backdrop-filter: blur(22px);
-  mask-image: linear-gradient(to top, #000 18%, transparent);
+  inset: 0;
+  background: linear-gradient(
+    to right,
+    rgba(8, 10, 16, 0.78) 0%,
+    rgba(8, 10, 16, 0.42) 48%,
+    transparent 100%
+  );
   pointer-events: none;
 }
 
@@ -1439,12 +1227,7 @@ body.has-page-scroll .sticky-pagination {
   pointer-events: auto;
   min-height: 72vh;
   padding: 0 var(--page-right-padding) 3rem var(--page-left-padding);
-  background: linear-gradient(
-    to bottom,
-    rgba(255, 255, 255, 0) 0,
-    rgba(255, 255, 255, 0.78) 3rem,
-    rgba(255, 255, 255, 0.94) 7.5rem
-  );
+  background: transparent;
 }
 
 .player-card--viewport {
@@ -1460,6 +1243,37 @@ body.has-page-scroll .sticky-pagination {
 .player-card--viewport .player-shell {
   height: 100dvh;
   aspect-ratio: auto;
+}
+
+.player-card--pip {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 1700;
+  width: min(420px, calc(100vw - 24px));
+  height: auto;
+  max-width: none;
+  margin: 0;
+  overflow: hidden;
+  border-radius: 12px;
+  background: #000;
+  box-shadow:
+    0 18px 48px rgba(0, 0, 0, 0.45),
+    0 2px 8px rgba(0, 0, 0, 0.28);
+}
+
+.player-card--pip.is-dragged {
+  right: auto;
+  bottom: auto;
+}
+
+.player-card--pip .player-shell {
+  height: auto;
+  aspect-ratio: var(--player-ar, 16 / 9);
+}
+
+.player-card--pip .player-pip-menu {
+  max-width: calc(100% - 0.5rem);
 }
 
 @media (max-width: 640px) {

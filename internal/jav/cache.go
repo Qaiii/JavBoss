@@ -21,7 +21,7 @@ const (
 var lookupJavCacheKeyVersionByProvider = map[Provider]string{
 	ProviderJavBus:      "v5",
 	ProviderJavDatabase: "v4",
-	ProviderJavDB:       "v4",
+	ProviderJavDB:       "v5",
 	ProviderAvmoo:       "v6",
 	ProviderAvsox:       "v3",
 	ProviderJavMenu:     "v2",
@@ -184,7 +184,10 @@ func lookupCacheKeyVersion(provider Provider, method string) string {
 		return "v3"
 	}
 	if provider == ProviderJavDB && method == "list_actress_works" {
-		return "v3"
+		return "v4"
+	}
+	if provider == ProviderJavDatabase && method == "list_idol_works" {
+		return "v2"
 	}
 	if provider == ProviderJavDatabase && method == "lookup_actress_code" {
 		return "v2"
@@ -205,7 +208,7 @@ func lookupCacheKeyVersion(provider Provider, method string) string {
 func normalizeLookupCacheInput(method, input string) string {
 	input = strings.TrimSpace(input)
 	switch method {
-	case "lookup_jav", "lookup_actress_code":
+	case "lookup_jav", "lookup_actress_code", "lookup_male_actors":
 		return strings.ToUpper(input)
 	default:
 		return strings.Join(strings.Fields(input), " ")

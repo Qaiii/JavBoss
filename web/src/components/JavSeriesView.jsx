@@ -4,62 +4,26 @@ import StarRoundedIcon from '@mui/icons-material/StarRounded'
 import VideocamOutlinedIcon from '@mui/icons-material/VideocamOutlined'
 
 import JavDisplayCover from '@/components/JavDisplayCover'
-import Pagination from '@/components/Pagination'
 import WaterfallLoader from '@/components/WaterfallLoader'
 import { useStore } from '@/store'
 import { zh } from '@/utils/i18n'
-import {
-  JAV_COVER_ORIENTATION_PORTRAIT,
-  javCoverGridMinmax,
-  javCoverSrc,
-  normalizeJavCoverOrientation,
-} from '@/utils/jav'
+import { cardCoverOrientation, cardGridMinmax } from '@/utils/cardLayout'
+import { javCoverSrc } from '@/utils/jav'
 import { openJavDBWithAssist } from '@/utils/javdb'
 
 export default function JavSeriesView({
-  page,
-  lastPage,
-  totalItems,
-  hasPrev,
-  hasNext,
   loading,
-  buildPageUrl,
   buildSeriesUrl,
-  onFirst,
-  onPrev,
-  onGoToPage,
-  onNext,
-  onLast,
   items,
   onSelectSeries,
   onSelectStudio,
   onOpenFavorites,
-  waterfallMode,
-  onWaterfallModeChange,
   onLoadMore,
   loadingMore,
   hasMore,
 }) {
   return (
     <>
-      <div className="sticky-pagination mb-4 flex justify-center">
-        <Pagination
-          page={page}
-          lastPage={lastPage}
-          totalItems={totalItems}
-          hasPrev={hasPrev}
-          hasNext={hasNext}
-          loading={loading}
-          buildPageUrl={buildPageUrl}
-          onFirst={onFirst}
-          onPrev={onPrev}
-          onGoToPage={onGoToPage}
-          onNext={onNext}
-          onLast={onLast}
-          waterfallMode={waterfallMode}
-          onWaterfallModeChange={onWaterfallModeChange}
-        />
-      </div>
       {loading ? (
         <div className="mt-4 flex min-h-[200px] items-center justify-center rounded border border-dashed border-gray-200 text-gray-500">
           {zh('加载中…', 'Loading...')}
@@ -74,7 +38,7 @@ export default function JavSeriesView({
         />
       )}
       <WaterfallLoader
-        enabled={waterfallMode && !loading}
+        enabled={!loading}
         hasMore={hasMore}
         loading={loadingMore}
         onLoadMore={onLoadMore}
@@ -84,9 +48,7 @@ export default function JavSeriesView({
 }
 
 function JavSeriesGrid({ items, onSelectSeries, onSelectStudio, onOpenFavorites, buildSeriesUrl }) {
-  const coverOrientation = useStore((state) =>
-    normalizeJavCoverOrientation(state.config?.jav_cover_orientation)
-  )
+  const cardMinmax = useStore((state) => cardGridMinmax('series', state.config))
   const hasItems = Array.isArray(items) && items.length > 0
   if (!hasItems) {
     return (
@@ -100,11 +62,7 @@ function JavSeriesGrid({ items, onSelectSeries, onSelectStudio, onOpenFavorites,
     <div
       className="grid gap-4 bg-white"
       style={{
-        gridTemplateColumns: `repeat(auto-fill, minmax(${
-          coverOrientation === JAV_COVER_ORIENTATION_PORTRAIT
-            ? javCoverGridMinmax(coverOrientation)
-            : '16rem'
-        }, 1fr))`,
+        gridTemplateColumns: `repeat(auto-fill, minmax(${cardMinmax}, 1fr))`,
       }}
     >
       {items.map((item) => (
@@ -122,9 +80,7 @@ function JavSeriesGrid({ items, onSelectSeries, onSelectStudio, onOpenFavorites,
 }
 
 export function SeriesCard({ item, href, onSelectSeries, onSelectStudio, onOpenFavorites }) {
-  const coverOrientation = useStore((state) =>
-    normalizeJavCoverOrientation(state.config?.jav_cover_orientation)
-  )
+  const coverOrientation = useStore((state) => cardCoverOrientation('series', state.config))
   const sampleCode = String(item?.sample_code || '').trim()
   const cover = sampleCode ? javCoverSrc(sampleCode) : null
   const name = item?.name || zh('未知系列', 'Unknown series')

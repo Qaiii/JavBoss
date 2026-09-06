@@ -33,6 +33,7 @@ import {
 import { normalizeVideoSort } from '@/constants/video'
 import { zh } from '@/utils/i18n'
 import { getErrorMessage } from '@/utils/errors'
+import { javLibraryScopeQueryFlags, normalizeJavLibraryScope } from '@/utils/javLibrary'
 
 const VIDEO_PAGE_SIZE = 25
 const JAV_PAGE_SIZE = 24
@@ -217,10 +218,6 @@ const directoryScopeResetState = () => ({
   videoTempSort: '',
   javTempSort: '',
   idolTempSort: '',
-  randomMode: false,
-  randomSeed: null,
-  javRandomMode: false,
-  javRandomSeed: null,
 })
 
 const normalizeSeed = (seed) => {
@@ -230,6 +227,26 @@ const normalizeSeed = (seed) => {
 }
 
 const generateSeed = () => Math.floor(Math.random() * RANDOM_SEED_MAX) + 1
+
+const videoSortValue = (state) => state.videoTempSort || state.sortOrder
+
+const ensureVideoRandomSeed = (get, set) => {
+  if (videoSortValue(get()) !== 'random') return null
+  const existing = normalizeSeed(get().randomSeed)
+  if (existing != null) return existing
+  const next = generateSeed()
+  set({ randomSeed: next })
+  return next
+}
+
+const ensureJavRandomSeed = (get, set) => {
+  if (resolveJavSort(get()).sort !== 'random') return null
+  const existing = normalizeSeed(get().javRandomSeed)
+  if (existing != null) return existing
+  const next = generateSeed()
+  set({ javRandomSeed: next })
+  return next
+}
 
 export const videoSelectionKey = (video) => {
   if (video?.location_id) return `loc:${video.location_id}`
@@ -250,14 +267,14 @@ const selectedVideoContentIds = (state) => {
 
 const videoListRequestKey = (state, directoryIds = directoryQueryIds(state)) => {
   const search = state.searchTerm ? state.searchTerm : ''
-  const effectiveSort = state.videoTempSort || state.sortOrder
+  const effectiveSort = videoSortValue(state)
   return [
-    state.randomMode ? 'r' : 'p',
-    state.randomMode ? 1 : state.page,
+    'p',
+    state.page,
     state.pageSize,
     search,
     effectiveSort,
-    state.randomMode ? state.randomSeed || '' : '',
+    effectiveSort === 'random' ? state.randomSeed || '' : '',
     (state.selectedTags || []).join(','),
     directoryIds.join(','),
     closedSubdirsKey(state),
@@ -270,8 +287,8 @@ const javListRequestKey = (state, directoryIds = directoryQueryIds(state)) => {
   const search = state.javSearchTerm || ''
   const effectiveSort = resolveJavSort(state).sort
   return [
-    state.javRandomMode ? 'r' : 'p',
-    state.javRandomMode ? 1 : state.javPage,
+    'p',
+    state.javPage,
     state.javPageSize,
     search,
     (state.javIdolIds || []).join(','),
@@ -285,8 +302,8 @@ const javListRequestKey = (state, directoryIds = directoryQueryIds(state)) => {
       : '',
     state.javFavoriteGroupId || '',
     effectiveSort,
-    state.javShowExternalWorks && (state.javIdolIds || []).length === 1 ? 'ext' : '',
-    state.javRandomMode ? state.javRandomSeed || '' : '',
+    (state.javIdolIds || []).length <= 1 ? normalizeJavLibraryScope(state.javLibraryScope) : '',
+    effectiveSort === 'random' ? state.javRandomSeed || '' : '',
     directoryIds.join(','),
     closedSubdirsKey(state),
     directorySubpathsKey(state),
@@ -349,7 +366,7 @@ export const useStore = create((set, get) => ({
   pageSize: VIDEO_PAGE_SIZE,
   setPageSize: (size) => {
     const next = Math.max(1, Math.floor(Number(size) || VIDEO_PAGE_SIZE))
-    set({ pageSize: next, videoTempSort: '', page: 1, randomMode: false, randomSeed: null })
+    set({ pageSize: next, videoTempSort: '', page: 1 })
   },
   selectedTags: [],
   selectedVideoIds: new Set(),
@@ -383,8 +400,6 @@ export const useStore = create((set, get) => ({
     set({
       javPageSize: next,
       javTempSort: '',
-      javRandomMode: false,
-      javRandomSeed: null,
       javPage: 1,
     })
   },
@@ -418,7 +433,7 @@ export const useStore = create((set, get) => ({
   javExternalLoading: false,
   javExternalError: null,
   javExternalSourceURL: '',
-  javShowExternalWorks: true,
+  javLibraryScope: 'all',
   idolPage: 1,
   idolPageSize: JAV_PAGE_SIZE,
   idolSort: 'work',
@@ -485,7 +500,7 @@ export const useStore = create((set, get) => ({
   setJavFavoriteGroupId: (id) => {
     const parsed = Number(id)
     const next = Number.isFinite(parsed) && parsed > 0 ? parsed : null
-    set({ javFavoriteGroupId: next, javPage: 1, javRandomMode: false, javRandomSeed: null })
+    set({ javFavoriteGroupId: next, javPage: 1 })
   },
   setStudioFavoriteGroupId: (id) => {
     const parsed = Number(id)
@@ -532,7 +547,7 @@ export const useStore = create((set, get) => ({
     const { resetPage = true } = options
     const trimmed = (value || '').trim()
     const state = get()
-    const baseUpdate = { videoTempSort: '', randomMode: false, randomSeed: null }
+    const baseUpdate = { videoTempSort: '' }
     if (trimmed === state.searchTerm) {
       // 仅重置分页/随机模式
       const updates = { ...baseUpdate }
@@ -579,28 +594,38 @@ export const useStore = create((set, get) => ({
   clearSelection: () => set({ selectedVideoIds: new Set(), selectedVideoMeta: {} }),
   setSortOrder: (order) => {
     const normalized = normalizeVideoSort(order)
-    set({ sortOrder: normalized, videoTempSort: '', randomMode: false, randomSeed: null, page: 1 })
+    set({
+      sortOrder: normalized,
+      videoTempSort: '',
+      randomSeed: normalized === 'random' ? generateSeed() : null,
+      page: 1,
+    })
   },
   setVideoTempSort: (order) => {
     const normalized = normalizeVideoSort(order, '')
-    set({ videoTempSort: normalized, randomMode: false, randomSeed: null })
+    const nextSort = normalized || get().sortOrder
+    set({
+      videoTempSort: normalized,
+      randomSeed: nextSort === 'random' ? generateSeed() : null,
+    })
   },
   setJavSort: (order) => {
     const normalized = normalizeJavSort(order)
     set({
       javSort: normalized,
       javTempSort: '',
-      javRandomMode: false,
-      javRandomSeed: null,
+      javRandomSeed: normalized === 'random' ? generateSeed() : null,
       javPage: 1,
     })
   },
   setJavTempSort: (order) => {
     const normalized = normalizeJavSort(order, '')
-    set({ javTempSort: normalized, javRandomMode: false, javRandomSeed: null, javPage: 1 })
+    set({
+      javTempSort: normalized,
+      javRandomSeed: (normalized || get().javSort) === 'random' ? generateSeed() : null,
+      javPage: 1,
+    })
   },
-  clearRandomMode: () => set({ randomMode: false, randomSeed: null }),
-  clearJavRandom: () => set({ javTempSort: '', javRandomMode: false, javRandomSeed: null }),
   setViewMode: (mode) => {
     if (mode !== 'video' && mode !== 'jav') return
     set({
@@ -673,8 +698,6 @@ export const useStore = create((set, get) => ({
       javIdolIds: [],
       javTags: [],
       javTempSort: '',
-      javRandomMode: false,
-      javRandomSeed: null,
       javPage: 1,
     })
   },
@@ -694,14 +717,11 @@ export const useStore = create((set, get) => ({
       javIdolIds: [],
       javTags: [],
       javTempSort: '',
-      javRandomMode: false,
-      javRandomSeed: null,
       javPage: 1,
     })
   },
   setJavPage: (p) => {
-    const state = get()
-    set({ javPage: state.javRandomMode ? 1 : p })
+    set({ javPage: p })
   },
   setIdolPage: (p) => set({ idolPage: p }),
   setStudioPage: (p) => set({ studioPage: p }),
@@ -894,19 +914,10 @@ export const useStore = create((set, get) => ({
     }
   },
   loadVideos: async (options = {}) => {
-    const {
-      page: p0,
-      pageSize,
-      selectedTags,
-      searchTerm,
-      sortOrder,
-      videoTempSort,
-      videoHideJav,
-      randomMode,
-      randomSeed,
-    } = get()
+    const randomSeed = ensureVideoRandomSeed(get, set)
+    const { page: p0, pageSize, selectedTags, searchTerm, videoHideJav } = get()
     const search = searchTerm ? searchTerm : ''
-    const effectiveSort = videoTempSort || sortOrder
+    const effectiveSort = videoSortValue(get())
     const key = videoListRequestKey({ ...get(), page: p0 })
     if (!options.force && key === lastVideoFetchKey) {
       return
@@ -917,18 +928,18 @@ export const useStore = create((set, get) => ({
     try {
       const resp = await fetchVideos({
         limit: pageSize,
-        offset: randomMode ? 0 : (p0 - 1) * pageSize,
+        offset: (p0 - 1) * pageSize,
         tags: selectedTags,
         search,
-        sort: randomMode ? 'random' : effectiveSort,
-        seed: randomMode ? randomSeed : null,
+        sort: effectiveSort,
+        seed: effectiveSort === 'random' ? randomSeed : null,
         hideJav: videoHideJav,
       })
       if (reqId !== videoLoadSeq || key !== videoListRequestKey(get())) return
       const total = resp.total ?? 0
       const items = resp.items ?? []
       const lastPage = Math.max(1, Math.ceil(total / pageSize))
-      const hasNext = randomMode ? false : p0 < lastPage
+      const hasNext = p0 < lastPage
       set({ videos: items, total, hasNext })
     } catch (e) {
       if (reqId !== videoLoadSeq || key !== videoListRequestKey(get())) return
@@ -941,14 +952,14 @@ export const useStore = create((set, get) => ({
   },
   loadMoreVideos: async () => {
     const state = get()
-    if (state.loading || state.videoLoadingMore || state.randomMode) return
+    if (state.loading || state.videoLoadingMore) return
     const loaded = Array.isArray(state.videos) ? state.videos.length : 0
     const total = state.total || 0
     const baseOffset = (state.page - 1) * state.pageSize
     if (total > 0 && baseOffset + loaded >= total) return
 
     const search = state.searchTerm ? state.searchTerm : ''
-    const effectiveSort = state.videoTempSort || state.sortOrder
+    const effectiveSort = videoSortValue(state)
     const requestKey = videoListRequestKey(state)
     const loadReqId = videoLoadSeq
     const loadMoreReqId = (videoLoadMoreSeq += 1)
@@ -960,6 +971,7 @@ export const useStore = create((set, get) => ({
         tags: state.selectedTags,
         search,
         sort: effectiveSort,
+        seed: effectiveSort === 'random' ? state.randomSeed : null,
         hideJav: state.videoHideJav,
       })
       if (
@@ -1008,12 +1020,13 @@ export const useStore = create((set, get) => ({
       javFavoriteRatingMin,
       javFavoriteRatingMax,
       javFavoriteGroupId,
-      javRandomMode,
-      javRandomSeed,
     } = get()
+    const javRandomSeed = ensureJavRandomSeed(get, set)
     const search = javSearchTerm || ''
     const effectiveSort = resolveJavSort(get()).sort
-    const includeExternal = Boolean(get().javShowExternalWorks) && (javIdolIds || []).length === 1
+    const { includeExternal, unimportedOnly } = javLibraryScopeQueryFlags(get().javLibraryScope, {
+      idolCount: (javIdolIds || []).length,
+    })
     const key = javListRequestKey(get())
     if (!options.force && key === lastJavFetchKey) {
       return
@@ -1024,7 +1037,7 @@ export const useStore = create((set, get) => ({
     try {
       const resp = await fetchJavs({
         limit: javPageSize,
-        offset: javRandomMode ? 0 : (javPage - 1) * javPageSize,
+        offset: (javPage - 1) * javPageSize,
         search,
         idolIds: javIdolIds,
         tagIds: javTags,
@@ -1037,14 +1050,15 @@ export const useStore = create((set, get) => ({
         favoriteRatingMax: javFavoriteRatingMax,
         favoriteGroupId: javFavoriteGroupId,
         sort: effectiveSort,
-        seed: javRandomMode ? javRandomSeed : null,
+        seed: effectiveSort === 'random' ? javRandomSeed : null,
         includeExternal,
+        unimportedOnly,
       })
       if (reqId !== javLoadSeq || key !== javListRequestKey(get())) return
       const items = resp.items || []
       set({
         javItems: items,
-        javTotal: javRandomMode ? items.length : resp.total || 0,
+        javTotal: resp.total || 0,
       })
     } catch (e) {
       if (reqId !== javLoadSeq || key !== javListRequestKey(get())) return
@@ -1057,7 +1071,7 @@ export const useStore = create((set, get) => ({
   },
   loadMoreJavs: async () => {
     const state = get()
-    if (state.javLoading || state.javLoadingMore || state.javRandomMode) return
+    if (state.javLoading || state.javLoadingMore) return
     const loaded = Array.isArray(state.javItems) ? state.javItems.length : 0
     const total = state.javTotal || 0
     const baseOffset = (state.javPage - 1) * state.javPageSize
@@ -1065,8 +1079,9 @@ export const useStore = create((set, get) => ({
 
     const search = state.javSearchTerm || ''
     const effectiveSort = resolveJavSort(state).sort
-    const includeExternal =
-      Boolean(state.javShowExternalWorks) && (state.javIdolIds || []).length === 1
+    const { includeExternal, unimportedOnly } = javLibraryScopeQueryFlags(state.javLibraryScope, {
+      idolCount: (state.javIdolIds || []).length,
+    })
     const requestKey = javListRequestKey(state)
     const loadReqId = javLoadSeq
     const loadMoreReqId = (javLoadMoreSeq += 1)
@@ -1087,7 +1102,9 @@ export const useStore = create((set, get) => ({
         favoriteRatingMax: state.javFavoriteRatingMax,
         favoriteGroupId: state.javFavoriteGroupId,
         sort: effectiveSort,
+        seed: effectiveSort === 'random' ? state.javRandomSeed : null,
         includeExternal,
+        unimportedOnly,
       })
       if (
         loadReqId !== javLoadSeq ||
@@ -1496,16 +1513,9 @@ export const useStore = create((set, get) => ({
   goToLastPage: async () => {
     set({ loading: true, error: null })
     try {
-      const {
-        pageSize,
-        selectedTags,
-        searchTerm,
-        sortOrder,
-        videoTempSort,
-        randomMode,
-        randomSeed,
-      } = get()
-      const effectiveSort = videoTempSort || sortOrder
+      const { pageSize, selectedTags, searchTerm } = get()
+      const effectiveSort = videoSortValue(get())
+      const randomSeed = effectiveSort === 'random' ? get().randomSeed : null
       // Get total via a cheap fetch (limit=1) or use existing total
       let { total } = get()
       const search = searchTerm ? searchTerm : ''
@@ -1515,8 +1525,8 @@ export const useStore = create((set, get) => ({
           offset: 0,
           tags: selectedTags,
           search,
-          sort: randomMode ? 'random' : effectiveSort,
-          seed: randomMode ? randomSeed : null,
+          sort: effectiveSort,
+          seed: randomSeed,
         })
         total = res.total ?? 0
         set({ total })
@@ -1527,8 +1537,8 @@ export const useStore = create((set, get) => ({
         offset: (lastPage - 1) * pageSize,
         tags: selectedTags,
         search,
-        sort: randomMode ? 'random' : effectiveSort,
-        seed: randomMode ? randomSeed : null,
+        sort: effectiveSort,
+        seed: randomSeed,
       })
       const items = res2.items ?? []
       set({ page: lastPage, videos: items, hasNext: false })
@@ -1537,15 +1547,6 @@ export const useStore = create((set, get) => ({
     } finally {
       set({ loading: false })
     }
-  },
-  loadRandom: async (seed) => {
-    const nextSeed = normalizeSeed(seed) ?? generateSeed()
-    const nextPage = 1
-    set({ videoTempSort: '', randomMode: true, randomSeed: nextSeed, page: nextPage })
-  },
-  loadJavRandom: async (seed) => {
-    const nextSeed = normalizeSeed(seed) ?? generateSeed()
-    set({ javTempSort: '', javRandomMode: true, javRandomSeed: nextSeed, javPage: 1 })
   },
 
   setEnabledDirectoryIds: (ids) => {
@@ -1568,10 +1569,6 @@ export const useStore = create((set, get) => ({
       videoTempSort: '',
       javTempSort: '',
       idolTempSort: '',
-      randomMode: false,
-      randomSeed: null,
-      javRandomMode: false,
-      javRandomSeed: null,
     })
     lastVideoFetchKey = null
     lastJavFetchKey = null
@@ -1606,10 +1603,6 @@ export const useStore = create((set, get) => ({
       videoTempSort: '',
       javTempSort: '',
       idolTempSort: '',
-      randomMode: false,
-      randomSeed: null,
-      javRandomMode: false,
-      javRandomSeed: null,
     })
     lastVideoFetchKey = null
     lastJavFetchKey = null
@@ -1641,10 +1634,6 @@ export const useStore = create((set, get) => ({
       videoTempSort: '',
       javTempSort: '',
       idolTempSort: '',
-      randomMode: false,
-      randomSeed: null,
-      javRandomMode: false,
-      javRandomSeed: null,
     })
     lastVideoFetchKey = null
     lastJavFetchKey = null
@@ -1714,10 +1703,6 @@ export const useStore = create((set, get) => ({
           videoTempSort: '',
           javTempSort: '',
           idolTempSort: '',
-          randomMode: false,
-          randomSeed: null,
-          javRandomMode: false,
-          javRandomSeed: null,
         })
         resetKeys()
       } else if (state.directoryFilterMode !== DIRECTORY_FILTER_ALL) {
@@ -1733,10 +1718,6 @@ export const useStore = create((set, get) => ({
           videoTempSort: '',
           javTempSort: '',
           idolTempSort: '',
-          randomMode: false,
-          randomSeed: null,
-          javRandomMode: false,
-          javRandomSeed: null,
         })
         resetKeys()
       }
@@ -1772,10 +1753,6 @@ export const useStore = create((set, get) => ({
       videoTempSort: '',
       javTempSort: '',
       idolTempSort: '',
-      randomMode: false,
-      randomSeed: null,
-      javRandomMode: false,
-      javRandomSeed: null,
     })
     resetKeys()
   },

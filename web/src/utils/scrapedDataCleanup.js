@@ -1,7 +1,8 @@
 export const SCRAPED_DATA_CLEANUP_FIELDS = [
   { key: 'javs', label: ['未引用作品', 'Unreferenced titles'] },
   { key: 'scraped_tags', label: ['未使用抓取标签', 'Unused scraped tags'] },
-  { key: 'idols', label: ['未使用演员', 'Unused actresses'] },
+  { key: 'idols', label: ['未使用女优', 'Unused actresses'] },
+  { key: 'actors', label: ['未使用男优', 'Unused actors'] },
   { key: 'studios', label: ['未使用发行商', 'Unused studios'] },
   { key: 'series', label: ['未使用系列', 'Unused series'] },
   { key: 'covers', label: ['未使用封面文件', 'Unused cover files'] },

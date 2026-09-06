@@ -16,7 +16,7 @@ import (
 
 const (
 	javScrapeRepairQueueSize   = 5000
-	javScrapeRepairWorkerCount = 2
+	javScrapeRepairWorkerCount = 1
 
 	JavScrapeFieldCoverLandscape = "cover_landscape"
 	JavScrapeFieldTitle          = "title"
@@ -123,6 +123,11 @@ func (m *javScrapeRepairManager) pendingCount() int {
 	return len(m.scheduled)
 }
 
+// JavScrapeRepairPendingCount returns how many metadata repair jobs are queued or in flight.
+func JavScrapeRepairPendingCount() int {
+	return javScrapeRepairMgr.pendingCount()
+}
+
 func (m *javScrapeRepairManager) clearScheduled(code string) {
 	if m == nil {
 		return
@@ -215,6 +220,9 @@ func repairJavScrape(ctx context.Context, code string) error {
 		logging.Info("jav scrape repair updated provider=%s code=%s title=%s", provider.String(), code, strings.TrimSpace(info.Title))
 		if len(info.Actors) > 0 {
 			EnqueueIdolWorksForActors(ctx, info.Actors)
+		}
+		if len(info.MaleActors) == 0 {
+			EnqueueMaleActorLookup(ctx, item.ID, code)
 		}
 		break
 	}

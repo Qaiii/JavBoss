@@ -10,7 +10,7 @@ import {
 test('lists known unused scraped-data fields', () => {
   assert.deepEqual(
     SCRAPED_DATA_CLEANUP_FIELDS.map((field) => field.key),
-    ['javs', 'scraped_tags', 'idols', 'studios', 'series', 'covers', 'expired_cache']
+    ['javs', 'scraped_tags', 'idols', 'actors', 'studios', 'series', 'covers', 'expired_cache']
   )
 })
 

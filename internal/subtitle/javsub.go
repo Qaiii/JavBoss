@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"javboss/internal/util"
@@ -24,7 +25,19 @@ const javSubBaseURL = "https://javsubtitle.com"
 
 const javSubBrowserUA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
 
+const javSubRequestInterval = 3 * time.Second
+
 var javSubClient = util.NewHTTPClientWithTransport(20*time.Second, nil)
+
+var javSubRateLimiter = struct {
+	sync.Mutex
+	next time.Time
+}{}
+
+// RequestInterval is the minimum pause between javsubtitle.com API calls.
+func RequestInterval() time.Duration {
+	return javSubRequestInterval
+}
 
 // errJavSubNotFound is returned when javsubtitle.com has no record for a code.
 // Variant codes from search (e.g. "ssis-480-uncensored-leak") often 404 even
@@ -237,6 +250,11 @@ func resolveJavSubURL(raw string) string {
 }
 
 func javSubGet(ctx context.Context, target string) ([]byte, error) {
+	if strings.Contains(target, "/api/") {
+		if err := waitForJavSubRateLimit(ctx); err != nil {
+			return nil, err
+		}
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
 	if err != nil {
 		return nil, fmt.Errorf("jav subtitle request: %w", err)
@@ -265,6 +283,33 @@ func javSubGet(ctx context.Context, target string) ([]byte, error) {
 		return nil, fmt.Errorf("jav subtitle request: read body: %w", err)
 	}
 	return body, nil
+}
+
+func waitForJavSubRateLimit(ctx context.Context) error {
+	for {
+		javSubRateLimiter.Lock()
+		now := time.Now()
+		if !now.Before(javSubRateLimiter.next) {
+			javSubRateLimiter.next = now.Add(javSubRequestInterval)
+			javSubRateLimiter.Unlock()
+			return nil
+		}
+		wait := time.Until(javSubRateLimiter.next)
+		javSubRateLimiter.Unlock()
+
+		timer := time.NewTimer(wait)
+		select {
+		case <-ctx.Done():
+			if !timer.Stop() {
+				select {
+				case <-timer.C:
+				default:
+				}
+			}
+			return fmt.Errorf("jav subtitle: rate limit wait: %w", ctx.Err())
+		case <-timer.C:
+		}
+	}
 }
 
 // safeCode allows only JAV-style codes (letters, digits, dashes, dots, plus).

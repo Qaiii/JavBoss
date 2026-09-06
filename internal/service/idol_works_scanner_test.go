@@ -178,6 +178,72 @@ func TestScrapeIdolWorksPersistsAllPages(t *testing.T) {
 	}
 }
 
+func TestScrapeIdolWorksKeepsFirstPageWhenLaterPageMissing(t *testing.T) {
+	gdb := openServiceTestDB(t)
+	ctx := context.Background()
+	idol := seedScrapeIdol(t, gdb, "Partial Page Idol", "IPX-040")
+
+	_, javdbList, _, jdbList := stubWorksSources(t)
+	listJavWorksByActressURL = func(ctx context.Context, profileURL string, page int) ([]*jav.JavInfo, bool, error) {
+		(*javdbList)++
+		if page == 1 {
+			return []*jav.JavInfo{
+				{Code: "IPX-040", Title: "In Library Work", Provider: jav.ProviderJavDB},
+				{Code: "ABP-040", Title: "Unimported Work", Provider: jav.ProviderJavDB},
+			}, true, nil
+		}
+		return nil, false, jav.ResourceNotFonud
+	}
+
+	if err := ScrapeIdolWorks(ctx, idol.ID); err != nil {
+		t.Fatalf("scrape: %v", err)
+	}
+
+	_, total, err := dbpkg.ListJavIdolWorks(ctx, idol.ID, 24, 0)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if total != 2 {
+		t.Fatalf("total=%d, want 2 from page 1 after later page 404", total)
+	}
+	if *jdbList != 0 {
+		t.Fatalf("javdatabase list calls = %d, want 0 (JavDB partial listing is enough)", *jdbList)
+	}
+}
+
+func TestShouldEnqueueIdolWorks(t *testing.T) {
+	now := time.Date(2026, 9, 6, 0, 0, 0, 0, time.UTC)
+	hourAgo := now.Add(-time.Hour)
+	minuteAgo := now.Add(-time.Minute)
+	scraped := now.Add(-2 * time.Hour)
+	retry := 30 * time.Minute
+	refresh := 7 * 24 * time.Hour
+
+	if !shouldEnqueueIdolWorks(dbpkg.JavIdolTrackState{}, 1, now, retry, refresh) {
+		t.Fatal("untracked idol should enqueue")
+	}
+	if shouldEnqueueIdolWorks(dbpkg.JavIdolTrackState{
+		Tracked: true, LastAttemptAt: &minuteAgo, LastScrapedAt: &scraped, WorksCount: 1,
+	}, 1, now, retry, refresh) {
+		t.Fatal("recent attempt should wait for retry delay")
+	}
+	if !shouldEnqueueIdolWorks(dbpkg.JavIdolTrackState{
+		Tracked: true, LastAttemptAt: &hourAgo, LastError: "javdb: http 403",
+	}, 1, now, retry, refresh) {
+		t.Fatal("failed scrape past retry delay should enqueue")
+	}
+	if !shouldEnqueueIdolWorks(dbpkg.JavIdolTrackState{
+		Tracked: true, LastAttemptAt: &hourAgo, LastScrapedAt: &scraped, WorksCount: 1,
+	}, 1, now, retry, refresh) {
+		t.Fatal("truncated scrape with no unimported works should enqueue")
+	}
+	if shouldEnqueueIdolWorks(dbpkg.JavIdolTrackState{
+		Tracked: true, LastAttemptAt: &hourAgo, LastScrapedAt: &scraped, WorksCount: 40,
+	}, 1, now, retry, refresh) {
+		t.Fatal("complete scrape within refresh window should not enqueue")
+	}
+}
+
 func TestScrapeIdolWorksFallsBackToJavDatabaseWhenJavDBProfileMissing(t *testing.T) {
 	gdb := openServiceTestDB(t)
 	ctx := context.Background()

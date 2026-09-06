@@ -46,7 +46,7 @@ func NewCoverManager(coverDir string, providers []jav.Provider) *CoverManager {
 	return &CoverManager{
 		tasks:     make(chan string, 5000), // larger buffer to reduce producer blocking
 		coverDir:  coverDir,
-		workers:   8,
+		workers:   2,
 		providers: providers,
 		scheduled: make(map[string]struct{}),
 	}

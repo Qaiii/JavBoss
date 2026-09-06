@@ -35,6 +35,14 @@ export const VIDEO_SORT_OPTIONS = [
     asc: ['少→多', 'low→high'],
     desc: ['多→少', 'high→low'],
   },
+  {
+    base: 'random',
+    defaultValue: 'random',
+    ascValue: 'random',
+    descValue: 'random',
+    unordered: true,
+    label: ['随机', 'Random'],
+  },
 ]
 
 const videoSortValues = new Set(
@@ -80,8 +88,15 @@ export function reverseVideoSortValue(sort, fallback = 'recent') {
   return getVideoSortDirection(option, sort) === 'asc' ? option.descValue : option.ascValue
 }
 
+export function isUnorderedSortOption(option) {
+  return Boolean(option?.unordered)
+}
+
 export function videoSortLabelParts(option, sort, zh) {
   if (!option) return { label: '', separator: '', direction: '' }
+  if (isUnorderedSortOption(option)) {
+    return { label: zh(option.label[0], option.label[1]), separator: '', direction: '' }
+  }
   const dir = getVideoSortDirection(option, sort)
   return {
     label: zh(option.label[0], option.label[1]),

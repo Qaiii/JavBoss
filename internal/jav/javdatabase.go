@@ -29,7 +29,7 @@ var javDatabaseProvider lookupProvider = javDatabase{}
 
 var errNoActressLink = errors.New("javdatabase: actress link not found")
 
-const javDatabaseRequestInterval = 1500 * time.Millisecond
+const javDatabaseRequestInterval = 4 * time.Second
 
 var javDatabaseRateLimiter = struct {
 	sync.Mutex
@@ -189,7 +189,7 @@ func ListJavDatabaseWorksByActressURL(ctx context.Context, profileURL string, pa
 
 	result := javDatabaseWorksPage{
 		Items:   parseJavDatabaseIdolWorksPage(doc, targetURL),
-		HasNext: hasJavDatabaseNextIdolPage(doc),
+		HasNext: hasJavDatabaseNextIdolPage(doc, page),
 	}
 	cacheableLookupResult(cacheKey, result, nil)
 	return result.Items, result.HasNext, nil
@@ -300,23 +300,10 @@ func javDatabaseCardFooterText(card *goquery.Selection) string {
 	return cleanSelectionText(card.Find("div.mt-auto").First())
 }
 
-// hasJavDatabaseNextIdolPage reports whether the idol listing has pagination
-// pointing to another ipage (i.e. this is not the last page).
-func hasJavDatabaseNextIdolPage(root *html.Node) bool {
-	if root == nil {
-		return false
-	}
-	found := false
-	documentSelection(root).
-		Find("div.pagination a, nav.pagination a, ul.pagination a, .pagination a").
-		EachWithBreak(func(_ int, link *goquery.Selection) bool {
-			if strings.Contains(selectionAttr(link, "href"), "ipage=") {
-				found = true
-				return false
-			}
-			return true
-		})
-	return found
+// hasJavDatabaseNextIdolPage reports whether pagination points at a later ipage.
+// Links back to earlier pages (normal on the last listing page) are ignored.
+func hasJavDatabaseNextIdolPage(root *html.Node, currentPage int) bool {
+	return listingHasLaterPage(root, currentPage, "ipage")
 }
 
 func fetchJavDatabaseHTML(ctx context.Context, targetURL, referer string) (*html.Node, int, error) {

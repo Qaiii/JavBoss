@@ -30,14 +30,14 @@ func TestJavBusRateLimiterSpacesRequests(t *testing.T) {
 	t.Cleanup(resetJavBusRateLimiterForTest)
 
 	start := time.Now()
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 2; i++ {
 		if err := waitForJavBusRateLimit(context.Background()); err != nil {
 			t.Fatalf("waitForJavBusRateLimit() request %d: %v", i+1, err)
 		}
 	}
 
-	if elapsed := time.Since(start); elapsed < (4*javBusRequestInterval - 50*time.Millisecond) {
-		t.Fatalf("rate limiter allowed 5 requests in %s", elapsed)
+	if elapsed := time.Since(start); elapsed < (javBusRequestInterval - 50*time.Millisecond) {
+		t.Fatalf("rate limiter allowed 2 requests in %s", elapsed)
 	}
 }
 

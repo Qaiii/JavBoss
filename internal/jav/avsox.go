@@ -30,13 +30,13 @@ var avsoxProvider lookupProvider = avsox{}
 const (
 	avsoxBaseURL         = "https://avsox.click"
 	avsoxUserAgent       = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-	avsoxRequestInterval = 1500 * time.Millisecond
+	avsoxRequestInterval = 4 * time.Second
 	avsoxAPILanguage     = "cn"
 	avsoxAPISearchLimit  = 60
 	avsoxLookupTimeout   = 90 * time.Second
 	avsoxHTTPTimeout     = 30 * time.Second
 	avsoxAPITries        = 3
-	avsoxAPIRetryDelay   = 2 * time.Second
+	avsoxAPIRetryDelay   = 5 * time.Second
 	avsoxSessionTTL      = 30 * time.Minute
 )
 

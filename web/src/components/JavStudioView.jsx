@@ -13,44 +13,26 @@ import {
   updateJavStudio,
 } from '@/api'
 import AppModal from '@/components/AppModal'
-import Pagination from '@/components/Pagination'
 import { SeriesCard } from '@/components/JavSeriesView'
 import JavDisplayCover from '@/components/JavDisplayCover'
 import WaterfallLoader from '@/components/WaterfallLoader'
 import { useStore } from '@/store'
 import { getErrorMessage } from '@/utils/errors'
 import { zh } from '@/utils/i18n'
-import {
-  JAV_COVER_ORIENTATION_PORTRAIT,
-  javCoverGridMinmax,
-  javCoverSrc,
-  normalizeJavCoverOrientation,
-} from '@/utils/jav'
+import { cardCoverOrientation, cardGridMinmax } from '@/utils/cardLayout'
+import { javCoverSrc } from '@/utils/jav'
 import { openJavDBWithAssist } from '@/utils/javdb'
 
 export default function JavStudioView({
-  page,
-  lastPage,
-  totalItems,
-  hasPrev,
-  hasNext,
   loading,
-  buildPageUrl,
   buildStudioUrl,
   buildSeriesUrl,
-  onFirst,
-  onPrev,
-  onGoToPage,
-  onNext,
-  onLast,
   items,
   onSelectStudio,
   onSelectSeries,
   onSelectPrefix,
   onOpenFavorites,
   onOpenSeriesFavorites,
-  waterfallMode,
-  onWaterfallModeChange,
   onLoadMore,
   loadingMore,
   hasMore,
@@ -58,24 +40,6 @@ export default function JavStudioView({
 }) {
   return (
     <>
-      <div className="sticky-pagination mb-4 flex justify-center">
-        <Pagination
-          page={page}
-          lastPage={lastPage}
-          totalItems={totalItems}
-          hasPrev={hasPrev}
-          hasNext={hasNext}
-          loading={loading}
-          buildPageUrl={buildPageUrl}
-          onFirst={onFirst}
-          onPrev={onPrev}
-          onGoToPage={onGoToPage}
-          onNext={onNext}
-          onLast={onLast}
-          waterfallMode={waterfallMode}
-          onWaterfallModeChange={onWaterfallModeChange}
-        />
-      </div>
       {loading ? (
         <div className="mt-4 flex min-h-[200px] items-center justify-center rounded border border-dashed border-gray-200 text-gray-500">
           {zh('加载中…', 'Loading...')}
@@ -94,7 +58,7 @@ export default function JavStudioView({
         />
       )}
       <WaterfallLoader
-        enabled={waterfallMode && !loading}
+        enabled={!loading}
         hasMore={hasMore}
         loading={loadingMore}
         onLoadMore={onLoadMore}
@@ -114,9 +78,7 @@ function JavStudioGrid({
   buildSeriesUrl,
   onMerged,
 }) {
-  const coverOrientation = useStore((state) =>
-    normalizeJavCoverOrientation(state.config?.jav_cover_orientation)
-  )
+  const cardMinmax = useStore((state) => cardGridMinmax('studio', state.config))
   const [editItem, setEditItem] = useState(null)
   const [overrides, setOverrides] = useState(() => new Map())
   const displayItems = useMemo(() => {
@@ -141,11 +103,7 @@ function JavStudioGrid({
       <div
         className="grid gap-4 bg-white"
         style={{
-          gridTemplateColumns: `repeat(auto-fill, minmax(${
-            coverOrientation === JAV_COVER_ORIENTATION_PORTRAIT
-              ? javCoverGridMinmax(coverOrientation)
-              : '16rem'
-          }, 1fr))`,
+          gridTemplateColumns: `repeat(auto-fill, minmax(${cardMinmax}, 1fr))`,
         }}
       >
         {displayItems.map((item) => (
@@ -205,9 +163,7 @@ export function StudioCard({
       .map((directory) => `${directory.id}:${directory.enabled !== false ? '1' : '0'}`)
       .join(',')
   )
-  const coverOrientation = useStore((state) =>
-    normalizeJavCoverOrientation(state.config?.jav_cover_orientation)
-  )
+  const coverOrientation = useStore((state) => cardCoverOrientation('studio', state.config))
   const sampleCode = String(item?.sample_code || '').trim()
   const cover = sampleCode ? javCoverSrc(sampleCode) : null
   const name = item?.name || zh('未知片商', 'Unknown studio')

@@ -25,7 +25,6 @@ export default function useScrollRestoration({
   studioWaterfallHasMore,
   videoWaterfallHasMore,
   videos,
-  waterfallModes,
 }) {
   useEffect(() => {
     if (!hydrated || !configLoaded || !pendingScrollRestoreRef.current) return
@@ -39,23 +38,23 @@ export default function useScrollRestoration({
     )
     const needsMoreContent = (pending.y || 0) > maxY + 24
     if (needsMoreContent) {
-      if (!isJavMode && waterfallModes.video && videoWaterfallHasMore) {
+      if (!isJavMode && videoWaterfallHasMore) {
         loadMoreVideos()
         return
       }
-      if (isJavMode && javTab === 'list' && waterfallModes.jav && javWaterfallHasMore) {
+      if (isJavMode && javTab === 'list' && javWaterfallHasMore) {
         loadMoreJavs()
         return
       }
-      if (isJavMode && javTab === 'idol' && waterfallModes.idol && idolWaterfallHasMore) {
+      if (isJavMode && javTab === 'idol' && idolWaterfallHasMore) {
         loadMoreJavIdols()
         return
       }
-      if (isJavMode && javTab === 'studio' && waterfallModes.studio && studioWaterfallHasMore) {
+      if (isJavMode && javTab === 'studio' && studioWaterfallHasMore) {
         loadMoreJavStudios()
         return
       }
-      if (isJavMode && javTab === 'series' && waterfallModes.series && seriesWaterfallHasMore) {
+      if (isJavMode && javTab === 'series' && seriesWaterfallHasMore) {
         loadMoreJavSeries()
         return
       }
@@ -87,10 +86,5 @@ export default function useScrollRestoration({
     studioWaterfallHasMore,
     videoWaterfallHasMore,
     videos.length,
-    waterfallModes.idol,
-    waterfallModes.jav,
-    waterfallModes.series,
-    waterfallModes.studio,
-    waterfallModes.video,
   ])
 }

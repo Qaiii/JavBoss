@@ -387,30 +387,15 @@ func getJavIdolExternalWorks(c *gin.Context) {
 		return
 	}
 
+	service.MaybeEnqueueIdolWorks(ctx, id)
+	if queryBool(c, "refresh", false) {
+		service.EnqueueIdolWorks(id)
+	}
 	track, err := dbpkg.GetJavIdolTrack(ctx, id)
 	if err != nil {
 		logging.Error("get jav idol track id=%d: %v", id, err)
 		respondLocalizedError(c, http.StatusInternalServerError, "加载女优跟踪状态失败", "Failed to load idol tracking state")
 		return
-	}
-	if !track.Tracked {
-		// First time this idol is viewed: make sure she enters the background
-		// scrape queue immediately instead of waiting for the periodic sweep.
-		if err := dbpkg.UpsertJavIdolTrack(ctx, id, nil); err != nil {
-			logging.Error("track jav idol on view id=%d: %v", id, err)
-		} else {
-			service.EnqueueIdolWorks(id)
-			track.Tracked = true
-		}
-	} else if track.LastError != "" && track.LastAttemptAt != nil &&
-		track.LastAttemptAt.Before(time.Now().Add(-time.Duration(dbpkg.JavIdolRetryMinutes(ctx))*time.Minute)) {
-		// The previous scrape failed and the retry delay has elapsed: re-queue
-		// so a transient provider failure self-heals on the next page view
-		// instead of waiting for the periodic sweep.
-		service.EnqueueIdolWorks(id)
-	}
-	if queryBool(c, "refresh", false) {
-		service.EnqueueIdolWorks(id)
 	}
 
 	items, total, err := dbpkg.ListJavIdolWorks(ctx, id, limit, (page-1)*limit)

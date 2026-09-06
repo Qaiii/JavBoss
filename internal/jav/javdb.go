@@ -27,7 +27,7 @@ var javDBProvider lookupProvider = javDB{}
 const (
 	javDBBaseURL         = "https://javdb.com"
 	javDBUserAgent       = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-	javDBRequestInterval = 500 * time.Millisecond
+	javDBRequestInterval = 3 * time.Second
 )
 
 var (
@@ -225,7 +225,9 @@ func lookupJavDBActressURLByName(ctx context.Context, name string) (string, erro
 	case 1:
 		return urls[0], nil
 	default:
-		return searchURL, nil
+		// A search URL cannot be scraped as an actress listing. Callers fall
+		// through to another provider or another name instead of storing it.
+		return "", ResourceNotFonud
 	}
 }
 
@@ -383,6 +385,7 @@ type javDBMovieFields struct {
 	Rating      string
 	Tags        []string
 	Actors      []string
+	MaleActors  []string
 }
 
 func parseJavDBMovieInfo(root *html.Node) *JavInfo {
@@ -401,11 +404,12 @@ func parseJavDBMovieInfo(root *html.Node) *JavInfo {
 		DurationMin:  parseRuntimeMinutes(fields.Runtime),
 		Tags:         dedupeNonEmpty(fields.Tags),
 		Actors:       dedupeNonEmpty(fields.Actors),
+		MaleActors:   dedupeNonEmpty(fields.MaleActors),
 		CoverURL:     parseJavDBCoverURL(root, ""),
 		SampleImages: parseSampleImages(root, ""),
 		Provider:     ProviderJavDB,
 	}
-	if info.Title == "" && info.Code == "" && info.Studio == "" && info.Series == "" && info.ReleaseUnix == 0 && info.DurationMin == 0 && len(info.Tags) == 0 && len(info.Actors) == 0 {
+	if info.Title == "" && info.Code == "" && info.Studio == "" && info.Series == "" && info.ReleaseUnix == 0 && info.DurationMin == 0 && len(info.Tags) == 0 && len(info.Actors) == 0 && len(info.MaleActors) == 0 {
 		return nil
 	}
 	return info
@@ -495,32 +499,44 @@ func assignJavDBMovieField(out *javDBMovieFields, label string, block, strong *h
 			out.Tags = collectAnchorTexts(block)
 		}
 	case "演员", "演員":
-		if len(out.Actors) == 0 {
-			out.Actors = collectJavDBActorTexts(block)
+		if len(out.Actors) == 0 && len(out.MaleActors) == 0 {
+			out.Actors, out.MaleActors = collectJavDBActorsByGender(block)
 		}
 	}
 }
 
 func collectJavDBActorTexts(root *html.Node) []string {
+	female, _ := collectJavDBActorsByGender(root)
+	return female
+}
+
+func collectJavDBActorsByGender(root *html.Node) (female, male []string) {
 	if root == nil {
-		return nil
+		return nil, nil
 	}
 
-	seen := make(map[string]struct{})
-	var texts []string
+	seenFemale := make(map[string]struct{})
+	seenMale := make(map[string]struct{})
 	documentSelection(root).Find("a").Each(func(_ int, link *goquery.Selection) {
-		if isJavDBMaleActorLink(firstSelectionNode(link)) {
+		text := cleanSelectionText(link)
+		if text == "" {
 			return
 		}
-		text := cleanSelectionText(link)
-		if text != "" {
-			if _, exists := seen[text]; !exists {
-				seen[text] = struct{}{}
-				texts = append(texts, text)
+		if isJavDBMaleActorLink(firstSelectionNode(link)) {
+			if _, exists := seenMale[text]; exists {
+				return
 			}
+			seenMale[text] = struct{}{}
+			male = append(male, text)
+			return
 		}
+		if _, exists := seenFemale[text]; exists {
+			return
+		}
+		seenFemale[text] = struct{}{}
+		female = append(female, text)
 	})
-	return texts
+	return female, male
 }
 
 func parseJavDBActressURLByName(root *html.Node, name, pageURL string) string {
@@ -810,7 +826,7 @@ func ListJavWorksByActressURL(ctx context.Context, profileURL string, page int) 
 	items := parseJavDBActressWorksPage(doc, targetURL)
 	result := javDBWorksPage{
 		Items:   items,
-		HasNext: hasJavDBNextPage(doc),
+		HasNext: hasJavDBNextPage(doc, page),
 	}
 	cacheableLookupResult(cacheKey, result, nil)
 	return result.Items, result.HasNext, nil
@@ -829,7 +845,7 @@ func LoadCachedActressWorks(profileURL string) []*JavInfo {
 
 	current := lookupCacheKeyVersion(ProviderJavDB, "list_actress_works")
 	versions := []string{current}
-	for _, old := range []string{"v3", "v2", "v1"} {
+	for _, old := range []string{"v4", "v3", "v2", "v1"} {
 		if old == current {
 			continue
 		}
@@ -902,6 +918,9 @@ func parseJavDBActressWorksPage(root *html.Node, pageURL string) []*JavInfo {
 	var items []*JavInfo
 	documentSelection(root).Find("div.movie-list div.item").Each(func(_ int, item *goquery.Selection) {
 		code := cleanSelectionText(item.Find("div.video-title strong").First())
+		if code == "" {
+			code = cleanSelectionText(item.Find("strong").First())
+		}
 		if code == "" {
 			return
 		}
@@ -981,21 +1000,8 @@ func javDBListItemCoverURL(root *html.Node, pageURL string) string {
 	)
 }
 
-// hasJavDBNextPage reports whether the page contains pagination links pointing
-// at another page (i.e. the listing is not the last one).
-func hasJavDBNextPage(root *html.Node) bool {
-	if root == nil {
-		return false
-	}
-	found := false
-	documentSelection(root).
-		Find("div.pagination a, nav.pagination a, ul.pagination a, .pagination a").
-		EachWithBreak(func(_ int, link *goquery.Selection) bool {
-			if strings.Contains(selectionAttr(link, "href"), "page=") {
-				found = true
-				return false
-			}
-			return true
-		})
-	return found
+// hasJavDBNextPage reports whether pagination points at a page after currentPage.
+// Links back to earlier pages (normal on the last listing page) are ignored.
+func hasJavDBNextPage(root *html.Node, currentPage int) bool {
+	return listingHasLaterPage(root, currentPage, "page")
 }

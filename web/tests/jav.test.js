@@ -5,6 +5,15 @@ import {
   isUnimportedJav,
   javCardExternalSourceKeys,
   javExternalSourceKey,
+  javLibraryScopeQueryFlags,
+  JAV_LIBRARY_SCOPE_ALL,
+  JAV_LIBRARY_SCOPE_LIBRARY,
+  JAV_LIBRARY_SCOPE_UNIMPORTED,
+  JAV_LIBRARY_SCOPE_STORAGE_KEY,
+  JAV_SHOW_EXTERNAL_WORKS_STORAGE_KEY,
+  loadSavedJavLibraryScope,
+  normalizeJavLibraryScope,
+  saveJavLibraryScope,
 } from '../src/utils/javLibrary.js'
 
 test('treats explicit in_library false as unimported', () => {
@@ -59,4 +68,57 @@ test('shows the same catalog sources for unimported works as library works', () 
     javCardExternalSourceKeys({ inLibrary: false, sourceURL: 'https://avsox.click/tw/abc' }),
     ['javbus', 'avsox']
   )
+})
+
+test('normalizes jav library scope values', () => {
+  assert.equal(normalizeJavLibraryScope('library'), JAV_LIBRARY_SCOPE_LIBRARY)
+  assert.equal(normalizeJavLibraryScope('ALL'), JAV_LIBRARY_SCOPE_ALL)
+  assert.equal(normalizeJavLibraryScope('unimported'), JAV_LIBRARY_SCOPE_UNIMPORTED)
+  assert.equal(normalizeJavLibraryScope('nope'), JAV_LIBRARY_SCOPE_ALL)
+  assert.equal(normalizeJavLibraryScope('', JAV_LIBRARY_SCOPE_LIBRARY), JAV_LIBRARY_SCOPE_LIBRARY)
+})
+
+test('maps library scope to jav list query flags', () => {
+  assert.deepEqual(javLibraryScopeQueryFlags(JAV_LIBRARY_SCOPE_ALL, { idolCount: 1 }), {
+    includeExternal: true,
+    unimportedOnly: false,
+  })
+  assert.deepEqual(javLibraryScopeQueryFlags(JAV_LIBRARY_SCOPE_UNIMPORTED, { idolCount: 1 }), {
+    includeExternal: false,
+    unimportedOnly: true,
+  })
+  assert.deepEqual(javLibraryScopeQueryFlags(JAV_LIBRARY_SCOPE_LIBRARY, { idolCount: 0 }), {
+    includeExternal: false,
+    unimportedOnly: false,
+  })
+  assert.deepEqual(javLibraryScopeQueryFlags(JAV_LIBRARY_SCOPE_ALL, { idolCount: 0 }), {
+    includeExternal: true,
+    unimportedOnly: false,
+  })
+  assert.deepEqual(javLibraryScopeQueryFlags(JAV_LIBRARY_SCOPE_ALL, { idolCount: 2 }), {
+    includeExternal: false,
+    unimportedOnly: false,
+  })
+  assert.deepEqual(javLibraryScopeQueryFlags(JAV_LIBRARY_SCOPE_ALL, { singleIdol: true }), {
+    includeExternal: true,
+    unimportedOnly: false,
+  })
+})
+
+test('loads jav library scope from storage with legacy fallback', () => {
+  const storage = new Map()
+  const mock = {
+    getItem: (key) => (storage.has(key) ? storage.get(key) : null),
+    setItem: (key, value) => storage.set(key, String(value)),
+  }
+  assert.equal(loadSavedJavLibraryScope(mock), JAV_LIBRARY_SCOPE_ALL)
+
+  mock.setItem(JAV_SHOW_EXTERNAL_WORKS_STORAGE_KEY, '0')
+  assert.equal(loadSavedJavLibraryScope(mock), JAV_LIBRARY_SCOPE_LIBRARY)
+
+  mock.setItem(JAV_LIBRARY_SCOPE_STORAGE_KEY, JAV_LIBRARY_SCOPE_UNIMPORTED)
+  assert.equal(loadSavedJavLibraryScope(mock), JAV_LIBRARY_SCOPE_UNIMPORTED)
+
+  saveJavLibraryScope('library', mock)
+  assert.equal(mock.getItem(JAV_LIBRARY_SCOPE_STORAGE_KEY), JAV_LIBRARY_SCOPE_LIBRARY)
 })

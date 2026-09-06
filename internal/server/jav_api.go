@@ -21,6 +21,7 @@ import (
 	"javboss/internal/jav"
 	"javboss/internal/manager"
 	"javboss/internal/models"
+	"javboss/internal/service"
 	"javboss/internal/util"
 )
 
@@ -108,6 +109,12 @@ func searchJav(c *gin.Context) {
 		seed = &parsed
 	}
 
+	unimportedOnly := queryBool(c, "unimported_only", false)
+	includeExternal := queryBool(c, "include_external", false) && !unimportedOnly
+	if (includeExternal || unimportedOnly) && len(filterQuery.IdolIDs) == 1 {
+		service.MaybeEnqueueIdolWorks(c.Request.Context(), filterQuery.IdolIDs[0])
+	}
+
 	items, total, err := dbpkg.SearchJavWithPrefixFilters(c.Request.Context(), filterQuery.IdolIDs, filterQuery.TagIDs, filterQuery.Search, filterQuery.Prefix, sort, limit, offset, seed, nil, dbpkg.JavSearchFilters{
 		StudioID:          filterQuery.StudioID,
 		SeriesID:          filterQuery.SeriesID,
@@ -115,7 +122,8 @@ func searchJav(c *gin.Context) {
 		FavoriteGroupID:   filterQuery.FavoriteGroupID,
 		FavoriteRatingMin: filterQuery.FavoriteRatingMin,
 		FavoriteRatingMax: filterQuery.FavoriteRatingMax,
-		IncludeExternal:   queryBool(c, "include_external", false),
+		IncludeExternal:   includeExternal,
+		UnimportedOnly:    unimportedOnly,
 	}, parseClosedSubdirectories(c.Query("closed_subdirs")), parseDirectorySubpaths(c.Query("directory_subpaths")))
 	if err != nil {
 		logging.Error("SearchJav: %v", err)

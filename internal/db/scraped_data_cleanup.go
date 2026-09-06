@@ -20,6 +20,7 @@ type UnusedScrapedDataCounts struct {
 	Javs        int `json:"javs"`
 	ScrapedTags int `json:"scraped_tags"`
 	Idols       int `json:"idols"`
+	Actors      int `json:"actors"`
 	Studios     int `json:"studios"`
 	Series      int `json:"series"`
 }
@@ -41,6 +42,11 @@ func unusedIdolQuery(tx *gorm.DB) *gorm.DB {
 		Where("NOT EXISTS (SELECT 1 FROM jav_idol_track WHERE jav_idol_track.jav_idol_id = jav_idol.id)").
 		Where("NOT EXISTS (SELECT 1 FROM jav_idol_work WHERE jav_idol_work.jav_idol_id = jav_idol.id)").
 		Where("NOT EXISTS (SELECT 1 FROM jav_favorite_map WHERE jav_favorite_map.entity_type = ? AND jav_favorite_map.entity_id = jav_idol.id)", JavFavoriteEntityIdol)
+}
+
+func unusedActorQuery(tx *gorm.DB) *gorm.DB {
+	return tx.Model(&models.JavActor{}).
+		Where("NOT EXISTS (SELECT 1 FROM jav_actor_map WHERE jav_actor_map.jav_actor_id = jav_actor.id)")
 }
 
 func unusedStudioQuery(tx *gorm.DB) *gorm.DB {
@@ -119,6 +125,9 @@ func deleteUnusedScrapedDataTx(tx *gorm.DB) (UnusedScrapedDataCounts, error) {
 		if err := tx.Where("jav_id IN ?", orphanIDs).Delete(&models.JavIdolMap{}).Error; err != nil {
 			return UnusedScrapedDataCounts{}, fmt.Errorf("delete unused jav idol maps: %w", err)
 		}
+		if err := tx.Where("jav_id IN ?", orphanIDs).Delete(&models.JavActorMap{}).Error; err != nil {
+			return UnusedScrapedDataCounts{}, fmt.Errorf("delete unused jav actor maps: %w", err)
+		}
 		if err := tx.Where("entity_type = ? AND entity_id IN ?", JavFavoriteEntityJav, orphanIDs).
 			Delete(&models.JavFavoriteMap{}).Error; err != nil {
 			return UnusedScrapedDataCounts{}, fmt.Errorf("delete unused jav favorite maps: %w", err)
@@ -149,6 +158,18 @@ func deleteUnusedScrapedDataTx(tx *gorm.DB) (UnusedScrapedDataCounts, error) {
 			return UnusedScrapedDataCounts{}, fmt.Errorf("delete unused idols: %w", result.Error)
 		}
 		counts.Idols = int(result.RowsAffected)
+	}
+
+	actorIDs, err := pluckIDs(unusedActorQuery(tx))
+	if err != nil {
+		return UnusedScrapedDataCounts{}, fmt.Errorf("list unused actors: %w", err)
+	}
+	if len(actorIDs) > 0 {
+		result := tx.Where("id IN ?", actorIDs).Delete(&models.JavActor{})
+		if result.Error != nil {
+			return UnusedScrapedDataCounts{}, fmt.Errorf("delete unused actors: %w", result.Error)
+		}
+		counts.Actors = int(result.RowsAffected)
 	}
 
 	seriesIDs, err := pluckIDs(unusedSeriesQuery(tx))

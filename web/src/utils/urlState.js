@@ -196,35 +196,21 @@ export const buildUrlFromState = (state, basePath = window.location.pathname) =>
         sp.set(`idol_${definition.key}_max`, String(value.max))
       }
     }
-    if (
-      (state.jav.tab === 'list' || state.jav.tab === 'idol') &&
-      !state.jav.random &&
-      state.jav.tempSort
-    ) {
+    if ((state.jav.tab === 'list' || state.jav.tab === 'idol') && state.jav.tempSort) {
       sp.set('temp_sort', state.jav.tempSort)
     }
-    if (state.jav.tab === 'list' && state.jav.random) {
-      sp.set('random', '1')
-      if (state.jav.seed) sp.set('seed', String(state.jav.seed))
-    } else {
-      sp.set('page', String(state.jav.page || 1))
-    }
+    sp.set('page', String(state.jav.page || 1))
     const query = sp.toString()
     return `${basePath}${query ? `?${query}` : ''}`
   }
 
   sp.set('view', 'video')
   if (state.video.search) sp.set('search', state.video.search)
-  if (!state.video.random && state.video.tempSort) sp.set('temp_sort', state.video.tempSort)
+  if (state.video.tempSort) sp.set('temp_sort', state.video.tempSort)
   if (state.video.tagIds?.length) {
     sp.set('tag_ids', [...state.video.tagIds].sort((a, b) => a - b).join(','))
   }
-  if (state.video.random) {
-    sp.set('random', '1')
-    if (state.video.seed) sp.set('seed', String(state.video.seed))
-  } else {
-    sp.set('page', String(state.video.page || 1))
-  }
+  sp.set('page', String(state.video.page || 1))
   const query = sp.toString()
   return `${basePath}${query ? `?${query}` : ''}`
 }
@@ -239,12 +225,12 @@ export const normalizeUrlStateFromStore = (store, tagsByName) => {
   return {
     view: store.viewMode === 'jav' ? 'jav' : 'video',
     video: {
-      page: store.randomMode ? 1 : store.page,
+      page: store.page,
       search: (store.searchTerm || '').trim(),
-      tempSort: store.randomMode ? '' : store.videoTempSort || '',
+      tempSort: store.videoTempSort || '',
       tagIds: selectedIds,
-      random: store.randomMode,
-      seed: store.randomMode ? store.randomSeed : null,
+      random: false,
+      seed: null,
     },
     jav: {
       tab:
@@ -264,9 +250,7 @@ export const normalizeUrlStateFromStore = (store, tagsByName) => {
             ? store.studioPage
             : store.javTab === 'series'
               ? store.seriesPage
-              : store.javRandomMode
-                ? 1
-                : store.javPage,
+              : store.javPage,
       search: (store.javSearchTerm || '').trim(),
       idolIds: store.javIdolIds || [],
       tagIds: store.javTags || [],
@@ -293,13 +277,13 @@ export const normalizeUrlStateFromStore = (store, tagsByName) => {
           ? normalizeIdolProfileFilters(store.idolProfileFilters)
           : createDefaultIdolProfileFilters(),
       tempSort:
-        store.javTab === 'list' && !store.javRandomMode
+        store.javTab === 'list'
           ? store.javTempSort || ''
           : store.javTab === 'idol'
             ? store.idolTempSort || ''
             : '',
-      random: store.javTab === 'list' && store.javRandomMode,
-      seed: store.javTab === 'list' && store.javRandomMode ? store.javRandomSeed : null,
+      random: false,
+      seed: null,
     },
   }
 }

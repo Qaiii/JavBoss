@@ -4,18 +4,22 @@ import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import SwapVertIcon from '@mui/icons-material/SwapVert'
 import AppModal from '@/components/AppModal'
 import {
-  IDOL_CARD_MIN_WIDTH_DEFAULT,
-  IDOL_CARD_MIN_WIDTH_MAX,
-  IDOL_CARD_MIN_WIDTH_MIN,
   IDOL_SORT_OPTIONS,
   JAV_SORT_OPTIONS,
   JAV_SORT_RULE_FILTERS,
   findSortOption,
-  normalizeIdolCardMinWidth,
+  isUnorderedSortOption,
   reverseSortValue,
   sortLabel,
   sortLabelParts,
 } from '@/constants/jav'
+import {
+  CARD_ORIENTATION_LOCK,
+  CARD_WIDTH_MAX,
+  CARD_WIDTH_MIN,
+  defaultCardLayout,
+  normalizeCardWidth,
+} from '@/utils/cardLayout'
 import { zh } from '@/utils/i18n'
 
 function SortText({ option, value }) {
@@ -55,15 +59,17 @@ function SortOptionRow({ option, name, inputValue, onChange }) {
         />
         <SortText option={option} value={displayValue} />
       </label>
-      <button
-        type="button"
-        onClick={() => onChange?.(reverseSortValue([option], displayValue, option.defaultValue))}
-        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
-        title={zh('反转排序', 'Reverse sort')}
-        aria-label={zh(`反转${option.label[0]}排序`, `Reverse ${option.label[1]} sort`)}
-      >
-        <SwapVertIcon fontSize="inherit" />
-      </button>
+      {isUnorderedSortOption(option) ? null : (
+        <button
+          type="button"
+          onClick={() => onChange?.(reverseSortValue([option], displayValue, option.defaultValue))}
+          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+          title={zh('反转排序', 'Reverse sort')}
+          aria-label={zh(`反转${option.label[0]}排序`, `Reverse ${option.label[1]} sort`)}
+        >
+          <SwapVertIcon fontSize="inherit" />
+        </button>
+      )}
     </div>
   )
 }
@@ -116,10 +122,83 @@ function SettingsSwitch({ label, checked, onChange }) {
   )
 }
 
-const javSortChoices = JAV_SORT_OPTIONS.flatMap((option) => [
-  { value: option.ascValue, label: sortLabel(option, option.ascValue, zh) },
-  { value: option.descValue, label: sortLabel(option, option.descValue, zh) },
-])
+function CardWidthRow({ label, value, fallback, onChange }) {
+  const width = normalizeCardWidth(value, fallback)
+  return (
+    <SettingsRow label={label}>
+      <div className="flex w-48 items-center gap-2">
+        <input
+          type="range"
+          min={CARD_WIDTH_MIN}
+          max={CARD_WIDTH_MAX}
+          step="1"
+          value={width}
+          onChange={(event) => onChange?.(Number(event.target.value))}
+          className="h-1.5 min-w-0 flex-1 accent-blue-600"
+          aria-label={label}
+        />
+        <span className="w-12 shrink-0 text-right tabular-nums text-slate-500">{width}rem</span>
+      </div>
+    </SettingsRow>
+  )
+}
+
+function CardLayoutFields({ entity, layout, onChange }) {
+  const defaults = defaultCardLayout(entity)
+  const lock = CARD_ORIENTATION_LOCK[entity]
+  const orientation = lock || (layout?.orientation === 'portrait' ? 'portrait' : 'landscape')
+  const update = (patch) => onChange?.({ ...defaults, ...layout, ...patch })
+
+  return (
+    <>
+      <SettingsRow label={zh('封面方向', 'Cover orientation')}>
+        {lock ? (
+          <span className="text-sm text-slate-500">
+            {lock === 'portrait'
+              ? zh('竖版（锁定）', 'Portrait (locked)')
+              : zh('横版（锁定）', 'Landscape (locked)')}
+          </span>
+        ) : (
+          <select
+            value={orientation}
+            onChange={(event) => update({ orientation: event.target.value })}
+            className={controlClassName}
+            aria-label={zh('封面方向', 'Cover orientation')}
+          >
+            <option value="landscape">{zh('横版', 'Landscape')}</option>
+            <option value="portrait">{zh('竖版', 'Portrait')}</option>
+          </select>
+        )}
+      </SettingsRow>
+      {lock === 'portrait' ? null : (
+        <CardWidthRow
+          label={zh('横版宽度', 'Landscape width')}
+          value={layout?.landscape}
+          fallback={defaults.landscape}
+          onChange={(landscape) => update({ landscape })}
+        />
+      )}
+      {lock === 'landscape' ? null : (
+        <CardWidthRow
+          label={zh('竖版宽度', 'Portrait width')}
+          value={layout?.portrait}
+          fallback={defaults.portrait}
+          onChange={(portrait) => update({ portrait })}
+        />
+      )}
+    </>
+  )
+}
+
+const javSortChoices = JAV_SORT_OPTIONS.flatMap((option) => {
+  if (isUnorderedSortOption(option) || option.ascValue === option.descValue) {
+    return [{ value: option.defaultValue, label: sortLabel(option, option.defaultValue, zh) }]
+  }
+  return [
+    { value: option.ascValue, label: sortLabel(option, option.ascValue, zh) },
+    { value: option.descValue, label: sortLabel(option, option.descValue, zh) },
+  ]
+})
 
 function nextJavSortRuleID(prefix, rules) {
   const existing = new Set((rules || []).map((rule) => rule.id))
@@ -333,26 +412,16 @@ export default function JavSettingsModal({
   onJavHideTagsChange,
   javHideActionsInput = false,
   onJavHideActionsChange,
-  javCoverOrientationInput = 'landscape',
-  onJavCoverOrientationChange,
+  cardLayoutInput,
+  onCardLayoutChange,
   javFavoriteRatingShowFullInput = false,
   onJavFavoriteRatingShowFullChange,
-  javWaterfallDefaultInput = false,
-  onJavWaterfallDefaultChange,
   idolPageSizeInput,
   onIdolPageSizeChange,
-  idolCardMinWidthInput = IDOL_CARD_MIN_WIDTH_DEFAULT,
-  onIdolCardMinWidthChange,
-  idolWaterfallDefaultInput = false,
-  onIdolWaterfallDefaultChange,
   studioPageSizeInput,
   onStudioPageSizeChange,
-  studioWaterfallDefaultInput = false,
-  onStudioWaterfallDefaultChange,
   seriesPageSizeInput,
   onSeriesPageSizeChange,
-  seriesWaterfallDefaultInput = false,
-  onSeriesWaterfallDefaultChange,
   javSortInput,
   onJavSortChange,
   javSortRulesInput = [],
@@ -385,25 +454,23 @@ export default function JavSettingsModal({
     switch (activeTab) {
       case 'idol':
         onIdolPageSizeChange?.(24)
-        onIdolCardMinWidthChange?.(IDOL_CARD_MIN_WIDTH_DEFAULT)
-        onIdolWaterfallDefaultChange?.(false)
+        onCardLayoutChange?.('idol', defaultCardLayout('idol'))
         onIdolSortChange?.(IDOL_SORT_OPTIONS[0]?.defaultValue || 'recent')
         onJavIdolPreferChineseNameChange?.(false)
         break
       case 'studio':
         onStudioPageSizeChange?.(25)
-        onStudioWaterfallDefaultChange?.(false)
+        onCardLayoutChange?.('studio', defaultCardLayout('studio'))
         break
       case 'series':
         onSeriesPageSizeChange?.(25)
-        onSeriesWaterfallDefaultChange?.(false)
+        onCardLayoutChange?.('series', defaultCardLayout('series'))
         break
       case 'tag':
         onJavTagShowSimplifiedChange?.(false)
         break
       default:
         onJavPageSizeChange?.(24)
-        onJavWaterfallDefaultChange?.(false)
         onJavGridColumnsChange?.(0)
         onJavTitleMaxRowsChange?.(2)
         onJavIdolTagMaxRowsChange?.(2)
@@ -412,7 +479,7 @@ export default function JavSettingsModal({
         onJavHideIdolsChange?.(false)
         onJavHideTagsChange?.(false)
         onJavHideActionsChange?.(false)
-        onJavCoverOrientationChange?.('landscape')
+        onCardLayoutChange?.('jav', defaultCardLayout('jav'))
         onJavFavoriteRatingShowFullChange?.(false)
         onJavSortChange?.(JAV_SORT_OPTIONS[0]?.defaultValue || 'recent')
         onJavSortRulesChange?.([])
@@ -495,29 +562,16 @@ export default function JavSettingsModal({
                     ))}
                   </select>
                 </SettingsRow>
-                <SettingsRow label={zh('默认开启瀑布流', 'Enable waterfall by default')}>
-                  <SettingsSwitch
-                    label={zh('默认开启瀑布流', 'Enable waterfall by default')}
-                    checked={javWaterfallDefaultInput}
-                    onChange={onJavWaterfallDefaultChange}
-                  />
-                </SettingsRow>
               </div>
             </SettingsSection>
 
             <SettingsSection title={zh('卡片设置', 'Card settings')}>
               <div className="divide-y divide-slate-100 px-1">
-                <SettingsRow label={zh('封面方向', 'Cover orientation')}>
-                  <select
-                    value={javCoverOrientationInput === 'portrait' ? 'portrait' : 'landscape'}
-                    onChange={(e) => onJavCoverOrientationChange?.(e.target.value)}
-                    className={controlClassName}
-                    aria-label={zh('封面方向', 'Cover orientation')}
-                  >
-                    <option value="landscape">{zh('横版', 'Landscape')}</option>
-                    <option value="portrait">{zh('竖版', 'Portrait')}</option>
-                  </select>
-                </SettingsRow>
+                <CardLayoutFields
+                  entity="jav"
+                  layout={cardLayoutInput?.jav}
+                  onChange={(layout) => onCardLayoutChange?.('jav', layout)}
+                />
                 <SettingsRow label={zh('标题最多行数', 'Title max rows')}>
                   <select
                     value={String(javTitleMaxRowsInput ?? 2)}
@@ -714,34 +768,15 @@ export default function JavSettingsModal({
                     className={controlClassName}
                   />
                 </SettingsRow>
-                <SettingsRow label={zh('默认开启瀑布流', 'Enable waterfall by default')}>
-                  <SettingsSwitch
-                    label={zh('默认开启瀑布流', 'Enable waterfall by default')}
-                    checked={idolWaterfallDefaultInput}
-                    onChange={onIdolWaterfallDefaultChange}
-                  />
-                </SettingsRow>
               </div>
             </SettingsSection>
             <SettingsSection title={zh('卡片设置', 'Card settings')}>
               <div className="divide-y divide-slate-100 px-1">
-                <SettingsRow label={zh('卡片宽度', 'Card width')}>
-                  <div className="flex w-48 items-center gap-2">
-                    <input
-                      type="range"
-                      min={IDOL_CARD_MIN_WIDTH_MIN}
-                      max={IDOL_CARD_MIN_WIDTH_MAX}
-                      step="1"
-                      value={normalizeIdolCardMinWidth(idolCardMinWidthInput)}
-                      onChange={(event) => onIdolCardMinWidthChange?.(Number(event.target.value))}
-                      className="h-1.5 min-w-0 flex-1 accent-blue-600"
-                      aria-label={zh('卡片宽度', 'Card width')}
-                    />
-                    <span className="w-12 shrink-0 text-right tabular-nums text-slate-500">
-                      {normalizeIdolCardMinWidth(idolCardMinWidthInput)}rem
-                    </span>
-                  </div>
-                </SettingsRow>
+                <CardLayoutFields
+                  entity="idol"
+                  layout={cardLayoutInput?.idol}
+                  onChange={(layout) => onCardLayoutChange?.('idol', layout)}
+                />
                 <SettingsRow label={zh('优先显示中文名', 'Prefer Chinese name')}>
                   <SettingsSwitch
                     label={zh('优先显示中文名', 'Prefer Chinese name')}
@@ -780,49 +815,57 @@ export default function JavSettingsModal({
         ) : null}
 
         {activeTab === 'studio' ? (
-          <SettingsSection title={zh('布局设置', 'Layout')}>
-            <div className="divide-y divide-slate-100 px-1">
-              <SettingsRow label={zh('每页 片商 数量', 'Studios per page')}>
-                <input
-                  type="number"
-                  min="1"
-                  value={studioPageSizeInput}
-                  onChange={(e) => onStudioPageSizeChange?.(e.target.value)}
-                  className={controlClassName}
+          <div className="space-y-3">
+            <SettingsSection title={zh('布局设置', 'Layout')}>
+              <div className="divide-y divide-slate-100 px-1">
+                <SettingsRow label={zh('每页 片商 数量', 'Studios per page')}>
+                  <input
+                    type="number"
+                    min="1"
+                    value={studioPageSizeInput}
+                    onChange={(e) => onStudioPageSizeChange?.(e.target.value)}
+                    className={controlClassName}
+                  />
+                </SettingsRow>
+              </div>
+            </SettingsSection>
+            <SettingsSection title={zh('卡片设置', 'Card settings')}>
+              <div className="divide-y divide-slate-100 px-1">
+                <CardLayoutFields
+                  entity="studio"
+                  layout={cardLayoutInput?.studio}
+                  onChange={(layout) => onCardLayoutChange?.('studio', layout)}
                 />
-              </SettingsRow>
-              <SettingsRow label={zh('默认开启瀑布流', 'Enable waterfall by default')}>
-                <SettingsSwitch
-                  label={zh('默认开启瀑布流', 'Enable waterfall by default')}
-                  checked={studioWaterfallDefaultInput}
-                  onChange={onStudioWaterfallDefaultChange}
-                />
-              </SettingsRow>
-            </div>
-          </SettingsSection>
+              </div>
+            </SettingsSection>
+          </div>
         ) : null}
 
         {activeTab === 'series' ? (
-          <SettingsSection title={zh('布局设置', 'Layout')}>
-            <div className="divide-y divide-slate-100 px-1">
-              <SettingsRow label={zh('每页 系列 数量', 'Series per page')}>
-                <input
-                  type="number"
-                  min="1"
-                  value={seriesPageSizeInput}
-                  onChange={(e) => onSeriesPageSizeChange?.(e.target.value)}
-                  className={controlClassName}
+          <div className="space-y-3">
+            <SettingsSection title={zh('布局设置', 'Layout')}>
+              <div className="divide-y divide-slate-100 px-1">
+                <SettingsRow label={zh('每页 系列 数量', 'Series per page')}>
+                  <input
+                    type="number"
+                    min="1"
+                    value={seriesPageSizeInput}
+                    onChange={(e) => onSeriesPageSizeChange?.(e.target.value)}
+                    className={controlClassName}
+                  />
+                </SettingsRow>
+              </div>
+            </SettingsSection>
+            <SettingsSection title={zh('卡片设置', 'Card settings')}>
+              <div className="divide-y divide-slate-100 px-1">
+                <CardLayoutFields
+                  entity="series"
+                  layout={cardLayoutInput?.series}
+                  onChange={(layout) => onCardLayoutChange?.('series', layout)}
                 />
-              </SettingsRow>
-              <SettingsRow label={zh('默认开启瀑布流', 'Enable waterfall by default')}>
-                <SettingsSwitch
-                  label={zh('默认开启瀑布流', 'Enable waterfall by default')}
-                  checked={seriesWaterfallDefaultInput}
-                  onChange={onSeriesWaterfallDefaultChange}
-                />
-              </SettingsRow>
-            </div>
-          </SettingsSection>
+              </div>
+            </SettingsSection>
+          </div>
         ) : null}
 
         {activeTab === 'tag' ? (

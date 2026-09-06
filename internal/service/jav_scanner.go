@@ -70,6 +70,9 @@ func ScanJavMetadata(ctx context.Context) error {
 	if err := scanMissingJavStudioAndEnglishSeries(ctx); err != nil {
 		return err
 	}
+	if err := scanMissingJavMaleActors(ctx); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -443,6 +446,9 @@ func scanMissingJavZhInfo(ctx context.Context, providers []jav.Provider) error {
 			}
 			logging.Info("jav title metadata updated provider=%s id=%d code=%s title=%s", provider.String(), item.ID, code, strings.TrimSpace(info.Title))
 			EnqueueIdolWorksForActors(ctx, info.Actors)
+			if len(info.MaleActors) == 0 {
+				EnqueueMaleActorLookup(ctx, item.ID, code)
+			}
 			break
 		}
 	}

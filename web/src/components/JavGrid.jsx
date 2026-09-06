@@ -47,10 +47,9 @@ import {
   isUnimportedJav,
   javCardExternalSourceKeys,
   javExternalSourceKey,
-  javCoverGridMinmax,
   javCardCoverSrc,
-  normalizeJavCoverOrientation,
 } from '@/utils/jav'
+import { cardCoverOrientation, cardGridMinmax } from '@/utils/cardLayout'
 import { findJavEditOptionByName } from '@/utils/javEdit'
 import { getIdolDisplayName, getIdolDisplayNames } from '@/utils/javIdol'
 import { getJavTagDisplayName, withJavTagDisplayName } from '@/utils/javTag'
@@ -158,9 +157,8 @@ export default function JavGrid({
     configFlag(state.config?.jav_favorite_rating_show_full, false)
   )
   const showSimplifiedTags = useStore((state) => configFlag(state.config?.jav_tag_show_simplified))
-  const coverOrientation = useStore((state) =>
-    normalizeJavCoverOrientation(state.config?.jav_cover_orientation)
-  )
+  const coverOrientation = useStore((state) => cardCoverOrientation('jav', state.config))
+  const cardMinmax = useStore((state) => cardGridMinmax('jav', state.config))
   const displayItems = useMemo(() => {
     if (!showSimplifiedTags) return items
     return (items || []).map((item) => ({
@@ -198,7 +196,7 @@ export default function JavGrid({
   const gridStyle = fixedColumnCount
     ? { gridTemplateColumns: `repeat(${fixedColumnCount}, minmax(0, 1fr))` }
     : {
-        gridTemplateColumns: `repeat(auto-fill, minmax(${javCoverGridMinmax(coverOrientation)}, 1fr))`,
+        gridTemplateColumns: `repeat(auto-fill, minmax(${cardMinmax}, 1fr))`,
       }
 
   const loadIdolPreview = async (idol) => {

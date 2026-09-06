@@ -59,6 +59,14 @@ export const JAV_SORT_OPTIONS = [
     asc: ['低→高', 'low→high'],
     desc: ['高→低', 'high→low'],
   },
+  {
+    base: 'random',
+    defaultValue: 'random',
+    ascValue: 'random',
+    descValue: 'random',
+    unordered: true,
+    label: ['随机', 'Random'],
+  },
 ]
 
 export const JAV_SORT_RULE_FILTERS = [
@@ -306,9 +314,6 @@ export function activeJavSortFilters(state) {
 }
 
 export function resolveJavSort(state) {
-  if (state?.javRandomMode) {
-    return { sort: 'random', source: 'random', rule: null }
-  }
   const temporary = normalizeJavSort(state?.javTempSort, '')
   if (temporary) {
     return { sort: temporary, source: 'temporary', rule: null }
@@ -385,14 +390,24 @@ export function reverseSortValue(options, sort, fallback) {
   return getSortDirection(option, sort) === 'asc' ? option.descValue : option.ascValue
 }
 
+export function isUnorderedSortOption(option) {
+  return Boolean(option?.unordered)
+}
+
 export function sortLabel(option, sort, zh) {
   if (!option) return ''
+  if (isUnorderedSortOption(option)) {
+    return zh(option.label[0], option.label[1])
+  }
   const dir = getSortDirection(option, sort)
   return zh(`${option.label[0]}：${option[dir][0]}`, `${option.label[1]}: ${option[dir][1]}`)
 }
 
 export function sortLabelParts(option, sort, zh) {
   if (!option) return { label: '', separator: '', direction: '' }
+  if (isUnorderedSortOption(option)) {
+    return { label: zh(option.label[0], option.label[1]), separator: '', direction: '' }
+  }
   const dir = getSortDirection(option, sort)
   return {
     label: zh(option.label[0], option.label[1]),
@@ -403,14 +418,4 @@ export function sortLabelParts(option, sort, zh) {
 
 export function isUserJavTag(tag) {
   return Number(tag?.provider) === JAV_PROVIDER_USER
-}
-
-export const IDOL_CARD_MIN_WIDTH_DEFAULT = 14
-export const IDOL_CARD_MIN_WIDTH_MIN = 8
-export const IDOL_CARD_MIN_WIDTH_MAX = 24
-
-export function normalizeIdolCardMinWidth(value) {
-  const parsed = Number.parseInt(String(value ?? ''), 10)
-  if (!Number.isFinite(parsed)) return IDOL_CARD_MIN_WIDTH_DEFAULT
-  return Math.min(IDOL_CARD_MIN_WIDTH_MAX, Math.max(IDOL_CARD_MIN_WIDTH_MIN, parsed))
 }

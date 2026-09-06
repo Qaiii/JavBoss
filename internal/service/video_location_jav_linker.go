@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	javLinkWorkerCount = 4 // 增加worker数可能会导致首次扫描目录时jav相关查询接口严重阻塞
+	javLinkWorkerCount = 2 // keep low so bulk directory scans do not burst provider APIs
 	javLinkQueueSize   = 4096
 )
 
@@ -242,12 +242,15 @@ func lookupAndLinkVideoLocationJav(ctx context.Context, v *db.JavScanVideo, file
 			continue
 		}
 
-		if _, err := db.SaveJavInfoAndLinkLocationForVideo(ctx, info, v.LocationID, v.VideoID, v.UpdatedAt); err != nil {
+		if rec, err := db.SaveJavInfoAndLinkLocationForVideo(ctx, info, v.LocationID, v.VideoID, v.UpdatedAt); err != nil {
 			logging.Error("link video location->jav failed provider=%s location=%s code=%s err=%v", provider.String(), filename, info.Code, err)
 		} else {
 			logging.Info("link video location->jav success provider=%s location=%s code=%s", provider.String(), filename, info.Code)
 			enqueueCover(info.Code)
 			EnqueueIdolWorksForActors(ctx, info.Actors)
+			if rec != nil && len(info.MaleActors) == 0 {
+				EnqueueMaleActorLookup(ctx, rec.ID, info.Code)
+			}
 		}
 		return true, nil
 	}

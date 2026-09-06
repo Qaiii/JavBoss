@@ -7,41 +7,17 @@ function JavIdolRoute({
   buildJavUrl,
   config,
   hasMore,
-  hasNext,
-  hasPrev,
-  idolGlobalSort,
-  idolTempSort,
   items,
-  lastPage,
   loading,
   loadingMore,
-  onFirst,
-  onGoToPage,
-  onLast,
   onLoadMore,
-  onNext,
   onOpenFavorites,
   onMerged,
-  onPrev,
   onSelectIdol,
-  onWaterfallModeChange,
-  page,
-  setIdolTempSort,
-  totalItems,
-  waterfallMode,
 }) {
   return (
     <JavIdolView
-      page={page}
-      lastPage={lastPage}
-      totalItems={totalItems}
-      hasPrev={hasPrev}
-      hasNext={hasNext}
       loading={loading}
-      idolTempSort={idolTempSort}
-      idolGlobalSort={idolGlobalSort}
-      setIdolTempSort={setIdolTempSort}
-      buildPageUrl={({ page: targetPage }) => buildJavUrl({ page: targetPage, tab: 'idol' })}
       buildIdolUrl={(idol) =>
         buildJavUrl({
           page: 1,
@@ -54,18 +30,11 @@ function JavIdolRoute({
           tempSort: '',
         })
       }
-      onFirst={onFirst}
-      onPrev={onPrev}
-      onGoToPage={onGoToPage}
-      onNext={onNext}
-      onLast={onLast}
       items={items}
       preferChineseName={configFlag(config?.jav_idol_prefer_chinese_name)}
       onSelectIdol={onSelectIdol}
       onOpenFavorites={onOpenFavorites}
       onMerged={onMerged}
-      waterfallMode={waterfallMode}
-      onWaterfallModeChange={onWaterfallModeChange}
       onLoadMore={onLoadMore}
       loadingMore={loadingMore}
       hasMore={hasMore}
@@ -76,38 +45,20 @@ function JavIdolRoute({
 function JavStudioRoute({
   buildJavUrl,
   hasMore,
-  hasNext,
-  hasPrev,
   items,
-  lastPage,
   loading,
   loadingMore,
-  onFirst,
-  onGoToPage,
-  onLast,
   onLoadMore,
   onMerged,
-  onNext,
   onOpenFavorites,
   onOpenSeriesFavorites,
   onSelectPrefix,
-  onPrev,
   onSelectSeries,
   onSelectStudio,
-  onWaterfallModeChange,
-  page,
-  totalItems,
-  waterfallMode,
 }) {
   return (
     <JavStudioView
-      page={page}
-      lastPage={lastPage}
-      totalItems={totalItems}
-      hasPrev={hasPrev}
-      hasNext={hasNext}
       loading={loading}
-      buildPageUrl={({ page: targetPage }) => buildJavUrl({ page: targetPage, tab: 'studio' })}
       buildStudioUrl={(studio) =>
         buildJavUrl({
           page: 1,
@@ -137,19 +88,12 @@ function JavStudioRoute({
           tempSort: '',
         })
       }
-      onFirst={onFirst}
-      onPrev={onPrev}
-      onGoToPage={onGoToPage}
-      onNext={onNext}
-      onLast={onLast}
       items={items}
       onSelectStudio={onSelectStudio}
       onSelectSeries={onSelectSeries}
       onSelectPrefix={onSelectPrefix}
       onOpenFavorites={onOpenFavorites}
       onOpenSeriesFavorites={onOpenSeriesFavorites}
-      waterfallMode={waterfallMode}
-      onWaterfallModeChange={onWaterfallModeChange}
       onLoadMore={onLoadMore}
       loadingMore={loadingMore}
       hasMore={hasMore}
@@ -161,35 +105,17 @@ function JavStudioRoute({
 function JavSeriesRoute({
   buildJavUrl,
   hasMore,
-  hasNext,
-  hasPrev,
   items,
-  lastPage,
   loading,
   loadingMore,
-  onFirst,
-  onGoToPage,
-  onLast,
   onLoadMore,
-  onNext,
   onOpenFavorites,
-  onPrev,
   onSelectSeries,
   onSelectStudio,
-  onWaterfallModeChange,
-  page,
-  totalItems,
-  waterfallMode,
 }) {
   return (
     <JavSeriesView
-      page={page}
-      lastPage={lastPage}
-      totalItems={totalItems}
-      hasPrev={hasPrev}
-      hasNext={hasNext}
       loading={loading}
-      buildPageUrl={({ page: targetPage }) => buildJavUrl({ page: targetPage, tab: 'series' })}
       buildSeriesUrl={(series) =>
         buildJavUrl({
           page: 1,
@@ -205,17 +131,10 @@ function JavSeriesRoute({
           tempSort: '',
         })
       }
-      onFirst={onFirst}
-      onPrev={onPrev}
-      onGoToPage={onGoToPage}
-      onNext={onNext}
-      onLast={onLast}
       items={items}
       onSelectSeries={onSelectSeries}
       onSelectStudio={onSelectStudio}
       onOpenFavorites={onOpenFavorites}
-      waterfallMode={waterfallMode}
-      onWaterfallModeChange={onWaterfallModeChange}
       onLoadMore={onLoadMore}
       loadingMore={loadingMore}
       hasMore={hasMore}
@@ -229,19 +148,11 @@ function JavListRoute({
   alternatePlayerLabel,
   buildJavUrl,
   hasMore,
-  javResolvedSort,
-  javSortSource,
   javGridColumns,
-  javHasNext,
-  javHasPrev,
   javIdolTagMaxRows,
   javItems,
-  javLastPage,
-  javPage,
-  javRandomMode,
   javTagMaxRows,
   javTitleMaxRows,
-  javTotal,
   loadingMore,
   onIdolClick,
   onLoadMore,
@@ -268,29 +179,15 @@ function JavListRoute({
   onSeriesClick,
   onStudioClick,
   onTagClick,
-  onShowExternalWorksChange,
+  onJavLibraryScopeChange,
   onDislikeWork,
-  onWaterfallModeChange,
-  setJavPage,
-  setJavTempSort,
-  showExternalWorks,
-  waterfallMode,
+  javLibraryScope,
   playOnCoverClick = false,
 }) {
   return (
     <JavView
-      javPage={javPage}
-      javLastPage={javLastPage}
-      javTotal={javTotal}
-      javHasPrev={javHasPrev}
-      javHasNext={javHasNext}
       javLoading={activeJavLoading}
-      javRandomMode={javRandomMode}
-      javResolvedSort={javResolvedSort}
-      javSortSource={javSortSource}
       buildJavUrl={buildJavUrl}
-      setJavPage={setJavPage}
-      setJavTempSort={setJavTempSort}
       javItems={javItems}
       javGridColumns={javGridColumns}
       javTitleMaxRows={javTitleMaxRows}
@@ -321,13 +218,11 @@ function JavListRoute({
       onStudioClick={onStudioClick}
       onSeriesClick={onSeriesClick}
       onTagClick={onTagClick}
-      waterfallMode={waterfallMode}
-      onWaterfallModeChange={onWaterfallModeChange}
       onLoadMore={onLoadMore}
       loadingMore={loadingMore}
       hasMore={hasMore}
-      showExternalWorks={showExternalWorks}
-      onShowExternalWorksChange={onShowExternalWorksChange}
+      javLibraryScope={javLibraryScope}
+      onJavLibraryScopeChange={onJavLibraryScopeChange}
       activeIdolId={activeIdolId}
       onDislikeWork={onDislikeWork}
       playOnCoverClick={playOnCoverClick}

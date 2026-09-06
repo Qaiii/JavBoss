@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/PuerkitoBio/goquery"
@@ -22,6 +23,13 @@ import (
 type javModel struct{}
 
 var javModelProvider lookupProvider = javModel{}
+
+const javModelRequestInterval = 4 * time.Second
+
+var javModelRateLimiter = struct {
+	sync.Mutex
+	next time.Time
+}{}
 
 // LookupActressByCode implements lookupProvider.
 func (javModel) LookupActressByCode(code string) (*ActressInfo, error) {
@@ -118,6 +126,9 @@ func (javModel) LookupJavByCode(code string) (*JavInfo, error) {
 }
 
 func fetchJavModelHTML(ctx context.Context, targetURL, referer string) (*html.Node, int, error) {
+	if err := waitForJavModelRateLimit(ctx); err != nil {
+		return nil, 0, err
+	}
 	req, err := buildJavModelRequest(ctx, targetURL, referer)
 	if err != nil {
 		return nil, 0, err
@@ -378,4 +389,31 @@ func parseBirthDateFlexible(value string) int {
 		}
 	}
 	return 0
+}
+
+func waitForJavModelRateLimit(ctx context.Context) error {
+	for {
+		javModelRateLimiter.Lock()
+		now := time.Now()
+		if !now.Before(javModelRateLimiter.next) {
+			javModelRateLimiter.next = now.Add(javModelRequestInterval)
+			javModelRateLimiter.Unlock()
+			return nil
+		}
+		wait := time.Until(javModelRateLimiter.next)
+		javModelRateLimiter.Unlock()
+
+		timer := time.NewTimer(wait)
+		select {
+		case <-ctx.Done():
+			if !timer.Stop() {
+				select {
+				case <-timer.C:
+				default:
+				}
+			}
+			return fmt.Errorf("javmodel: rate limit wait: %w", ctx.Err())
+		case <-timer.C:
+		}
+	}
 }

@@ -199,11 +199,11 @@ func main() {
 		case <-timer.C:
 			service.StartAutomaticDirectoryScanScheduler(ctx, 30*time.Second)
 			service.StartDownloadManager(ctx)
-			service.StartJavMetadataScanner(ctx, time.Minute)
-			service.StartJavSeriesMetadataScanner(ctx, time.Minute)
-			service.StartUncensoredJavMetadataScanner(ctx, time.Minute)
-			service.StartIdolProfileScanner(ctx, time.Minute)
-			service.StartIdolWorksRefreshScheduler(ctx, 30*time.Minute)
+			service.StartJavMetadataScanner(ctx, 5*time.Minute)
+			service.StartJavSeriesMetadataScanner(ctx, 5*time.Minute)
+			service.StartUncensoredJavMetadataScanner(ctx, 5*time.Minute)
+			service.StartIdolProfileScanner(ctx, 5*time.Minute)
+			service.StartIdolWorksRefreshScheduler(ctx, time.Hour)
 		}
 	}()
 

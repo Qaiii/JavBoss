@@ -305,6 +305,7 @@ func ReplaceJavIdolWorks(ctx context.Context, idolID int64, works []models.JavId
 		if err := tx.Where("jav_idol_id = ?", idolID).Delete(&models.JavIdolWork{}).Error; err != nil {
 			return fmt.Errorf("clear jav idol works: %w", err)
 		}
+		works = uniqueJavIdolWorks(works)
 		if len(works) > 0 {
 			if err := tx.Create(&works).Error; err != nil {
 				return fmt.Errorf("insert jav idol works: %w", err)
@@ -312,6 +313,48 @@ func ReplaceJavIdolWorks(ctx context.Context, idolID int64, works []models.JavId
 		}
 		return nil
 	})
+}
+
+func uniqueJavIdolWorks(works []models.JavIdolWork) []models.JavIdolWork {
+	if len(works) < 2 {
+		return works
+	}
+	seen := make(map[string]int, len(works))
+	out := make([]models.JavIdolWork, 0, len(works))
+	for _, work := range works {
+		key := strings.ToUpper(strings.TrimSpace(work.Code))
+		if key == "" {
+			continue
+		}
+		if i, exists := seen[key]; exists {
+			out[i].Title = jav.PreferJapaneseTitle(out[i].Title, work.Title)
+			if out[i].ReleaseUnix == 0 && work.ReleaseUnix != 0 {
+				out[i].ReleaseUnix = work.ReleaseUnix
+			}
+			if out[i].DurationMin == 0 && work.DurationMin != 0 {
+				out[i].DurationMin = work.DurationMin
+			}
+			if strings.TrimSpace(out[i].CoverURL) == "" && strings.TrimSpace(work.CoverURL) != "" {
+				out[i].CoverURL = work.CoverURL
+			}
+			if strings.TrimSpace(out[i].SourceURL) == "" && strings.TrimSpace(work.SourceURL) != "" {
+				out[i].SourceURL = work.SourceURL
+			}
+			continue
+		}
+		seen[key] = len(out)
+		out = append(out, work)
+	}
+	return out
+}
+
+// CountJavIdolMappedWorks returns how many library JAV records are linked to the idol.
+func CountJavIdolMappedWorks(ctx context.Context, idolID int64) (int64, error) {
+	var n int64
+	if err := common.DB.WithContext(ctx).Table("jav_idol_map").Where("jav_idol_id = ?", idolID).Count(&n).Error; err != nil {
+		return 0, fmt.Errorf("count jav idol mapped works: %w", err)
+	}
+	return n, nil
 }
 
 // ListJavIdolWorks returns one page of an idol's scraped works, ordered by
@@ -364,8 +407,11 @@ func ListJavIdolWorks(ctx context.Context, idolID int64, limit, offset int) ([]J
 // works by added time (加入时间). Unix epoch keeps them stably at the oldest end.
 var javExternalEpoch = time.Unix(0, 0).UTC()
 
-func canIncludeExternalIdolWorks(idolIDs []int64, tagIDs []int64, filters JavSearchFilters) bool {
-	if !filters.IncludeExternal || len(idolIDs) != 1 || idolIDs[0] <= 0 {
+func canListExternalIdolWorks(idolIDs []int64, tagIDs []int64, filters JavSearchFilters) bool {
+	if len(idolIDs) > 1 {
+		return false
+	}
+	if len(idolIDs) == 1 && idolIDs[0] <= 0 {
 		return false
 	}
 	if len(tagIDs) > 0 || filters.SeriesID > 0 || filters.SoloOnly || filters.FavoriteGroupID > 0 {
@@ -380,6 +426,10 @@ func canIncludeExternalIdolWorks(idolIDs []int64, tagIDs []int64, filters JavSea
 	return true
 }
 
+func canIncludeExternalIdolWorks(idolIDs []int64, tagIDs []int64, filters JavSearchFilters) bool {
+	return filters.IncludeExternal && canListExternalIdolWorks(idolIDs, tagIDs, filters)
+}
+
 func searchJavIncludingExternal(ctx context.Context, idolIDs []int64, tagIDs []int64, search, prefix, sort string, limit, offset int, seed *int64, directoryIDs []int64, filters JavSearchFilters, closedSubdirs []ClosedSubdirectory, subpaths []DirectorySubpath) ([]models.Jav, int64, error) {
 	if limit <= 0 {
 		limit = 100
@@ -387,23 +437,29 @@ func searchJavIncludingExternal(ctx context.Context, idolIDs []int64, tagIDs []i
 	if offset < 0 {
 		offset = 0
 	}
-	if len(idolIDs) == 0 || idolIDs[0] <= 0 {
+	if len(idolIDs) == 1 && idolIDs[0] <= 0 {
 		return []models.Jav{}, 0, nil
 	}
 
 	var library []models.Jav
-	if err := buildJavFilter(ctx, idolIDs, tagIDs, search, prefix, directoryIDs, filters, closedSubdirs, subpaths).
-		Find(&library).Error; err != nil {
-		return nil, 0, fmt.Errorf("list jav for external merge: %w", err)
-	}
-	switch strings.ToLower(strings.TrimSpace(sort)) {
-	case "play_count", "play_count_desc", "play_count_asc":
-		if err := attachJavPlayCountsForSort(ctx, library, directoryIDs, closedSubdirs, subpaths); err != nil {
-			return nil, 0, err
+	if !filters.UnimportedOnly {
+		if err := buildJavFilter(ctx, idolIDs, tagIDs, search, prefix, directoryIDs, filters, closedSubdirs, subpaths).
+			Find(&library).Error; err != nil {
+			return nil, 0, fmt.Errorf("list jav for external merge: %w", err)
+		}
+		switch strings.ToLower(strings.TrimSpace(sort)) {
+		case "play_count", "play_count_desc", "play_count_asc":
+			if err := attachJavPlayCountsForSort(ctx, library, directoryIDs, closedSubdirs, subpaths); err != nil {
+				return nil, 0, err
+			}
 		}
 	}
 
-	works, err := listUnimportedJavIdolWorks(ctx, idolIDs[0], search, prefix)
+	idolID := int64(0)
+	if len(idolIDs) == 1 {
+		idolID = idolIDs[0]
+	}
+	works, err := listUnimportedJavIdolWorks(ctx, idolID, search, prefix)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -482,13 +538,14 @@ func hydrateMergedJavPage(ctx context.Context, page []models.Jav, directoryIDs [
 		}
 	}
 	if len(ids) == 0 {
-		return attachUnimportedJavMetadata(ctx, page)
+		return finishUnimportedJavPage(ctx, page)
 	}
 
 	var hydrated []models.Jav
 	if err := common.DB.WithContext(ctx).
 		Preload("Studio").
 		Preload("Idols").
+		Preload("Actors").
 		Preload("Series").
 		Where("id IN ?", ids).
 		Find(&hydrated).Error; err != nil {
@@ -515,12 +572,18 @@ func hydrateMergedJavPage(ctx context.Context, page []models.Jav, directoryIDs [
 			page[i] = full
 		}
 	}
-	return attachUnimportedJavMetadata(ctx, page)
+	return finishUnimportedJavPage(ctx, page)
+}
+
+func finishUnimportedJavPage(ctx context.Context, page []models.Jav) error {
+	if err := attachUnimportedJavMetadata(ctx, page); err != nil {
+		return err
+	}
+	return attachUnimportedJavIdols(ctx, page)
 }
 
 func listUnimportedJavIdolWorks(ctx context.Context, idolID int64, search, prefix string) ([]models.JavIdolWork, error) {
 	query := common.DB.WithContext(ctx).Model(&models.JavIdolWork{}).
-		Where("jav_idol_id = ?", idolID).
 		Where(`NOT EXISTS (
 			SELECT 1 FROM jav WHERE UPPER(jav.code) = UPPER(jav_idol_work.code)
 		)`).
@@ -529,6 +592,9 @@ func listUnimportedJavIdolWorks(ctx context.Context, idolID int64, search, prefi
 			WHERE d.jav_idol_id = jav_idol_work.jav_idol_id
 				AND UPPER(d.code) = UPPER(jav_idol_work.code)
 		)`)
+	if idolID > 0 {
+		query = query.Where("jav_idol_id = ?", idolID)
+	}
 	if search != "" {
 		like := fmt.Sprintf("%%%s%%", search)
 		query = query.Where("code LIKE ? OR title LIKE ? OR title_zh LIKE ?", like, like, like)
@@ -541,7 +607,162 @@ func listUnimportedJavIdolWorks(ctx context.Context, idolID int64, search, prefi
 	if err := query.Find(&works).Error; err != nil {
 		return nil, fmt.Errorf("list unimported jav idol works: %w", err)
 	}
+	if idolID <= 0 {
+		works = dedupeUnimportedIdolWorks(works)
+	}
 	return works, nil
+}
+
+func dedupeUnimportedIdolWorks(works []models.JavIdolWork) []models.JavIdolWork {
+	best := make(map[string]models.JavIdolWork, len(works))
+	order := make([]string, 0, len(works))
+	for _, work := range works {
+		key := strings.ToUpper(strings.TrimSpace(work.Code))
+		if key == "" {
+			continue
+		}
+		current, ok := best[key]
+		if !ok {
+			best[key] = work
+			order = append(order, key)
+			continue
+		}
+		if unimportedWorkRicher(work, current) {
+			best[key] = work
+		}
+	}
+	out := make([]models.JavIdolWork, 0, len(order))
+	for _, key := range order {
+		out = append(out, best[key])
+	}
+	return out
+}
+
+func unimportedWorkRicher(candidate, current models.JavIdolWork) bool {
+	cs, cur := unimportedWorkScore(candidate), unimportedWorkScore(current)
+	if cs != cur {
+		return cs > cur
+	}
+	return candidate.ID > current.ID
+}
+
+func unimportedWorkScore(work models.JavIdolWork) int {
+	score := 0
+	if strings.TrimSpace(work.Title) != "" {
+		score++
+	}
+	if strings.TrimSpace(work.TitleZH) != "" {
+		score++
+	}
+	if strings.TrimSpace(work.CoverURL) != "" {
+		score++
+	}
+	if strings.TrimSpace(work.SourceURL) != "" {
+		score++
+	}
+	if work.ReleaseUnix > 0 {
+		score++
+	}
+	if work.DurationMin > 0 {
+		score++
+	}
+	if strings.TrimSpace(work.StudioName) != "" {
+		score++
+	}
+	if strings.TrimSpace(work.SeriesName) != "" {
+		score++
+	}
+	if len(work.Tags) > 0 {
+		score++
+	}
+	return score
+}
+
+func attachUnimportedJavIdols(ctx context.Context, page []models.Jav) error {
+	indexesByCode := map[string][]int{}
+	for i, item := range page {
+		if item.ID > 0 {
+			continue
+		}
+		code := strings.ToUpper(strings.TrimSpace(item.Code))
+		if code == "" {
+			continue
+		}
+		indexesByCode[code] = append(indexesByCode[code], i)
+	}
+	if len(indexesByCode) == 0 {
+		return nil
+	}
+
+	codes := make([]string, 0, len(indexesByCode))
+	for code := range indexesByCode {
+		codes = append(codes, code)
+	}
+
+	type row struct {
+		Code      string `gorm:"column:code"`
+		JavIdolID int64  `gorm:"column:jav_idol_id"`
+	}
+	var rows []row
+	if err := common.DB.WithContext(ctx).
+		Table("jav_idol_work w").
+		Select("UPPER(w.code) AS code, w.jav_idol_id").
+		Where("UPPER(w.code) IN ?", codes).
+		Where(`NOT EXISTS (
+			SELECT 1 FROM jav_idol_work_dislike d
+			WHERE d.jav_idol_id = w.jav_idol_id AND UPPER(d.code) = UPPER(w.code)
+		)`).
+		Scan(&rows).Error; err != nil {
+		return fmt.Errorf("list unimported jav idols: %w", err)
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+
+	idolIDs := make([]int64, 0, len(rows))
+	for _, item := range rows {
+		if item.JavIdolID > 0 {
+			idolIDs = append(idolIDs, item.JavIdolID)
+		}
+	}
+	idolIDs = uniqueInt64s(idolIDs)
+	if len(idolIDs) == 0 {
+		return nil
+	}
+
+	var idols []models.JavIdol
+	if err := common.DB.WithContext(ctx).Where("id IN ?", idolIDs).Find(&idols).Error; err != nil {
+		return fmt.Errorf("load unimported jav idols: %w", err)
+	}
+	byID := make(map[int64]models.JavIdol, len(idols))
+	for _, idol := range idols {
+		byID[idol.ID] = idol
+	}
+
+	idolsByCode := make(map[string][]models.JavIdol, len(indexesByCode))
+	seen := make(map[string]map[int64]bool, len(indexesByCode))
+	for _, item := range rows {
+		code := strings.ToUpper(strings.TrimSpace(item.Code))
+		idol, ok := byID[item.JavIdolID]
+		if !ok {
+			continue
+		}
+		if seen[code] == nil {
+			seen[code] = map[int64]bool{}
+		}
+		if seen[code][idol.ID] {
+			continue
+		}
+		seen[code][idol.ID] = true
+		idolsByCode[code] = append(idolsByCode[code], idol)
+	}
+	for code, indexes := range indexesByCode {
+		attached := idolsByCode[code]
+		for _, i := range indexes {
+			page[i].Idols = attached
+		}
+	}
+	return nil
 }
 
 func javFromUnimportedIdolWork(work models.JavIdolWork, inLibrary *bool) models.Jav {

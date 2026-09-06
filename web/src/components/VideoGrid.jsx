@@ -1,5 +1,6 @@
 import VideoCard from '@/components/VideoCard'
-import { videoSelectionKey } from '@/store'
+import { useStore, videoSelectionKey } from '@/store'
+import { cardGridMinmax } from '@/utils/cardLayout'
 
 export default function VideoGrid({
   videos,
@@ -19,10 +20,11 @@ export default function VideoGrid({
   onDeleteVideo,
   onTagClick,
 }) {
+  const cardMinmax = useStore((state) => cardGridMinmax('video', state.config))
   return (
     <div
       className="grid gap-8"
-      style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(15rem, 1fr))' }}
+      style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${cardMinmax}, 1fr))` }}
     >
       {videos.map((v) => (
         <VideoCard

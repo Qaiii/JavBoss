@@ -31,13 +31,13 @@ var avmooProvider lookupProvider = avmoo{}
 const (
 	avmooBaseURL         = "https://avmoo.shop"
 	avmooUserAgent       = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-	avmooRequestInterval = 1500 * time.Millisecond
+	avmooRequestInterval = 4 * time.Second
 	avmooAPILanguage     = "tw"
 	avmooAPISearchLimit  = 30
 	avmooLookupTimeout   = 90 * time.Second
 	avmooHTTPTimeout     = 30 * time.Second
 	avmooAPITries        = 3
-	avmooAPIRetryDelay   = 2 * time.Second
+	avmooAPIRetryDelay   = 5 * time.Second
 	avmooSessionTTL      = 30 * time.Minute
 )
 

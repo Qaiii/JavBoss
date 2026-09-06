@@ -28,6 +28,12 @@ func TestJavSchemaOmitsFrontendEnglishMetadataColumns(t *testing.T) {
 	assertTableColumns(t, db, "jav_idol_alias", []string{
 		"id", "jav_idol_id", "alias", "created_at",
 	})
+	assertTableColumns(t, db, "jav_actor", []string{
+		"id", "name", "created_at", "updated_at",
+	})
+	assertTableColumns(t, db, "jav_actor_map", []string{
+		"jav_id", "jav_actor_id", "created_at",
+	})
 }
 
 func assertTableColumns(t *testing.T, db *gorm.DB, table string, want []string) {

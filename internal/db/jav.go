@@ -188,6 +188,7 @@ func GetJav(ctx context.Context, javID int64, directoryIDs []int64) (*models.Jav
 	query := common.DB.WithContext(ctx).
 		Preload("Studio").
 		Preload("Idols").
+		Preload("Actors").
 		Preload("Series").
 		Where("id = ?", javID)
 	if err := query.First(&item).Error; err != nil {
@@ -219,9 +220,12 @@ type JavSearchFilters struct {
 	FavoriteGroupID   int64
 	FavoriteRatingMin *float64
 	FavoriteRatingMax *float64
-	// IncludeExternal merges unimported idol works into the list when a single
-	// idol filter is active (the actress works page).
+	// IncludeExternal merges unimported idol works into the list on the main
+	// JAV page or when a single idol filter is active (the actress works page).
 	IncludeExternal bool
+	// UnimportedOnly returns only unimported idol works (excluding disliked
+	// titles) on the main JAV page or when a single idol filter is active.
+	UnimportedOnly bool
 }
 
 // SearchJavWithPrefix lists Jav metadata filtered by an exact code prefix plus other filters.
@@ -249,6 +253,15 @@ func SearchJavWithPrefixFilters(ctx context.Context, idolIDs []int64, tagIDs []i
 	search = strings.TrimSpace(search)
 	prefix = normalizeJavCodePrefix(prefix)
 	sort = strings.ToLower(strings.TrimSpace(sort))
+
+	if filters.UnimportedOnly {
+		if !canListExternalIdolWorks(idolIDs, tagIDs, filters) {
+			return []models.Jav{}, 0, nil
+		}
+		libraryFilters := filters
+		libraryFilters.IncludeExternal = false
+		return searchJavIncludingExternal(ctx, idolIDs, tagIDs, search, prefix, sort, limit, offset, seed, directoryIDs, libraryFilters, closedSubdirs, subpaths)
+	}
 
 	if canIncludeExternalIdolWorks(idolIDs, tagIDs, filters) {
 		libraryFilters := filters
@@ -311,6 +324,7 @@ func SearchJavWithPrefixFilters(ctx context.Context, idolIDs []int64, tagIDs []i
 	query := filtered.
 		Preload("Studio").
 		Preload("Idols").
+		Preload("Actors").
 		Preload("Series").
 		Limit(limit).
 		Offset(offset)
@@ -471,6 +485,7 @@ func ListJavsForDirectoryProcessing(ctx context.Context, directoryID int64) ([]m
 		Model(&models.Jav{}).
 		Preload("Studio").
 		Preload("Idols").
+		Preload("Actors").
 		Preload("Series").
 		Where(`EXISTS (
 			SELECT 1
@@ -3343,6 +3358,25 @@ func ListJavsMissingTitle(ctx context.Context) ([]JavMetadataScanItem, error) {
 	return items, nil
 }
 
+// ListJavsMissingActors returns non-uncensored JAV rows that have no male
+// performer mappings yet. AVDanyuWiki covers censored Japanese titles.
+func ListJavsMissingActors(ctx context.Context) ([]JavMetadataScanItem, error) {
+	var items []JavMetadataScanItem
+	if err := common.DB.WithContext(ctx).
+		Model(&models.Jav{}).
+		Select("id, code").
+		Where("COALESCE(code, '') <> ''").
+		Where("COALESCE(is_uncensored, 0) = 0").
+		Where(`NOT EXISTS (
+			SELECT 1 FROM jav_actor_map WHERE jav_actor_map.jav_id = jav.id
+		)`).
+		Order("created_at ASC, id ASC").
+		Find(&items).Error; err != nil {
+		return nil, fmt.Errorf("list javs missing actors: %w", err)
+	}
+	return items, nil
+}
+
 // ListJavsMissingUncensored returns JAV rows whose censored/uncensored state is unknown.
 func ListJavsMissingUncensored(ctx context.Context) ([]JavMetadataScanItem, error) {
 	var items []JavMetadataScanItem
@@ -3777,6 +3811,9 @@ func saveJavInfoTx(tx *gorm.DB, info *jav.JavInfo, now ...time.Time) (*models.Ja
 	if err := appendJavIdolsTx(tx, javRec, info.Actors); err != nil {
 		return nil, err
 	}
+	if _, err := appendJavActorsTx(tx, javRec, info.MaleActors); err != nil {
+		return nil, err
+	}
 	return javRec, nil
 }
 
@@ -4111,6 +4148,104 @@ func appendJavIdolsIfMissingForProvider(ctx context.Context, javID int64, names 
 		return false, err
 	}
 	return updated, nil
+}
+
+// AppendJavActorsIfMissing stores male performers when the JAV has none yet.
+func AppendJavActorsIfMissing(ctx context.Context, javID int64, names []string) (bool, error) {
+	if javID == 0 {
+		return false, errors.New("jav id cannot be zero")
+	}
+	unique := normalizeNames(names)
+	if len(unique) == 0 {
+		return false, nil
+	}
+
+	var updated bool
+	err := common.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var javRec models.Jav
+		if err := tx.Select("id").Where("id = ?", javID).First(&javRec).Error; err != nil {
+			return fmt.Errorf("get jav for actor append: %w", err)
+		}
+		applied, err := appendJavActorsTx(tx, &javRec, unique)
+		if err != nil {
+			return err
+		}
+		updated = applied
+		return nil
+	})
+	if err != nil {
+		return false, err
+	}
+	return updated, nil
+}
+
+func appendJavActorsTx(tx *gorm.DB, javRec *models.Jav, names []string) (bool, error) {
+	if javRec == nil || javRec.ID == 0 {
+		return false, errors.New("jav record is missing")
+	}
+
+	var existingCount int64
+	if err := tx.Model(&models.JavActorMap{}).
+		Where("jav_actor_map.jav_id = ?", javRec.ID).
+		Count(&existingCount).Error; err != nil {
+		return false, fmt.Errorf("count jav actor maps: %w", err)
+	}
+	if existingCount > 0 {
+		return false, nil
+	}
+
+	actors, err := ensureJavActorsTx(tx, names)
+	if err != nil {
+		return false, err
+	}
+	if len(actors) == 0 {
+		return false, nil
+	}
+	if err := tx.Model(javRec).Association("Actors").Append(actors); err != nil {
+		return false, fmt.Errorf("append jav actors: %w", err)
+	}
+	return true, nil
+}
+
+func ensureJavActorsTx(tx *gorm.DB, names []string) ([]models.JavActor, error) {
+	unique := normalizeNames(names)
+	if len(unique) == 0 {
+		return nil, nil
+	}
+	actors := make([]models.JavActor, 0, len(unique))
+	for _, name := range unique {
+		actor, err := findOrCreateJavActorByNameTx(tx, name)
+		if err != nil {
+			return nil, fmt.Errorf("ensure jav actor %q: %w", name, err)
+		}
+		actors = append(actors, actor)
+	}
+	return actors, nil
+}
+
+func findOrCreateJavActorByNameTx(tx *gorm.DB, name string) (models.JavActor, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return models.JavActor{}, errors.New("jav actor name cannot be empty")
+	}
+	var actor models.JavActor
+	err := tx.Where("name = ?", name).First(&actor).Error
+	if err == nil {
+		return actor, nil
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return models.JavActor{}, err
+	}
+	actor = models.JavActor{Name: name}
+	if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&actor).Error; err != nil {
+		return models.JavActor{}, fmt.Errorf("create jav actor %q: %w", name, err)
+	}
+	if actor.ID == 0 {
+		if err := tx.Where("name = ?", name).First(&actor).Error; err != nil {
+			return models.JavActor{}, fmt.Errorf("load jav actor %q: %w", name, err)
+		}
+	}
+	return actor, nil
 }
 
 func ensureJavIdolsTx(tx *gorm.DB, names []string) ([]models.JavIdol, error) {

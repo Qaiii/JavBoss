@@ -1469,6 +1469,101 @@ func TestAppendJavIdolsIfMissingForProvider(t *testing.T) {
 	})
 }
 
+func TestAppendJavActorsIfMissing(t *testing.T) {
+	gdb := openTestDB(t)
+	ctx := context.Background()
+	now := time.Unix(1710000000, 0).UTC()
+
+	javRec := models.Jav{Code: "SSIS-001", Title: "Kept Title", FetchedAt: now}
+	if err := gdb.Create(&javRec).Error; err != nil {
+		t.Fatalf("create jav: %v", err)
+	}
+
+	updated, err := AppendJavActorsIfMissing(ctx, javRec.ID, []string{"藍井優太", "藍井優太", "ダイ"})
+	if err != nil {
+		t.Fatalf("AppendJavActorsIfMissing: %v", err)
+	}
+	if !updated {
+		t.Fatal("expected actor map update")
+	}
+
+	var item models.Jav
+	if err := gdb.Preload("Actors").Where("code = ?", "SSIS-001").First(&item).Error; err != nil {
+		t.Fatalf("load jav: %v", err)
+	}
+	if len(item.Actors) != 2 {
+		t.Fatalf("actors = %#v, want 2", item.Actors)
+	}
+	got := map[string]bool{}
+	for _, actor := range item.Actors {
+		got[actor.Name] = true
+	}
+	if !got["藍井優太"] || !got["ダイ"] {
+		t.Fatalf("actors = %#v", item.Actors)
+	}
+
+	updated, err = AppendJavActorsIfMissing(ctx, javRec.ID, []string{"健太"})
+	if err != nil {
+		t.Fatalf("AppendJavActorsIfMissing second call: %v", err)
+	}
+	if updated {
+		t.Fatal("expected existing actor map to be preserved")
+	}
+
+	missing, err := ListJavsMissingActors(ctx)
+	if err != nil {
+		t.Fatalf("ListJavsMissingActors: %v", err)
+	}
+	for _, item := range missing {
+		if item.ID == javRec.ID {
+			t.Fatal("jav with actors should not be listed as missing")
+		}
+	}
+
+	uncensored := true
+	other := models.Jav{Code: "HEYZO-001", Title: "Uncensored", FetchedAt: now, IsUncensored: &uncensored}
+	if err := gdb.Create(&other).Error; err != nil {
+		t.Fatalf("create uncensored jav: %v", err)
+	}
+	empty := models.Jav{Code: "ABP-999", Title: "No Actors", FetchedAt: now}
+	if err := gdb.Create(&empty).Error; err != nil {
+		t.Fatalf("create empty jav: %v", err)
+	}
+	missing, err = ListJavsMissingActors(ctx)
+	if err != nil {
+		t.Fatalf("ListJavsMissingActors after extras: %v", err)
+	}
+	if len(missing) != 1 || missing[0].Code != "ABP-999" {
+		t.Fatalf("missing actors = %#v, want ABP-999 only", missing)
+	}
+}
+
+func TestSaveJavInfoPersistsMaleActors(t *testing.T) {
+	gdb := openTestDB(t)
+	ctx := context.Background()
+
+	rec, err := SaveJavInfo(ctx, &jav.JavInfo{
+		Code:       "MIAE-311",
+		Title:      "Male Actor Title",
+		Actors:     []string{"岬ななみ"},
+		MaleActors: []string{"平田司", "松山伸也"},
+		Provider:   jav.ProviderJavBus,
+	})
+	if err != nil {
+		t.Fatalf("SaveJavInfo: %v", err)
+	}
+	var item models.Jav
+	if err := gdb.Preload("Idols").Preload("Actors").Where("id = ?", rec.ID).First(&item).Error; err != nil {
+		t.Fatalf("load jav: %v", err)
+	}
+	if len(item.Idols) != 1 || item.Idols[0].Name != "岬ななみ" {
+		t.Fatalf("idols = %#v", item.Idols)
+	}
+	if len(item.Actors) != 2 {
+		t.Fatalf("actors = %#v, want 2", item.Actors)
+	}
+}
+
 func TestSaveManualJavInfoAndLinkVideoLocationsLinksAllLocations(t *testing.T) {
 	gdb := openTestDB(t)
 	ctx := context.Background()

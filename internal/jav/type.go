@@ -24,6 +24,7 @@ const (
 	ProviderJavMenu
 	ProviderMinnanoAV
 	ProviderManualScrape
+	ProviderAVDanyuWiki
 )
 
 func (p Provider) String() string {
@@ -50,6 +51,8 @@ func (p Provider) String() string {
 		return "minnanoav"
 	case ProviderManualScrape:
 		return "manual_scrape"
+	case ProviderAVDanyuWiki:
+		return "avdanyuwiki"
 	default:
 		return "unknown"
 	}
@@ -59,7 +62,7 @@ func (p Provider) String() string {
 func ParseProvider(value int) Provider {
 	p := Provider(value)
 	switch p {
-	case ProviderJavBus, ProviderJavDatabase, ProviderUser, ProviderJavDB, ProviderAvmoo, ProviderThePornDB, ProviderJavModel, ProviderAvsox, ProviderJavMenu, ProviderMinnanoAV, ProviderManualScrape:
+	case ProviderJavBus, ProviderJavDatabase, ProviderUser, ProviderJavDB, ProviderAvmoo, ProviderThePornDB, ProviderJavModel, ProviderAvsox, ProviderJavMenu, ProviderMinnanoAV, ProviderManualScrape, ProviderAVDanyuWiki:
 		return p
 	default:
 		return ProviderUnknown
@@ -90,6 +93,7 @@ type JavInfo struct {
 	DurationMin  int
 	Tags         []string
 	Actors       []string
+	MaleActors   []string
 	CoverURL     string
 	PosterURL    string
 	SampleImages []SampleImage
@@ -239,6 +243,35 @@ func LookupStudioURLByCode(code string, provider Provider) (studioURL string, er
 	studioURL, err = lookup.LookupStudioURLByCode(code)
 	cacheableLookupResult(cacheKey, studioURL, err)
 	return studioURL, err
+}
+
+type maleActorLookupResult struct {
+	Names []string `json:"names"`
+}
+
+// LookupMaleActorsByCode resolves male performers for a movie code from AVDanyuWiki.
+func LookupMaleActorsByCode(code string) (names []string, err error) {
+	code = strings.TrimSpace(code)
+	if code == "" {
+		return nil, ResourceNotFonud
+	}
+	cacheKey := lookupCacheKey(ProviderAVDanyuWiki, "lookup_male_actors", code)
+	if cached, ok, err := lookupCacheGet[maleActorLookupResult](cacheKey); ok {
+		if err != nil {
+			return nil, err
+		}
+		if cached == nil {
+			return nil, nil
+		}
+		return append([]string(nil), cached.Names...), nil
+	}
+	names, err = lookupAVDanyuMaleActorsByCode(code)
+	if err == nil {
+		cacheableLookupResult(cacheKey, maleActorLookupResult{Names: names}, nil)
+	} else {
+		cacheableLookupResult(cacheKey, names, err)
+	}
+	return names, err
 }
 
 func recoverUnsupportedProvider(err *error) {

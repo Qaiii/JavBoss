@@ -245,6 +245,16 @@ func TestParseJavDBMovieInfo(t *testing.T) {
 		}
 	}
 
+	wantMaleActors := []string{"吉村卓"}
+	if len(info.MaleActors) != len(wantMaleActors) {
+		t.Fatalf("unexpected male actors length: got %d want %d", len(info.MaleActors), len(wantMaleActors))
+	}
+	for i, actor := range wantMaleActors {
+		if info.MaleActors[i] != actor {
+			t.Fatalf("unexpected male actor at %d: got %q want %q", i, info.MaleActors[i], actor)
+		}
+	}
+
 	fields := extractJavDBMovieFields(doc)
 	if fields.Director != "五右衛門" || fields.Maker != "IDEA POCKET" || fields.Publisher != "ティッシュ" || fields.Series != "中年オヤジ" || fields.Rating != "4.41分, 由558人評價" {
 		t.Fatalf("unexpected extra fields: %#v", fields)
@@ -493,14 +503,14 @@ func TestJavDBRateLimiterSpacesRequests(t *testing.T) {
 	t.Cleanup(resetJavDBRateLimiterForTest)
 
 	start := time.Now()
-	for i := 0; i < 3; i++ {
+	for i := 0; i < 2; i++ {
 		if err := waitForJavDBRateLimit(context.Background()); err != nil {
 			t.Fatalf("waitForJavDBRateLimit() request %d: %v", i+1, err)
 		}
 	}
 
-	if elapsed := time.Since(start); elapsed < (2*javDBRequestInterval - 50*time.Millisecond) {
-		t.Fatalf("rate limiter allowed 3 requests in %s", elapsed)
+	if elapsed := time.Since(start); elapsed < (javDBRequestInterval - 50*time.Millisecond) {
+		t.Fatalf("rate limiter allowed 2 requests in %s", elapsed)
 	}
 }
 
@@ -654,7 +664,7 @@ func TestHasJavDBNextPage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse html: %v", err)
 	}
-	if !hasJavDBNextPage(withPages) {
+	if !hasJavDBNextPage(withPages, 1) {
 		t.Fatal("hasJavDBNextPage() = false, want true")
 	}
 
@@ -667,11 +677,30 @@ func TestHasJavDBNextPage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse html: %v", err)
 	}
-	if hasJavDBNextPage(lastPage) {
+	if hasJavDBNextPage(lastPage, 1) {
 		t.Fatal("hasJavDBNextPage() = true, want false")
 	}
 
-	if hasJavDBNextPage(nil) {
+	prevOnly, err := html.Parse(strings.NewReader(`
+<html><body>
+<nav class="pagination">
+  <a class="pagination-previous" href="/actors/1pKDJx?page=1">Previous</a>
+  <a class="pagination-next is-disabled">Next</a>
+  <a href="/actors/1pKDJx?page=1">1</a>
+  <a class="pagination-link is-current">2</a>
+</nav>
+</body></html>`))
+	if err != nil {
+		t.Fatalf("parse html: %v", err)
+	}
+	if hasJavDBNextPage(prevOnly, 2) {
+		t.Fatal("hasJavDBNextPage() on last page with previous links = true, want false")
+	}
+	if !hasJavDBNextPage(withPages, 1) || hasJavDBNextPage(withPages, 3) {
+		t.Fatal("hasJavDBNextPage() should be true only when a later page href exists")
+	}
+
+	if hasJavDBNextPage(nil, 1) {
 		t.Fatal("hasJavDBNextPage(nil) = true, want false")
 	}
 }

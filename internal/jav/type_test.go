@@ -41,6 +41,12 @@ func TestManualScrapeProviderIsStableAndNotLookupCapable(t *testing.T) {
 	if got := ParseProvider(11); got != ProviderManualScrape {
 		t.Fatalf("ParseProvider(11) = %s, want manual_scrape", got.String())
 	}
+	if ProviderAVDanyuWiki != Provider(12) {
+		t.Fatalf("ProviderAVDanyuWiki = %d, want 12", ProviderAVDanyuWiki)
+	}
+	if got := ProviderAVDanyuWiki.String(); got != "avdanyuwiki" {
+		t.Fatalf("ProviderAVDanyuWiki.String() = %q, want avdanyuwiki", got)
+	}
 	if _, err := lookupProviderFor(ProviderManualScrape); !errors.Is(err, errUnsupportedProvider) {
 		t.Fatalf("lookupProviderFor(ProviderManualScrape) error = %v, want unsupported provider", err)
 	}

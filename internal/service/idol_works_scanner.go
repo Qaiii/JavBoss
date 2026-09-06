@@ -31,15 +31,19 @@ type IdolWorksManager struct {
 
 const (
 	idolWorksQueueSize = 5000
+	// maxIdolWorksPages caps how many listing pages one scrape will walk. JavDB
+	// listings are typically 20–40 items per page; 80 pages is well past any
+	// real catalogue and also stops a hasNext false-positive from looping.
+	maxIdolWorksPages = 80
 	// idolWorksPageDelayBase is the base pause between consecutive pages of one
 	// idol's works listing. A random jitter of up to idolWorksPageDelayJitter is
 	// added so request timing does not look like a fixed-interval crawler.
-	idolWorksPageDelayBase   = 3 * time.Second
-	idolWorksPageDelayJitter = 4 * time.Second
+	idolWorksPageDelayBase   = 8 * time.Second
+	idolWorksPageDelayJitter = 8 * time.Second
 	// sourceSwitchDelayBase / Jitter pause before retrying on another provider
 	// after one fails, again with a random jitter.
-	sourceSwitchDelayBase   = 4 * time.Second
-	sourceSwitchDelayJitter = 6 * time.Second
+	sourceSwitchDelayBase   = 10 * time.Second
+	sourceSwitchDelayJitter = 10 * time.Second
 	// maxProfileCodes caps how many library codes are tried when resolving the
 	// idol's profile URL on any provider.
 	maxProfileCodes = 6
@@ -123,6 +127,60 @@ func EnqueueIdolWorks(idolID int64) {
 	idolWorksMgr.enqueue(idolID)
 }
 
+// MaybeEnqueueIdolWorks tracks the idol if needed and queues a works scrape
+// when this looks like a first view, a failed scrape past the retry delay, a
+// stale successful scrape, or a truncated scrape that found no unimported
+// works (typical after a pagination bug stored only the in-library title).
+func MaybeEnqueueIdolWorks(ctx context.Context, idolID int64) {
+	if idolWorksMgr == nil || idolID <= 0 {
+		return
+	}
+	track, err := dbpkg.GetJavIdolTrack(ctx, idolID)
+	if err != nil {
+		logging.Error("get jav idol track for enqueue idol_id=%d: %v", idolID, err)
+		return
+	}
+	if !track.Tracked {
+		if err := dbpkg.UpsertJavIdolTrack(ctx, idolID, nil); err != nil {
+			logging.Error("track jav idol on view id=%d: %v", idolID, err)
+			return
+		}
+		EnqueueIdolWorks(idolID)
+		return
+	}
+
+	libraryCount, err := dbpkg.CountJavIdolMappedWorks(ctx, idolID)
+	if err != nil {
+		logging.Error("count mapped works idol_id=%d: %v", idolID, err)
+		libraryCount = 0
+	}
+	retryDelay := time.Duration(dbpkg.JavIdolRetryMinutes(ctx)) * time.Minute
+	refreshInterval := time.Duration(dbpkg.JavIdolRefreshDays(ctx)) * 24 * time.Hour
+	if !shouldEnqueueIdolWorks(track, libraryCount, time.Now(), retryDelay, refreshInterval) {
+		return
+	}
+	EnqueueIdolWorks(idolID)
+}
+
+func shouldEnqueueIdolWorks(track dbpkg.JavIdolTrackState, libraryCount int64, now time.Time, retryDelay, refreshInterval time.Duration) bool {
+	if !track.Tracked {
+		return true
+	}
+	if track.LastAttemptAt != nil && !track.LastAttemptAt.Before(now.Add(-retryDelay)) {
+		return false
+	}
+	if strings.TrimSpace(track.LastError) != "" {
+		return true
+	}
+	if track.LastScrapedAt == nil || track.WorksCount <= 0 {
+		return true
+	}
+	if refreshInterval > 0 && track.LastScrapedAt.Before(now.Add(-refreshInterval)) {
+		return true
+	}
+	return int64(track.WorksCount) <= libraryCount
+}
+
 func (m *IdolWorksManager) enqueue(idolID int64) {
 	if m == nil || m.tasks == nil || idolID <= 0 {
 		return
@@ -135,6 +193,23 @@ func (m *IdolWorksManager) enqueue(idolID int64) {
 	m.scheduled[idolID] = struct{}{}
 	m.mu.Unlock()
 	m.tasks <- idolID
+}
+
+// IdolWorksPendingCount returns how many idol works scrapes are queued or in flight.
+func IdolWorksPendingCount() int {
+	if idolWorksMgr == nil {
+		return 0
+	}
+	return idolWorksMgr.pendingCount()
+}
+
+func (m *IdolWorksManager) pendingCount() int {
+	if m == nil {
+		return 0
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return len(m.scheduled)
 }
 
 func (m *IdolWorksManager) clearScheduled(idolID int64) {
@@ -286,6 +361,14 @@ func ScrapeIdolWorks(ctx context.Context, idolID int64) error {
 			}
 			continue
 		}
+		if len(works) == 0 {
+			lastErr = fmt.Errorf("%s works list is empty", src.provider.String())
+			logging.Error("scrape %s works idol_id=%d: empty list", src.provider.String(), idolID)
+			if !sleepBeforeSourceSwitch(ctx, len(sources) > 1) {
+				return ctx.Err()
+			}
+			continue
+		}
 
 		if err := dbpkg.ReplaceJavIdolWorks(ctx, idolID, works); err != nil {
 			return err
@@ -310,19 +393,29 @@ func ScrapeIdolWorks(ctx context.Context, idolID int64) error {
 // idol, returning the flattened JavIdolWork rows tagged with the provider.
 func scrapeAllWorksPages(ctx context.Context, idolID int64, provider jav.Provider, profileURL string) ([]models.JavIdolWork, error) {
 	works := make([]models.JavIdolWork, 0, 96)
+	seen := make(map[string]struct{}, 96)
 	page := 1
-	for {
+	for page <= maxIdolWorksPages {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
 		items, hasNext, err := listWorksForSource(provider, ctx, profileURL, page)
 		if err != nil {
+			if page > 1 && errors.Is(err, jav.ResourceNotFonud) {
+				break
+			}
 			return nil, fmt.Errorf("list works page %d: %w", page, err)
 		}
+		added := 0
 		for _, w := range items {
 			if w == nil || strings.TrimSpace(w.Code) == "" {
 				continue
 			}
+			key := strings.ToUpper(strings.TrimSpace(w.Code))
+			if _, exists := seen[key]; exists {
+				continue
+			}
+			seen[key] = struct{}{}
 			sourceURL := ""
 			if len(w.SampleImages) > 0 && w.SampleImages[0].DetailURL != "" {
 				sourceURL = w.SampleImages[0].DetailURL
@@ -340,8 +433,12 @@ func scrapeAllWorksPages(ctx context.Context, idolID int64, provider jav.Provide
 				SeriesName:  strings.TrimSpace(w.Series),
 				Tags:        models.JavStringList(dedupeWorkTags(w.Tags)),
 			})
+			added++
 		}
-		if !hasNext {
+		if added == 0 {
+			break
+		}
+		if !hasNext && !listingLooksFullPage(provider, len(items)) {
 			break
 		}
 		page++
@@ -350,6 +447,15 @@ func scrapeAllWorksPages(ctx context.Context, idolID int64, provider jav.Provide
 		}
 	}
 	return works, nil
+}
+
+func listingLooksFullPage(provider jav.Provider, n int) bool {
+	switch provider {
+	case jav.ProviderJavDatabase:
+		return n >= 12
+	default:
+		return n >= 20
+	}
 }
 
 func dedupeWorkTags(values []string) []string {

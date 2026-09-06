@@ -10,7 +10,6 @@ import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownR
 import KeyboardArrowRightRoundedIcon from '@mui/icons-material/KeyboardArrowRightRounded'
 import SearchIcon from '@mui/icons-material/Search'
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined'
-import ShuffleOutlinedIcon from '@mui/icons-material/ShuffleOutlined'
 import { Button, IconButton, Popper, Slider } from '@mui/material'
 import { fetchDirectorySubdirectories } from '@/api'
 import {
@@ -338,7 +337,6 @@ export default function TopBar({
   onFavoriteRatingRangeChange,
   onIdolProfileFilterChange,
   onHome,
-  onRandomClick,
   onOpenFavoriteGroups,
   onOpenFilterEditor,
   onOpenFavoriteManager,
@@ -881,13 +879,6 @@ export default function TopBar({
               showClear={hasActiveControlFilter}
               onClear={onClearFilters}
             />
-          ) : null}
-
-          {onRandomClick ? (
-            <button type="button" className="filter-action-button" onClick={onRandomClick}>
-              <ShuffleOutlinedIcon fontSize="small" />
-              <span>{zh('随机', 'Random')}</span>
-            </button>
           ) : null}
 
           {showFilterCluster ? (

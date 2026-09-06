@@ -16,7 +16,7 @@ const (
 	idolWorkMetadataQueueSize = 5000
 )
 
-var idolWorkMetadataDelay = 1500 * time.Millisecond
+var idolWorkMetadataDelay = 4 * time.Second
 
 var (
 	idolWorkMetadataOnce sync.Once

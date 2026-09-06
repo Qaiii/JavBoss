@@ -31,7 +31,7 @@ type JavBusGenreCategory struct {
 
 var javBusProvider lookupProvider = javBus{}
 
-const javBusRequestInterval = 500 * time.Millisecond
+const javBusRequestInterval = 3 * time.Second
 
 var javBusRateLimiter = struct {
 	sync.Mutex

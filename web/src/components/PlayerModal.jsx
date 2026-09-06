@@ -37,6 +37,7 @@ import {
   normalizePlayerHotkeyKey,
   parsePlayerHotkeys,
 } from '@/utils/playerHotkeys'
+import { clampPipPosition } from '@/utils/playerPip'
 import { zh } from '@/utils/i18n'
 import { getErrorMessage } from '@/utils/errors'
 import {
@@ -93,7 +94,6 @@ export default function PlayerModal({
   hotkeys = null,
   showHotkeyHint = true,
   onPlaybackError,
-  fillViewport = false,
 }) {
   const videoRef = useRef(null)
   const playerRef = useRef(null)
@@ -111,10 +111,9 @@ export default function PlayerModal({
   const screenshotInFlightRef = useRef(false)
   const screenshotNoticeTimerRef = useRef(null)
   const pendingSeekTimerRef = useRef(null)
-  const pipNoticeTimerRef = useRef(null)
-  const pipVideoElRef = useRef(null)
+  const pipCardRef = useRef(null)
+  const pipDragRef = useRef({ active: false, offsetX: 0, offsetY: 0 })
   const isPiPRef = useRef(false)
-  const dismissedWhilePipRef = useRef(false)
   const subNoticeTimerRef = useRef(null)
   const subRetryRef = useRef(null)
   // 当前 playbackInfo 对应的播放标识（video.id:location_id）。选集/切换文件时，
@@ -165,14 +164,9 @@ export default function PlayerModal({
   onCloseRef.current = onClose
   const onPlaybackErrorRef = useRef(onPlaybackError)
   onPlaybackErrorRef.current = onPlaybackError
-  // 画中画播放中关闭播放器：不卸载 DOM（卸载 <video> 会让浏览器退出画中画），
-  // 而是把整个弹窗移出视口，让视频继续在画中画窗口播放；退出画中画时自动恢复。
   const handleClose = useCallback(() => {
-    if (isPiPRef.current) {
-      setDismissedWhilePip(true)
-      document.activeElement?.blur?.()
-      return
-    }
+    setIsPiP(false)
+    setPipPosition(null)
     onCloseRef.current()
   }, [])
   const [playbackInfo, setPlaybackInfo] = useState(null)
@@ -212,13 +206,7 @@ export default function PlayerModal({
   const [pendingSeekTime, setPendingSeekTime] = useState(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [isPiP, setIsPiP] = useState(false)
-  const [dismissedWhilePip, setDismissedWhilePip] = useState(false)
-  const [pipNotice, setPipNotice] = useState('')
-  // 画中画为浏览器能力（Chrome/Edge 桌面与 Android 支持），不支持时隐藏按钮
-  const pipSupported = useMemo(
-    () => typeof document !== 'undefined' && Boolean(document.pictureInPictureEnabled),
-    []
-  )
+  const [pipPosition, setPipPosition] = useState(null)
   // 精细指针（鼠标）设备：有“移出播放区域”概念，用于移出即隐藏控制条
   const [isFinePointer] = useState(
     () =>
@@ -320,16 +308,9 @@ export default function PlayerModal({
   }, [isPiP])
 
   useEffect(() => {
-    dismissedWhilePipRef.current = dismissedWhilePip
-  }, [dismissedWhilePip])
-
-  useEffect(() => {
     return () => {
       if (screenshotNoticeTimerRef.current) {
         window.clearTimeout(screenshotNoticeTimerRef.current)
-      }
-      if (pipNoticeTimerRef.current) {
-        window.clearTimeout(pipNoticeTimerRef.current)
       }
       if (pendingSeekTimerRef.current) {
         window.clearTimeout(pendingSeekTimerRef.current)
@@ -390,16 +371,29 @@ export default function PlayerModal({
     scheduleHideControls()
   }, [showControls, scheduleHideControls])
 
-  const showPipNotice = useCallback((message) => {
-    if (pipNoticeTimerRef.current) {
-      window.clearTimeout(pipNoticeTimerRef.current)
+  const exitBrowserFullscreen = useCallback(() => {
+    if (document.fullscreenElement && document.exitFullscreen) {
+      document.exitFullscreen().catch(() => {})
+    } else if (document.webkitFullscreenElement && document.webkitExitFullscreen) {
+      document.webkitExitFullscreen()
     }
-    setPipNotice(message)
-    pipNoticeTimerRef.current = window.setTimeout(() => {
-      pipNoticeTimerRef.current = null
-      setPipNotice('')
-    }, 1600)
   }, [])
+
+  const togglePip = useCallback(() => {
+    if (isPiPRef.current) {
+      setIsPiP(false)
+      pokeControls()
+      return
+    }
+    exitBrowserFullscreen()
+    setMenuOpen(null)
+    setSubMenu((current) => (current === 'search' ? null : current))
+    setSubPreview(null)
+    setIsPiP(true)
+    pokeControls()
+  }, [exitBrowserFullscreen, pokeControls])
+  const togglePipRef = useRef(togglePip)
+  togglePipRef.current = togglePip
 
   const showSubNotice = useCallback((message) => {
     if (subNoticeTimerRef.current) {
@@ -567,12 +561,16 @@ export default function PlayerModal({
 
   // 打开搜索字幕 tab：把输入框预填为当前视频番号（若已填别的内容则保留）
   const openSubtitleSearch = useCallback(() => {
+    if (isPiPRef.current) {
+      setIsPiP(false)
+      pokeControls()
+    }
     setSubMenu('search')
     setSubSearchQuery((prev) => {
       const trimmed = String(prev ?? '').trim()
       return trimmed || videoJavCode
     })
-  }, [videoJavCode])
+  }, [videoJavCode, pokeControls])
 
   // 加载某部影片的语言轨道列表（行内展开在搜索列表里，保持搜索面板不切换）
   const openSubtitleDetail = useCallback(
@@ -807,9 +805,8 @@ export default function PlayerModal({
       setLoadingPlayback(false)
       setScreenshotNotice(false)
       setVideoSize(null)
-      setDismissedWhilePip(false)
       setIsPiP(false)
-      setPipNotice('')
+      setPipPosition(null)
       setLocalSubtitles([])
       setActiveSubtitle(null)
       setSubSearchItems([])
@@ -830,9 +827,6 @@ export default function PlayerModal({
     setPlaybackInfo(null)
     setScreenshotNotice(false)
     setVideoSize(null)
-    setDismissedWhilePip(false)
-    setIsPiP(false)
-    setPipNotice('')
 
     fetchPlaybackInfo(video.id, { locationId: video.location_id })
       .then((info) => {
@@ -949,6 +943,7 @@ export default function PlayerModal({
   const requestFramePreview = useCallback(
     (second) => {
       if (!video?.id || !duration || duration <= 0 || !Number.isFinite(second)) return
+      if (isPiPRef.current) return
       const rounded = Math.min(Math.max(0, Math.round(second)), Math.floor(duration))
       frameHoverActiveRef.current = true
       if (frameDesiredSecondRef.current === rounded) return
@@ -1010,23 +1005,6 @@ export default function PlayerModal({
     playerRef.current = player
 
     const playerEl = player.el()
-    // 画中画操作基于底层 <video> 元素（video.js 会用 .vjs-tech 替换原标签），
-    // 在 player.ready 中拿到后绑定 enter/leavepictureinpicture 事件。
-    let techEl = null
-    const handleEnterPiP = () => {
-      setIsPiP(true)
-      showPipNotice(zh('已进入画中画模式', 'Entered picture-in-picture'))
-    }
-    const handleLeavePiP = () => {
-      setIsPiP(false)
-      if (dismissedWhilePipRef.current) {
-        setDismissedWhilePip(false)
-        showControls()
-        showPipNotice(zh('已退出画中画，恢复播放器', 'Exited picture-in-picture, player restored'))
-      } else {
-        showPipNotice(zh('已退出画中画', 'Exited picture-in-picture'))
-      }
-    }
     const savedVolume = (() => {
       try {
         const raw = localStorage.getItem(VOLUME_STORAGE_KEY)
@@ -1097,6 +1075,10 @@ export default function PlayerModal({
     }
 
     const toggleFullscreen = () => {
+      if (isPiPRef.current) {
+        togglePipRef.current?.()
+        return
+      }
       const element = shellRef.current
       if (!element) return
       if (document.fullscreenElement) {
@@ -1136,13 +1118,7 @@ export default function PlayerModal({
         player.muted(!player.muted())
       },
       togglePictureInPicture: () => {
-        const element = techEl ?? pipVideoElRef.current
-        if (!element) return
-        if (document.pictureInPictureElement === element) {
-          document.exitPictureInPicture().catch(() => {})
-          return
-        }
-        element.requestPictureInPicture?.().catch(() => {})
+        togglePipRef.current?.()
       },
       setVolumeLevel: (value) => {
         const next = Math.min(1, Math.max(0, Number(value)))
@@ -1199,8 +1175,8 @@ export default function PlayerModal({
     }
 
     const handleKeyDown = (event) => {
-      // 画中画播放中播放器已移出视口：播放器快捷键不应再接管页面按键
-      if (dismissedWhilePipRef.current) return
+      // 画中画时页面应可正常操作，快捷键只在全屏播放器里接管
+      if (isPiPRef.current) return
       // 带系统组合键（Ctrl/Cmd/Alt）时不触发播放器单键热键：否则 Ctrl+C 复制、
       // Ctrl+A 全选等会被 'c'（快进）/ 'a'（快退）等热键 preventDefault 拦掉。
       if (event.ctrlKey || event.metaKey || event.altKey) return
@@ -1329,13 +1305,8 @@ export default function PlayerModal({
       syncBuffered()
       syncVolumeState()
       focusPlayer()
-      techEl = player.tech(true)?.el() ?? null
-      pipVideoElRef.current = techEl
-      setIsPiP(Boolean(techEl && document.pictureInPictureElement === techEl))
-      if (techEl) {
-        techEl.addEventListener('enterpictureinpicture', handleEnterPiP)
-        techEl.addEventListener('leavepictureinpicture', handleLeavePiP)
-      }
+      const techEl = player.tech(true)?.el()
+      if (techEl) techEl.disablePictureInPicture = true
     })
     player.on('play', handlePlay)
     player.on('pause', handlePause)
@@ -1375,11 +1346,6 @@ export default function PlayerModal({
       window.removeEventListener('keydown', handleKeyDown, true)
       window.removeEventListener('keyup', handleKeyUp, true)
       stopArrowHold()
-      if (techEl) {
-        techEl.removeEventListener('enterpictureinpicture', handleEnterPiP)
-        techEl.removeEventListener('leavepictureinpicture', handleLeavePiP)
-      }
-      pipVideoElRef.current = null
       player.off('play', handlePlay)
       player.off('pause', handlePause)
       player.off('ended', handleEnded)
@@ -1409,8 +1375,6 @@ export default function PlayerModal({
     playbackKey,
     pokeControls,
     applySeek,
-    showControls,
-    showPipNotice,
     handleClose,
     clearFrameCache,
   ])
@@ -1483,8 +1447,90 @@ export default function PlayerModal({
     applySeek(Math.min(Math.max(0, next), duration))
   }
 
+  const handlePipPointerDown = (event) => {
+    if (!isPiP) return
+    if (event.button != null && event.button !== 0) return
+    if (
+      event.target instanceof Element &&
+      event.target.closest('button, input, [role="slider"], a')
+    ) {
+      return
+    }
+    const card = pipCardRef.current
+    if (!card) return
+    const rect = card.getBoundingClientRect()
+    pipDragRef.current = {
+      active: true,
+      offsetX: event.clientX - rect.left,
+      offsetY: event.clientY - rect.top,
+    }
+    setPipPosition(
+      clampPipPosition(
+        rect.left,
+        rect.top,
+        rect.width,
+        rect.height,
+        window.innerWidth,
+        window.innerHeight
+      )
+    )
+    try {
+      event.currentTarget.setPointerCapture?.(event.pointerId)
+    } catch {
+      // 忽略捕获失败
+    }
+    event.preventDefault()
+  }
+
+  const handlePipPointerMove = (event) => {
+    if (!pipDragRef.current.active) return
+    const card = pipCardRef.current
+    const width = card?.offsetWidth || 420
+    const height = card?.offsetHeight || 236
+    setPipPosition(
+      clampPipPosition(
+        event.clientX - pipDragRef.current.offsetX,
+        event.clientY - pipDragRef.current.offsetY,
+        width,
+        height,
+        window.innerWidth,
+        window.innerHeight
+      )
+    )
+  }
+
+  const handlePipPointerUp = (event) => {
+    if (!pipDragRef.current.active) return
+    pipDragRef.current.active = false
+    try {
+      event.currentTarget.releasePointerCapture?.(event.pointerId)
+    } catch {
+      // 忽略释放失败
+    }
+  }
+
   useEffect(() => {
-    if (!fillViewport || !video) return undefined
+    if (!isPiP || !pipPosition) return undefined
+    const onResize = () => {
+      const card = pipCardRef.current
+      if (!card) return
+      setPipPosition((prev) =>
+        clampPipPosition(
+          prev?.left ?? 0,
+          prev?.top ?? 0,
+          card.offsetWidth,
+          card.offsetHeight,
+          window.innerWidth,
+          window.innerHeight
+        )
+      )
+    }
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [isPiP, pipPosition])
+
+  useEffect(() => {
+    if (isPiP || !video) return undefined
     const overlay = overlayRef.current
     if (!overlay) return undefined
     const handleWheel = (event) => {
@@ -1493,7 +1539,7 @@ export default function PlayerModal({
     }
     overlay.addEventListener('wheel', handleWheel, { passive: false })
     return () => overlay.removeEventListener('wheel', handleWheel)
-  }, [fillViewport, video])
+  }, [isPiP, video])
 
   if (!video) return null
 
@@ -1520,78 +1566,61 @@ export default function PlayerModal({
   return (
     <div
       ref={overlayRef}
-      className={`fixed inset-0 z-[1700] flex items-center justify-center bg-black/70 transition-transform duration-300 pointer-coarse:bg-black ${
-        fillViewport ? 'bg-black' : ''
-      } ${dismissedWhilePip ? '-translate-x-[120vw]' : ''}`}
+      className={
+        isPiP
+          ? 'pointer-events-none fixed inset-0 z-[1700]'
+          : 'fixed inset-0 z-[1700] flex items-center justify-center bg-black'
+      }
     >
-      {/*
-        桌面端：白色卡片包裹，标题与关闭按钮在卡片内；
-        移动端（触摸设备，含横屏）：隐藏白卡片边框，视频按比例贴边（100vw/100dvh，不超出不拉伸），标题悬浮在视频上方。
-        宽度公式在 .player-card 的媒体查询中，比例通过 --player-ar 传入。
-      */}
       <div
-        className={`player-card relative mx-4 rounded-lg bg-white shadow-lg pointer-coarse:mx-0 pointer-coarse:rounded-none pointer-coarse:bg-black pointer-coarse:shadow-none ${
-          fillViewport ? 'player-card--viewport mx-0 rounded-none bg-black shadow-none' : ''
-        }`}
-        style={{ '--player-ar': `${aspectRatio}` }}
+        ref={pipCardRef}
+        className={`player-card relative bg-black shadow-none ${
+          isPiP ? 'player-card--pip pointer-events-auto' : 'player-card--viewport mx-0 rounded-none'
+        } ${isPiP && pipPosition ? 'is-dragged' : ''}`}
+        style={{
+          '--player-ar': `${aspectRatio}`,
+          ...(isPiP && pipPosition ? { left: pipPosition.left, top: pipPosition.top } : null),
+        }}
       >
         <button
           aria-label={zh('关闭', 'Close')}
           onClick={handleClose}
-          className={`absolute right-3 top-4 z-20 rounded-full bg-black/60 px-2 py-1 text-sm text-white hover:bg-black/80 pointer-coarse:top-3 pointer-coarse:transition-opacity pointer-coarse:duration-200 ${
-            fillViewport ? 'top-3' : ''
-          } ${
-            fillViewport || controlsVisible
-              ? ''
-              : 'pointer-coarse:pointer-events-none pointer-coarse:opacity-0'
+          className={`absolute right-3 top-3 z-20 rounded-full bg-black/60 px-2 py-1 text-sm text-white hover:bg-black/80 ${
+            isPiP || controlsVisible ? '' : 'pointer-events-none opacity-0'
           }`}
         >
           ×
         </button>
-        <div
-          className={`flex flex-col gap-4 p-4 pointer-coarse:gap-0 pointer-coarse:p-0 ${
-            fillViewport ? 'h-full gap-0 p-0' : ''
-          }`}
-        >
+        <div className="flex h-full flex-col gap-0 p-0">
           <h2
-            className={`truncate pr-10 text-lg font-semibold pointer-coarse:absolute pointer-coarse:inset-x-0 pointer-coarse:top-0 pointer-coarse:z-10 pointer-coarse:bg-gradient-to-b pointer-coarse:from-black/60 pointer-coarse:to-transparent pointer-coarse:pb-5 pointer-coarse:pl-3 pointer-coarse:pr-14 pointer-coarse:pt-4 pointer-coarse:text-sm pointer-coarse:font-medium pointer-coarse:text-white pointer-coarse:transition-opacity pointer-coarse:duration-200 ${
-              fillViewport
-                ? 'absolute inset-x-0 top-0 z-10 bg-gradient-to-b from-black/60 to-transparent pb-5 pl-3 pr-14 pt-4 text-sm font-medium text-white'
-                : ''
-            } ${fillViewport && !controlsVisible ? 'pointer-events-none opacity-0' : ''} ${
-              controlsVisible ? '' : 'pointer-coarse:pointer-events-none pointer-coarse:opacity-0'
-            }`}
+            className={`absolute inset-x-0 top-0 z-10 truncate bg-gradient-to-b from-black/60 to-transparent pb-5 pl-3 pr-14 pt-4 text-sm font-medium text-white ${
+              isPiP ? 'cursor-move touch-none' : ''
+            } ${isPiP || controlsVisible ? '' : 'pointer-events-none opacity-0'}`}
             title={displayName}
+            onPointerDown={isPiP ? handlePipPointerDown : undefined}
+            onPointerMove={isPiP ? handlePipPointerMove : undefined}
+            onPointerUp={isPiP ? handlePipPointerUp : undefined}
+            onPointerCancel={isPiP ? handlePipPointerUp : undefined}
           >
             {displayName}
           </h2>
           <div
             ref={shellRef}
             className={`player-shell relative w-full bg-black ${controlsVisible ? '' : 'cursor-none'} ${
-              fillViewport ? 'h-full' : ''
+              isPiP ? '' : 'h-full'
             }`}
             style={{
-              aspectRatio: fillViewport
-                ? undefined
-                : videoSize
-                  ? `${videoSize.width} / ${videoSize.height}`
-                  : '16 / 9',
               ...subtitleStyleCssVars(subtitleStyle),
             }}
           >
-            {screenshotNotice || pipNotice || hotkeyHintVisible ? (
+            {screenshotNotice || (hotkeyHintVisible && !isPiP) ? (
               <div className="pointer-events-none absolute left-3 top-3 z-10 flex max-w-[calc(100%-1.5rem)] flex-col items-start gap-2">
                 {screenshotNotice ? (
                   <div className="rounded bg-black/75 px-3 py-1.5 text-sm font-medium text-white shadow">
                     {zh('截图成功', 'Screenshot saved')}
                   </div>
                 ) : null}
-                {pipNotice ? (
-                  <div className="rounded bg-black/75 px-3 py-1.5 text-sm font-medium text-white shadow">
-                    {pipNotice}
-                  </div>
-                ) : null}
-                {hotkeyHintVisible ? (
+                {hotkeyHintVisible && !isPiP ? (
                   <div className="max-h-[calc(100vh-12rem)] overflow-hidden rounded bg-black/75 px-3 py-2 text-xs leading-5 text-white shadow">
                     {hotkeyHintLines.map((line, index) => (
                       <div key={`${index}-${line}`}>{line}</div>
@@ -1610,7 +1639,12 @@ export default function PlayerModal({
               </div>
             ) : (
               <div data-vjs-player className="h-full w-full">
-                <video ref={videoRef} className="video-js h-full w-full" playsInline>
+                <video
+                  ref={videoRef}
+                  className="video-js h-full w-full"
+                  playsInline
+                  disablePictureInPicture
+                >
                   <track kind="captions" />
                 </video>
               </div>
@@ -1725,7 +1759,7 @@ export default function PlayerModal({
                     type="button"
                     aria-label={zh('后退 10 秒', 'Back 10 seconds')}
                     onClick={() => actionsRef.current?.seekBy(-SEEK_STEP_SECONDS)}
-                    className={`${iconButtonClass} pointer-coarse:hidden`}
+                    className={`${iconButtonClass} ${isPiP ? 'hidden' : 'pointer-coarse:hidden'}`}
                   >
                     <Replay10Icon />
                   </button>
@@ -1733,7 +1767,7 @@ export default function PlayerModal({
                     type="button"
                     aria-label={zh('前进 10 秒', 'Forward 10 seconds')}
                     onClick={() => actionsRef.current?.seekBy(SEEK_STEP_SECONDS)}
-                    className={`${iconButtonClass} pointer-coarse:hidden`}
+                    className={`${iconButtonClass} ${isPiP ? 'hidden' : 'pointer-coarse:hidden'}`}
                   >
                     <Forward10Icon />
                   </button>
@@ -1756,7 +1790,13 @@ export default function PlayerModal({
                         <VolumeUpIcon />
                       )}
                     </button>
-                    <div className="flex w-0 items-center overflow-hidden opacity-0 transition-all duration-200 group-hover/vol:w-24 group-hover/vol:opacity-100 pointer-coarse:w-16 pointer-coarse:opacity-100">
+                    <div
+                      className={`flex items-center overflow-hidden transition-all duration-200 ${
+                        isPiP
+                          ? 'w-16 opacity-100'
+                          : 'w-0 opacity-0 group-hover/vol:w-24 group-hover/vol:opacity-100 pointer-coarse:w-16 pointer-coarse:opacity-100'
+                      }`}
+                    >
                       <input
                         type="range"
                         min={0}
@@ -1787,7 +1827,7 @@ export default function PlayerModal({
                         : zh('截图', 'Screenshot')
                     }
                     onClick={() => actionsRef.current?.captureScreenshot()}
-                    className={iconButtonClass}
+                    className={`${iconButtonClass} ${isPiP ? 'hidden' : ''}`}
                   >
                     <PhotoCameraIcon />
                   </button>
@@ -1809,13 +1849,13 @@ export default function PlayerModal({
                         }`}
                       >
                         <PlaylistPlayIcon style={{ fontSize: 18 }} />
-                        <span>{zh('选集', 'Episodes')}</span>
+                        {isPiP ? null : <span>{zh('选集', 'Episodes')}</span>}
                         <span className="rounded-full bg-white/20 px-1.5 text-[10px] font-semibold tabular-nums leading-4">
                           {episodeList.length}
                         </span>
                       </button>
                       {menuOpen === 'episodes' ? (
-                        <div className="absolute bottom-12 right-0 z-30 w-72 overflow-hidden rounded-xl border border-white/10 bg-black/90 shadow-2xl backdrop-blur-sm">
+                        <div className="player-pip-menu absolute bottom-12 right-0 z-30 w-72 overflow-hidden rounded-xl border border-white/10 bg-black/90 shadow-2xl backdrop-blur-sm">
                           <div className="flex items-center justify-between border-b border-white/10 px-3 py-2">
                             <span className="text-xs font-semibold uppercase tracking-wider text-white/60">
                               {zh('选集', 'Episodes')}
@@ -1885,7 +1925,7 @@ export default function PlayerModal({
                       <ClosedCaptionIcon />
                     </button>
                     {subMenu != null ? (
-                      <div className="absolute bottom-12 right-0 z-30 w-96 overflow-hidden rounded-xl border border-white/10 bg-black/90 shadow-2xl backdrop-blur-sm">
+                      <div className="player-pip-menu absolute bottom-12 right-0 z-30 w-96 overflow-hidden rounded-xl border border-white/10 bg-black/90 shadow-2xl backdrop-blur-sm">
                         {/* 顶栏：本地 / 搜索 切换 */}
                         <div className="flex items-center justify-between gap-2 border-b border-white/10 px-3 py-2.5">
                           <div className="flex min-w-0 flex-1 flex-wrap gap-1">
@@ -2107,7 +2147,7 @@ export default function PlayerModal({
                     ) : null}
                     {/* 字幕预览弹层 */}
                     {subPreview ? (
-                      <div className="absolute bottom-12 right-0 z-40 flex max-h-96 w-96 flex-col overflow-hidden rounded-xl border border-white/10 bg-black/90 shadow-2xl backdrop-blur-sm">
+                      <div className="player-pip-menu absolute bottom-12 right-0 z-40 flex max-h-96 w-96 flex-col overflow-hidden rounded-xl border border-white/10 bg-black/90 shadow-2xl backdrop-blur-sm">
                         <div className="flex items-center justify-between border-b border-white/10 px-3 py-2.5">
                           <span className="min-w-0 flex-1 truncate text-sm font-semibold text-white">
                             {subPreview.label}
@@ -2133,21 +2173,19 @@ export default function PlayerModal({
                     ) : null}
                   </div>
 
-                  {pipSupported ? (
-                    <button
-                      type="button"
-                      aria-label={
-                        isPiP
-                          ? zh('退出画中画', 'Exit picture-in-picture')
-                          : zh('画中画', 'Picture-in-picture')
-                      }
-                      title={zh('画中画', 'Picture-in-picture')}
-                      onClick={() => actionsRef.current?.togglePictureInPicture()}
-                      className={iconButtonClass}
-                    >
-                      {isPiP ? <PictureInPictureAltIcon /> : <PictureInPictureAltOutlinedIcon />}
-                    </button>
-                  ) : null}
+                  <button
+                    type="button"
+                    aria-label={
+                      isPiP
+                        ? zh('退出画中画', 'Exit picture-in-picture')
+                        : zh('画中画', 'Picture-in-picture')
+                    }
+                    title={zh('画中画', 'Picture-in-picture')}
+                    onClick={() => togglePip()}
+                    className={iconButtonClass}
+                  >
+                    {isPiP ? <PictureInPictureAltIcon /> : <PictureInPictureAltOutlinedIcon />}
+                  </button>
 
                   {/* 播放速度菜单 */}
                   <div className="relative">
@@ -2164,7 +2202,7 @@ export default function PlayerModal({
                       <SettingsIcon />
                     </button>
                     {menuOpen === 'speed' ? (
-                      <div className="absolute bottom-12 right-0 z-30 w-40 overflow-hidden rounded-xl border border-white/10 bg-black/90 py-1.5 shadow-2xl backdrop-blur-sm">
+                      <div className="player-pip-menu absolute bottom-12 right-0 z-30 w-40 overflow-hidden rounded-xl border border-white/10 bg-black/90 py-1.5 shadow-2xl backdrop-blur-sm">
                         <div className="px-3.5 pb-1 pt-1 text-xs font-semibold uppercase tracking-wider text-white/60">
                           {zh('播放速度', 'Playback speed')}
                         </div>

@@ -6,10 +6,17 @@ import AppModal from '@/components/AppModal'
 import {
   VIDEO_SORT_OPTIONS,
   findVideoSortOption,
+  isUnorderedSortOption,
   reverseVideoSortValue,
   videoSortLabelParts,
 } from '@/constants/video'
 import { zh } from '@/utils/i18n'
+import {
+  CARD_WIDTH_DEFAULTS,
+  CARD_WIDTH_MAX,
+  CARD_WIDTH_MIN,
+  normalizeCardWidth,
+} from '@/utils/cardLayout'
 
 function SortText({ option, value }) {
   const parts = videoSortLabelParts(option, value, zh)
@@ -41,37 +48,18 @@ function SortOptionRow({ option, inputValue, onChange }) {
         />
         <SortText option={option} value={displayValue} />
       </label>
-      <button
-        type="button"
-        onClick={() => onChange?.(reverseVideoSortValue(displayValue, option.defaultValue))}
-        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded border border-gray-200 text-gray-500 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700"
-        title={zh('反转排序', 'Reverse sort')}
-        aria-label={zh(`反转${option.label[0]}排序`, `Reverse ${option.label[1]} sort`)}
-      >
-        <SwapVertIcon fontSize="inherit" />
-      </button>
+      {isUnorderedSortOption(option) ? null : (
+        <button
+          type="button"
+          onClick={() => onChange?.(reverseVideoSortValue(displayValue, option.defaultValue))}
+          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded border border-gray-200 text-gray-500 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700"
+          title={zh('反转排序', 'Reverse sort')}
+          aria-label={zh(`反转${option.label[0]}排序`, `Reverse ${option.label[1]} sort`)}
+        >
+          <SwapVertIcon fontSize="inherit" />
+        </button>
+      )}
     </div>
-  )
-}
-
-function SettingsSwitch({ label, checked, onChange }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-label={label}
-      aria-checked={Boolean(checked)}
-      onClick={() => onChange?.(!checked)}
-      className={`relative inline-flex h-6 w-11 shrink-0 rounded-full transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${
-        checked ? 'bg-blue-600' : 'bg-slate-200'
-      }`}
-    >
-      <span
-        className={`mt-1 h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
-          checked ? 'translate-x-6' : 'translate-x-1'
-        }`}
-      />
-    </button>
   )
 }
 
@@ -85,8 +73,8 @@ export default function VideoSettingsModal({
   onSortChange,
   hideJavInput = false,
   onHideJavChange,
-  waterfallDefaultInput = false,
-  onWaterfallDefaultChange,
+  cardWidthInput,
+  onCardWidthChange,
   onSave,
 }) {
   useEffect(() => {
@@ -149,13 +137,27 @@ export default function VideoSettingsModal({
           />
         </label>
         <div className="flex min-h-11 items-center justify-between gap-4 py-1.5 text-sm text-slate-700">
-          <span className="font-medium">{zh('默认开启瀑布流', 'Enable waterfall by default')}</span>
-          <SettingsSwitch
-            label={zh('默认开启瀑布流', 'Enable waterfall by default')}
-            checked={waterfallDefaultInput}
-            onChange={onWaterfallDefaultChange}
-          />
+          <span className="font-medium">{zh('封面方向', 'Cover orientation')}</span>
+          <span className="text-sm text-slate-500">{zh('横版（锁定）', 'Landscape (locked)')}</span>
         </div>
+        <label className="flex items-center justify-between gap-3 text-sm font-medium text-gray-700">
+          <span>{zh('横版宽度', 'Landscape width')}</span>
+          <span className="flex w-40 items-center gap-2">
+            <input
+              type="range"
+              min={CARD_WIDTH_MIN}
+              max={CARD_WIDTH_MAX}
+              step="1"
+              value={normalizeCardWidth(cardWidthInput, CARD_WIDTH_DEFAULTS.video.landscape)}
+              onChange={(event) => onCardWidthChange?.(Number(event.target.value))}
+              className="h-1.5 min-w-0 flex-1 accent-blue-600"
+              aria-label={zh('横版宽度', 'Landscape width')}
+            />
+            <span className="w-12 shrink-0 text-right tabular-nums text-slate-500">
+              {normalizeCardWidth(cardWidthInput, CARD_WIDTH_DEFAULTS.video.landscape)}rem
+            </span>
+          </span>
+        </label>
         <div className="text-sm font-medium text-gray-700">{zh('默认排序', 'Default sort')}</div>
         {VIDEO_SORT_OPTIONS.map((option) => (
           <SortOptionRow
