@@ -343,6 +343,7 @@ func uniqueJavIdolWorks(works []models.JavIdolWork) []models.JavIdolWork {
 			continue
 		}
 		seen[key] = len(out)
+		work.Code = key
 		out = append(out, work)
 	}
 	return out
@@ -441,13 +442,49 @@ func searchJavIncludingExternal(ctx context.Context, idolIDs []int64, tagIDs []i
 		return []models.Jav{}, 0, nil
 	}
 
+	idolID := int64(0)
+	if len(idolIDs) == 1 {
+		idolID = idolIDs[0]
+	}
+	sort = strings.ToLower(strings.TrimSpace(sort))
+
+	var libraryTotal int64
+	if !filters.UnimportedOnly {
+		countQuery := buildJavFilter(ctx, idolIDs, tagIDs, search, prefix, directoryIDs, filters, closedSubdirs, subpaths).
+			Select("DISTINCT jav.id")
+		if err := countQuery.Count(&libraryTotal).Error; err != nil {
+			return nil, 0, fmt.Errorf("count jav for external merge: %w", err)
+		}
+	}
+	unimportedTotal, err := countUnimportedJavIdolWorks(ctx, idolID, search, prefix)
+	if err != nil {
+		return nil, 0, err
+	}
+	total := libraryTotal + unimportedTotal
+	if offset >= int(total) {
+		return []models.Jav{}, total, nil
+	}
+
+	// Unimported rows share epoch CreatedAt / zero rating / zero plays, so the
+	// default "recent" family keeps every library title ahead of them. Serve
+	// those pages from the regular paginated query instead of loading both
+	// tables into memory (that path pegged CPU on "全部" / "未入库").
+	if !filters.UnimportedOnly && javMergeKeepsLibraryFirst(sort) && offset+limit <= int(libraryTotal) {
+		page, _, err := SearchJavWithPrefixFilters(ctx, idolIDs, tagIDs, search, prefix, sort, limit, offset, seed, directoryIDs, filters, closedSubdirs, subpaths)
+		if err != nil {
+			return nil, 0, err
+		}
+		return page, total, nil
+	}
+
 	var library []models.Jav
 	if !filters.UnimportedOnly {
 		if err := buildJavFilter(ctx, idolIDs, tagIDs, search, prefix, directoryIDs, filters, closedSubdirs, subpaths).
+			Select("jav.id, jav.code, jav.title, jav.title_zh, jav.release_unix, jav.duration_min, jav.created_at, jav.favorite_rating, jav.studio_id, jav.series_id").
 			Find(&library).Error; err != nil {
 			return nil, 0, fmt.Errorf("list jav for external merge: %w", err)
 		}
-		switch strings.ToLower(strings.TrimSpace(sort)) {
+		switch sort {
 		case "play_count", "play_count_desc", "play_count_asc":
 			if err := attachJavPlayCountsForSort(ctx, library, directoryIDs, closedSubdirs, subpaths); err != nil {
 				return nil, 0, err
@@ -455,10 +492,6 @@ func searchJavIncludingExternal(ctx context.Context, idolIDs []int64, tagIDs []i
 		}
 	}
 
-	idolID := int64(0)
-	if len(idolIDs) == 1 {
-		idolID = idolIDs[0]
-	}
 	works, err := listUnimportedJavIdolWorks(ctx, idolID, search, prefix)
 	if err != nil {
 		return nil, 0, err
@@ -472,7 +505,6 @@ func searchJavIncludingExternal(ctx context.Context, idolIDs []int64, tagIDs []i
 	}
 	sortMergedJavItems(merged, sort, seed)
 
-	total := int64(len(merged))
 	if offset >= len(merged) {
 		return []models.Jav{}, total, nil
 	}
@@ -485,6 +517,15 @@ func searchJavIncludingExternal(ctx context.Context, idolIDs []int64, tagIDs []i
 		return nil, 0, err
 	}
 	return page, total, nil
+}
+
+func javMergeKeepsLibraryFirst(sort string) bool {
+	switch sort {
+	case "", "recent", "play_count", "play_count_desc", "favorite_rating", "favorite_rating_desc", "favorite_rating_asc":
+		return true
+	default:
+		return false
+	}
 }
 
 func attachJavPlayCountsForSort(ctx context.Context, items []models.Jav, directoryIDs []int64, closedSubdirs []ClosedSubdirectory, subpaths []DirectorySubpath) error {
@@ -582,16 +623,24 @@ func finishUnimportedJavPage(ctx context.Context, page []models.Jav) error {
 	return attachUnimportedJavIdols(ctx, page)
 }
 
-func listUnimportedJavIdolWorks(ctx context.Context, idolID int64, search, prefix string) ([]models.JavIdolWork, error) {
+func unimportedIdolWorkNotInLibrarySQL() string {
+	// Compare against the indexed jav.code instead of UPPER(jav.code), which
+	// forced a full scan of jav for every idol-work row and pegged CPU.
+	return `NOT EXISTS (SELECT 1 FROM jav WHERE jav.code = UPPER(TRIM(jav_idol_work.code)))`
+}
+
+func unimportedIdolWorkNotDislikedSQL() string {
+	return `NOT EXISTS (
+		SELECT 1 FROM jav_idol_work_dislike d
+		WHERE d.jav_idol_id = jav_idol_work.jav_idol_id
+			AND d.code = UPPER(TRIM(jav_idol_work.code))
+	)`
+}
+
+func unimportedIdolWorkQuery(ctx context.Context, idolID int64, search, prefix string) *gorm.DB {
 	query := common.DB.WithContext(ctx).Model(&models.JavIdolWork{}).
-		Where(`NOT EXISTS (
-			SELECT 1 FROM jav WHERE UPPER(jav.code) = UPPER(jav_idol_work.code)
-		)`).
-		Where(`NOT EXISTS (
-			SELECT 1 FROM jav_idol_work_dislike d
-			WHERE d.jav_idol_id = jav_idol_work.jav_idol_id
-				AND UPPER(d.code) = UPPER(jav_idol_work.code)
-		)`)
+		Where(unimportedIdolWorkNotInLibrarySQL()).
+		Where(unimportedIdolWorkNotDislikedSQL())
 	if idolID > 0 {
 		query = query.Where("jav_idol_id = ?", idolID)
 	}
@@ -602,9 +651,27 @@ func listUnimportedJavIdolWorks(ctx context.Context, idolID int64, search, prefi
 	if prefix != "" {
 		query = query.Where(javCodePrefixSQL("code")+" = ?", prefix)
 	}
+	return query
+}
 
+func countUnimportedJavIdolWorks(ctx context.Context, idolID int64, search, prefix string) (int64, error) {
+	query := unimportedIdolWorkQuery(ctx, idolID, search, prefix)
+	var total int64
+	if idolID > 0 {
+		if err := query.Count(&total).Error; err != nil {
+			return 0, fmt.Errorf("count unimported jav idol works: %w", err)
+		}
+		return total, nil
+	}
+	if err := query.Select("COUNT(DISTINCT UPPER(TRIM(code)))").Scan(&total).Error; err != nil {
+		return 0, fmt.Errorf("count unimported jav idol works: %w", err)
+	}
+	return total, nil
+}
+
+func listUnimportedJavIdolWorks(ctx context.Context, idolID int64, search, prefix string) ([]models.JavIdolWork, error) {
 	var works []models.JavIdolWork
-	if err := query.Find(&works).Error; err != nil {
+	if err := unimportedIdolWorkQuery(ctx, idolID, search, prefix).Find(&works).Error; err != nil {
 		return nil, fmt.Errorf("list unimported jav idol works: %w", err)
 	}
 	if idolID <= 0 {
@@ -1220,9 +1287,7 @@ func CodeNeedsUnimportedScrapeRepair(ctx context.Context, code string) (bool, er
 	if err := common.DB.WithContext(ctx).
 		Model(&models.JavIdolWork{}).
 		Where("UPPER(code) = ?", code).
-		Where(`NOT EXISTS (
-			SELECT 1 FROM jav WHERE UPPER(jav.code) = UPPER(jav_idol_work.code)
-		)`).
+		Where(unimportedIdolWorkNotInLibrarySQL()).
 		Where(`
 			TRIM(COALESCE(title, '')) = ''
 			OR TRIM(COALESCE(cover_url, '')) = ''

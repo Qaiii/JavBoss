@@ -531,6 +531,17 @@ func TestSearchJavMergesUnimportedIdolWorks(t *testing.T) {
 	if total != 1 || len(globalUnimported) != 1 || globalUnimported[0].Code != "EXT-NEW" {
 		t.Fatalf("global unimported = %v total=%d, want [EXT-NEW]", codesOf(globalUnimported), total)
 	}
+
+	recentPage, recentTotal, err := SearchJavWithPrefixFilters(ctx, nil, nil, "", "", "recent", 1, 0, nil, nil, JavSearchFilters{StudioID: -1, IncludeExternal: true}, nil, nil)
+	if err != nil {
+		t.Fatalf("search recent first page: %v", err)
+	}
+	if recentTotal != 3 {
+		t.Fatalf("recent first-page total=%d, want 3 (library + unimported)", recentTotal)
+	}
+	if len(recentPage) != 1 || recentPage[0].Code != "LIB-HIGH" {
+		t.Fatalf("recent first page = %v, want [LIB-HIGH]", codesOf(recentPage))
+	}
 }
 
 func TestJavCodePrefixFromCode(t *testing.T) {

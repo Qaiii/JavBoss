@@ -3466,9 +3466,7 @@ func ListUnimportedJavScrapeHealthItems(ctx context.Context) ([]UnimportedJavScr
 	if err := common.DB.WithContext(ctx).
 		Model(&models.JavIdolWork{}).
 		Where("COALESCE(code, '') <> ''").
-		Where(`NOT EXISTS (
-			SELECT 1 FROM jav WHERE UPPER(jav.code) = UPPER(jav_idol_work.code)
-		)`).
+		Where(unimportedIdolWorkNotInLibrarySQL()).
 		Find(&rows).Error; err != nil {
 		return nil, fmt.Errorf("list unimported jav scrape health items: %w", err)
 	}
