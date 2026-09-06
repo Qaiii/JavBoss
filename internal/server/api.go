@@ -49,6 +49,7 @@ func RegisterRoutes(router gin.IRoutes) {
 	router.GET("/videos/:id/subtitles/detail", getJavSubtitleDetail)
 	router.POST("/videos/:id/subtitles/save", saveJavSubtitle)
 	router.POST("/videos/play", playVideoFile)
+	router.POST("/videos/playlist", playVideoPlaylist)
 	router.POST("/videos/open", openVideoFile)
 	router.POST("/videos/reveal", revealVideoLocation)
 
@@ -163,6 +164,7 @@ func registerJavFavoriteRoutes(router gin.IRoutes, routeEntity string, dbEntity 
 	if routeEntity == "jav" {
 		router.GET("/jav/items/:id/favorite-groups", listJavFavoriteGroupIDsFor(dbEntity))
 		router.PUT("/jav/items/:id/favorite-groups", replaceJavFavoriteGroupsFor(dbEntity))
+		router.POST("/jav/items/favorite-groups/add", addJavsToFavoriteGroups)
 		return
 	}
 	if routeEntity == "series" {

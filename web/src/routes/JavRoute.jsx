@@ -151,6 +151,14 @@ function JavListRoute({
   javGridColumns,
   javIdolTagMaxRows,
   javItems,
+  selectedJavIds,
+  onToggleSelect,
+  onSelectAll,
+  onSelectPage,
+  onPlayPage,
+  onPlayAll,
+  bulkActionBusy,
+  mpvEnabled,
   javTagMaxRows,
   javTitleMaxRows,
   loadingMore,
@@ -189,6 +197,14 @@ function JavListRoute({
       javLoading={activeJavLoading}
       buildJavUrl={buildJavUrl}
       javItems={javItems}
+      selectedJavIds={selectedJavIds}
+      onToggleSelect={onToggleSelect}
+      onSelectAll={onSelectAll}
+      onSelectPage={onSelectPage}
+      onPlayPage={onPlayPage}
+      onPlayAll={onPlayAll}
+      bulkActionBusy={bulkActionBusy}
+      mpvEnabled={mpvEnabled}
       javGridColumns={javGridColumns}
       javTitleMaxRows={javTitleMaxRows}
       javIdolTagMaxRows={javIdolTagMaxRows}

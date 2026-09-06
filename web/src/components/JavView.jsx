@@ -1,3 +1,4 @@
+import BulkActionsMenu from '@/components/BulkActionsMenu'
 import JavGrid from '@/components/JavGrid'
 import JavIdolHero from '@/components/JavIdolHero'
 import WaterfallLoader from '@/components/WaterfallLoader'
@@ -8,6 +9,14 @@ export default function JavView({
   javLoading,
   buildJavUrl,
   javItems,
+  selectedJavIds,
+  onToggleSelect,
+  onSelectAll,
+  onSelectPage,
+  onPlayPage,
+  onPlayAll,
+  bulkActionBusy,
+  mpvEnabled,
   javGridColumns,
   javTitleMaxRows,
   javIdolTagMaxRows,
@@ -49,10 +58,22 @@ export default function JavView({
   const hasSingleIdolFilter = Number(activeIdolId) > 0
   const showIdolProfile = hasSingleIdolFilter
   const libraryScope = normalizeJavLibraryScope(javLibraryScope)
+  const hasItems = javItems.some((item) => Number(item?.id) > 0)
 
   const body = (
     <>
-      <div className="sticky-pagination mb-4 flex justify-end">
+      <div className="sticky-pagination mb-4 flex items-center justify-end gap-2">
+        <BulkActionsMenu
+          label={zh('JAV 批量操作', 'JAV bulk actions')}
+          hasItems={hasItems || javItems.length > 0}
+          pageSelectable={hasItems}
+          busy={bulkActionBusy || javLoading}
+          mpvEnabled={mpvEnabled}
+          onSelectAll={onSelectAll}
+          onSelectPage={onSelectPage}
+          onPlayPage={onPlayPage}
+          onPlayAll={onPlayAll}
+        />
         <div
           className="jav-library-scope"
           role="radiogroup"
@@ -86,6 +107,9 @@ export default function JavView({
         <div>
           <JavGrid
             items={javItems}
+            selectedIds={selectedJavIds}
+            onToggleSelect={onToggleSelect}
+            selectionDisabled={bulkActionBusy}
             columns={javGridColumns}
             titleMaxRows={javTitleMaxRows}
             idolTagMaxRows={javIdolTagMaxRows}

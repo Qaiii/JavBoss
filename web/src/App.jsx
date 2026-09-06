@@ -8,6 +8,7 @@ import {
   deleteVideoLocation,
   updateConfig,
   playVideoFile,
+  playVideoPlaylist,
   openVideoFile,
   revealVideoLocation,
   updateVideoJavScrapeSettings,
@@ -43,6 +44,7 @@ import {
   replaceJavFavoriteGroups,
   processDirectory,
   scanDirectory,
+  fetchVideos,
 } from '@/api'
 import GlobalSettingsModal from '@/components/GlobalSettingsModal'
 import DownloadView from '@/components/DownloadView'
@@ -53,6 +55,9 @@ import JavSettingsModal from '@/components/JavSettingsModal'
 import JavTagModal from '@/components/JavTagModal'
 import JavVideoPickerModal from '@/components/JavVideoPickerModal'
 import SelectionOpsModal from '@/components/SelectionOpsModal'
+import JavSelectionOpsModal from '@/components/JavSelectionOpsModal'
+import JavSelectionTagsModal from '@/components/JavSelectionTagsModal'
+import JavSelectionFavoritesModal from '@/components/JavSelectionFavoritesModal'
 import SelectionJavTagsModal from '@/components/SelectionJavTagsModal'
 import SelectionTagsModal from '@/components/SelectionTagsModal'
 import TagPickerModal from '@/components/TagPickerModal'
@@ -77,6 +82,7 @@ import {
 } from '@/constants/jav'
 import { normalizeVideoSort } from '@/constants/video'
 import useScrollRestoration from '@/hooks/useScrollRestoration'
+import useJavSelection from '@/hooks/useJavSelection'
 import useUrlStateSync from '@/hooks/useUrlStateSync'
 import JavRoute from '@/routes/JavRoute'
 import VideoRoute from '@/routes/VideoRoute'
@@ -108,6 +114,17 @@ import { useAuth } from '@/auth'
 
 const JAV_SCRAPE_OVERRIDE_SKIP = ':skip'
 const JAV_SCRAPE_OVERRIDE_MANUAL_PREFIX = ':manual:'
+const MPV_BULK_PLAY_CONFIRM_THRESHOLD = 500
+
+const confirmLargeMPVPlaylist = (count) => {
+  if (count <= MPV_BULK_PLAY_CONFIRM_THRESHOLD) return true
+  return window.confirm(
+    zh(
+      `即将使用 MPV 播放 ${count} 个视频。视频数量较多，可能造成 MPV 加载卡顿，是否继续？`,
+      `You are about to play ${count} videos with MPV. A large playlist may cause MPV to load slowly. Continue?`
+    )
+  )
+}
 
 const normalizeDefaultPlayer = (value, mpvEnabled = true) => {
   const normalized = String(value || '')
@@ -374,7 +391,9 @@ export default function App() {
   const [selectionJavTagsOpen, setSelectionJavTagsOpen] = useState(false)
   const [selectionJavTagChoices, setSelectionJavTagChoices] = useState([])
   const [selectionJavTagSaving, setSelectionJavTagSaving] = useState(false)
+  const [selectionPlaying, setSelectionPlaying] = useState(false)
   const [selectionDeleting, setSelectionDeleting] = useState(false)
+  const [videoBulkActionBusy, setVideoBulkActionBusy] = useState(false)
   const [videoPageSizeInput, setVideoPageSizeInput] = useState(pageSize)
   const [videoSortInput, setVideoSortInput] = useState(sortOrder)
   const [videoHideJavInput, setVideoHideJavInput] = useState(videoHideJav)
@@ -414,6 +433,7 @@ export default function App() {
   )
   const [javResolvedIdols, setJavResolvedIdols] = useState({})
   const [toastMessage, setToastMessage] = useState('')
+  const [toastDuration, setToastDuration] = useState(1800)
   const [centerToastMessage, setCenterToastMessage] = useState('')
 
   useEffect(() => {
@@ -476,8 +496,9 @@ export default function App() {
       : alternatePlayer === 'system'
         ? zh('用默认程序打开', 'Open with default app')
         : ''
-  const showToast = useCallback((message) => {
+  const showToast = useCallback((message, duration = 1800) => {
     setToastMessage(String(message || '').trim())
+    setToastDuration(duration)
   }, [])
   const closeToast = useCallback(() => {
     setToastMessage('')
@@ -935,19 +956,88 @@ export default function App() {
     setJavVideoPickerAction('play')
   }, [])
 
-  const handleJavPlay = useCallback((video, item) => {
-    const videos = item?.videos || []
-    const target = video || videos[0]
-    if (!target) return
-    setPlayerEpisodes(videos.length > 1 ? videos : [])
-    setPlayerStartTime(0)
-    setPlayerVideo(target)
-  }, [])
+  const playVideosWithMPV = useCallback(
+    async (items) => {
+      const list = Array.isArray(items) ? items : []
+      const targets = list
+        .map((video) => {
+          const videoId = Number(video?.id)
+          const locationId = Number(video?.location_id || 0)
+          if (!Number.isFinite(videoId) || videoId <= 0) return null
+          return {
+            video_id: videoId,
+            location_id: Number.isFinite(locationId) && locationId > 0 ? locationId : 0,
+            title: video?.filename || `Video #${videoId}`,
+          }
+        })
+        .filter(Boolean)
+      if (targets.length !== list.length || targets.length === 0) {
+        showCenterToast(
+          zh(
+            '无法播放：部分视频缺少文件信息',
+            'Cannot play: some videos are missing file information'
+          )
+        )
+        return
+      }
+      if (!confirmLargeMPVPlaylist(targets.length)) return
+
+      const result = await playVideoPlaylist(targets)
+      const count = Number(result?.count) || targets.length
+      showToast(
+        zh(`已将 ${count} 个视频加入 MPV 播放列表`, `Added ${count} videos to the MPV playlist`)
+      )
+      return true
+    },
+    [showCenterToast, showToast]
+  )
+
+  const handleJavPlay = useCallback(
+    (video, item) => {
+      const videos = item?.videos || []
+      if (videos.length > 1) {
+        if (defaultPlayer === 'mpv') {
+          playVideosWithMPV(videos).catch((err) => {
+            showCenterToast(getErrorMessage(err))
+          })
+          return
+        }
+        if (defaultPlayer === 'browser') {
+          const target = video || videos[0]
+          if (!target) return
+          setPlayerEpisodes(videos)
+          setPlayerStartTime(0)
+          setPlayerVideo(target)
+          return
+        }
+        setJavVideoPickerAction('play')
+        setJavVideoPickerItem(item)
+        setJavVideoPickerOpen(true)
+        return
+      }
+      const target = video || videos[0]
+      if (!target) return
+      if (defaultPlayer === 'browser') {
+        setPlayerEpisodes([])
+        setPlayerStartTime(0)
+        setPlayerVideo(target)
+        return
+      }
+      handleOpenPlayer(target)
+    },
+    [defaultPlayer, playVideosWithMPV, showCenterToast, handleOpenPlayer]
+  )
 
   const handleJavOpenFile = useCallback(
     (video, item) => {
       const videos = item?.videos || (video ? [video] : [])
       if (videos.length > 1) {
+        if (alternatePlayer === 'mpv') {
+          playVideosWithMPV(videos).catch((err) => {
+            showCenterToast(getErrorMessage(err))
+          })
+          return
+        }
         setJavVideoPickerAction('open')
         setJavVideoPickerItem(item)
         setJavVideoPickerOpen(true)
@@ -957,7 +1047,13 @@ export default function App() {
       if (!target) return
       handleOpenAlternatePlayer(target)
     },
-    [handleOpenAlternatePlayer, isVideoOpenable]
+    [
+      alternatePlayer,
+      playVideosWithMPV,
+      showCenterToast,
+      handleOpenAlternatePlayer,
+      isVideoOpenable,
+    ]
   )
 
   const handleJavRevealFile = useCallback(
@@ -2612,6 +2708,47 @@ export default function App() {
     })
   }, [])
 
+  const handlePlaySelection = useCallback(async () => {
+    if (selectionPlaying || !mpvEnabled) return
+    const targets = selectedList
+      .map((item) => {
+        const videoId = Number(item?.video_id || item?.video?.id)
+        const locationId = Number(item?.location_id || item?.video?.location_id || 0)
+        if (!Number.isFinite(videoId) || videoId <= 0) return null
+        return {
+          video_id: videoId,
+          location_id: Number.isFinite(locationId) && locationId > 0 ? locationId : 0,
+          title: item?.label || item?.video?.filename || `Video #${videoId}`,
+        }
+      })
+      .filter(Boolean)
+    if (targets.length !== selectedList.length || targets.length === 0) {
+      showCenterToast(
+        zh(
+          '无法播放：部分所选视频缺少文件信息',
+          'Cannot play: some selected videos are missing file information'
+        )
+      )
+      return
+    }
+    if (!confirmLargeMPVPlaylist(targets.length)) return
+
+    setSelectionPlaying(true)
+    try {
+      const result = await playVideoPlaylist(targets)
+      const count = Number(result?.count) || targets.length
+      setSelectionOpsOpen(false)
+      showToast(
+        zh(`已将 ${count} 个视频加入 MPV 播放列表`, `Added ${count} videos to the MPV playlist`)
+      )
+    } catch (err) {
+      console.error(zh('加入 MPV 播放列表失败', 'Failed to add to MPV playlist'), err)
+      showCenterToast(getErrorMessage(err))
+    } finally {
+      setSelectionPlaying(false)
+    }
+  }, [mpvEnabled, selectedList, selectionPlaying, showCenterToast, showToast])
+
   const handleDeleteSelection = useCallback(async () => {
     if (selectionDeleting) return
     const targets = selectedList
@@ -3614,6 +3751,150 @@ export default function App() {
     [saveScrollBeforeUrlStateChange]
   )
 
+  const addVideosToSelection = useCallback((items) => {
+    const entries = (Array.isArray(items) ? items : [])
+      .map((video) => {
+        const key = videoSelectionKey(video)
+        const videoId = Number(video?.id)
+        if (!key || !Number.isFinite(videoId) || videoId <= 0) return null
+        return {
+          key,
+          meta: {
+            label: video.filename || video.path || `#${videoId}`,
+            video_id: videoId,
+            location_id: video.location_id || null,
+            jav_id: video.jav_id || null,
+            jav_code: video.jav?.code || video.locations?.[0]?.jav?.code || '',
+          },
+        }
+      })
+      .filter(Boolean)
+
+    if (entries.length === 0) return 0
+    useStore.setState((state) => {
+      const nextIds = new Set(state.selectedVideoIds)
+      const nextMeta = { ...state.selectedVideoMeta }
+      entries.forEach(({ key, meta }) => {
+        nextIds.add(key)
+        nextMeta[key] = meta
+      })
+      return { selectedVideoIds: nextIds, selectedVideoMeta: nextMeta }
+    })
+    return entries.length
+  }, [])
+
+  const fetchAllMatchingVideos = useCallback(async () => {
+    if (randomMode) {
+      return Array.isArray(videos) ? videos : []
+    }
+
+    const batchSize = 500
+    let expectedTotal = Math.max(0, Number(total) || 0)
+    let offset = 0
+    const items = []
+    const effectiveSort = videoTempSort || sortOrder
+
+    while (offset < expectedTotal) {
+      const limit = Math.min(batchSize, expectedTotal - offset)
+      const response = await fetchVideos({
+        limit,
+        offset,
+        tags: selectedTags,
+        search: searchTerm || '',
+        sort: effectiveSort,
+        hideJav: videoHideJav,
+      })
+      const batch = Array.isArray(response?.items) ? response.items : []
+      items.push(...batch)
+      const responseTotal = Number(response?.total)
+      if (Number.isFinite(responseTotal) && responseTotal >= 0) {
+        expectedTotal = responseTotal
+      }
+      if (batch.length === 0) break
+      offset += limit
+    }
+
+    return items
+  }, [randomMode, searchTerm, selectedTags, sortOrder, total, videoHideJav, videoTempSort, videos])
+
+  const javSelection = useJavSelection({
+    items: javItems,
+    mpvEnabled,
+    playVideos: playVideosWithMPV,
+    showToast,
+    showError: showCenterToast,
+  })
+
+  const handleSelectVideoPage = useCallback(() => {
+    const count = addVideosToSelection(videos)
+    if (count > 0) {
+      showToast(zh(`已选择本页 ${count} 个视频`, `Selected ${count} videos on this page`))
+    }
+  }, [addVideosToSelection, showToast, videos])
+
+  const handleSelectAllVideos = useCallback(async () => {
+    if (videoBulkActionBusy) return
+    setVideoBulkActionBusy(true)
+    try {
+      const items = await fetchAllMatchingVideos()
+      const count = addVideosToSelection(items)
+      if (count > 0) {
+        showToast(zh(`已选择全部 ${count} 个视频`, `Selected all ${count} videos`))
+      }
+    } catch (err) {
+      showCenterToast(getErrorMessage(err))
+    } finally {
+      setVideoBulkActionBusy(false)
+    }
+  }, [
+    addVideosToSelection,
+    fetchAllMatchingVideos,
+    showCenterToast,
+    showToast,
+    videoBulkActionBusy,
+  ])
+
+  const handlePlayVideoPage = useCallback(async () => {
+    if (selectionPlaying || videoBulkActionBusy || !mpvEnabled) return
+    setSelectionPlaying(true)
+    try {
+      await playVideosWithMPV(videos)
+    } catch (err) {
+      showCenterToast(getErrorMessage(err))
+    } finally {
+      setSelectionPlaying(false)
+    }
+  }, [
+    mpvEnabled,
+    playVideosWithMPV,
+    selectionPlaying,
+    showCenterToast,
+    videoBulkActionBusy,
+    videos,
+  ])
+
+  const handlePlayAllVideos = useCallback(async () => {
+    if (selectionPlaying || videoBulkActionBusy || !mpvEnabled) return
+    setSelectionPlaying(true)
+    setVideoBulkActionBusy(true)
+    try {
+      const items = await fetchAllMatchingVideos()
+      await playVideosWithMPV(items)
+    } catch (err) {
+      showCenterToast(getErrorMessage(err))
+    } finally {
+      setVideoBulkActionBusy(false)
+      setSelectionPlaying(false)
+    }
+  }, [
+    fetchAllMatchingVideos,
+    mpvEnabled,
+    playVideosWithMPV,
+    selectionPlaying,
+    showCenterToast,
+    videoBulkActionBusy,
+  ])
+
   const activeError = isJavMode
     ? javTab === 'download'
       ? null
@@ -3856,13 +4137,13 @@ export default function App() {
               : null
             : handleOpenTagFilterEditor
         }
-        onOpenSelectionOps={() => setSelectionOpsOpen(true)}
-        onClearSelection={clearSelection}
+        onOpenSelectionOps={isJavMode ? javSelection.openOps : () => setSelectionOpsOpen(true)}
+        onClearSelection={isJavMode ? javSelection.clear : clearSelection}
         onSearchInputChange={isJavMode ? setJavSearchInput : setSearchInput}
         onSubmitSearch={isJavMode ? submitJavSearch : submitSearch}
         searchHref={searchHref}
         searchInput={searchInput}
-        selectedCount={selectedCount}
+        selectedCount={isJavMode ? javSelection.count : selectedCount}
         selectedFavoriteGroupId={activeSelectedFavoriteGroupId}
       />
 
@@ -3928,10 +4209,15 @@ export default function App() {
               javTitleMaxRows,
               javIdolTagMaxRows,
               javTagMaxRows,
-              onPlay: (video, item) =>
-                handleJavPlay(video, item, {
-                  fillViewport: Number(javIdolIds[0]) > 0 && javIdolIds.length === 1,
-                }),
+              selectedJavIds: javSelection.selectedIds,
+              onToggleSelect: javSelection.toggle,
+              onSelectAll: javSelection.selectAll,
+              onSelectPage: javSelection.selectPage,
+              onPlayPage: javSelection.playPage,
+              onPlayAll: javSelection.playAll,
+              bulkActionBusy: javSelection.busy,
+              mpvEnabled,
+              onPlay: handleJavPlay,
               onOpenFile: handleJavOpenFile,
               alternatePlayerLabel,
               onRevealFile: handleJavRevealFile,
@@ -3976,6 +4262,12 @@ export default function App() {
             videos={videos}
             selectedVideoIds={selectedVideoIds}
             toggleSelectVideo={toggleSelectVideo}
+            onSelectAll={handleSelectAllVideos}
+            onSelectPage={handleSelectVideoPage}
+            onPlayPage={handlePlayVideoPage}
+            onPlayAll={handlePlayAllVideos}
+            bulkActionBusy={videoBulkActionBusy || selectionPlaying}
+            mpvEnabled={mpvEnabled}
             openPlayer={handleOpenPlayer}
             openAlternatePlayer={alternatePlayer ? handleOpenAlternatePlayer : null}
             revealFile={desktopIntegrationEnabled ? handleRevealVideoFile : null}
@@ -4012,6 +4304,7 @@ export default function App() {
         prefix={javPrefix}
         soloOnly={javSoloOnly}
         preferChineseName={configFlag(config?.jav_idol_prefer_chinese_name)}
+        showSimplifiedTags={configFlag(config?.jav_tag_show_simplified)}
         favoriteGroupId={javFavoriteGroupId}
         favoriteRatingEnabled={javFavoriteRatingEnabled}
         favoriteRatingMin={javFavoriteRatingMin}
@@ -4199,14 +4492,57 @@ export default function App() {
         onSelectVideo={handleSelectVideoLocation}
       />
 
+      <JavSelectionOpsModal
+        open={javSelection.opsOpen}
+        busy={javSelection.busy}
+        onClose={javSelection.closeOps}
+        items={javSelection.selectedList}
+        mpvEnabled={mpvEnabled}
+        playing={javSelection.playing}
+        onRemoveSelected={javSelection.remove}
+        onPlaySelected={javSelection.playSelected}
+        onOpenTags={javSelection.openTags}
+        onOpenFavorites={javSelection.openFavorites}
+      />
+
+      <JavSelectionFavoritesModal
+        open={javSelection.favoritesOpen}
+        selectedCount={javSelection.count}
+        groups={favoriteGroupsByType?.jav || []}
+        selectedIds={javSelection.favoriteChoices}
+        onToggleChoice={javSelection.toggleFavorite}
+        onCreateGroup={(name) => handleCreateFavoriteGroup(name, 'jav')}
+        onClose={javSelection.closeFavorites}
+        onConfirm={javSelection.applyFavorites}
+        onReload={() => loadJavFavoriteGroups('jav', { force: true })}
+        loading={Boolean(favoriteGroupsLoadingByType?.jav)}
+        saving={javSelection.favoritesSaving}
+        loadError={favoriteGroupsErrorByType?.jav}
+        error={javSelection.favoriteError}
+      />
+
+      <JavSelectionTagsModal
+        open={javSelection.tagsOpen}
+        selectedCount={javSelection.count}
+        tags={displayJavTagOptions.filter(isUserJavTag)}
+        selectedIds={javSelection.tagChoices}
+        onToggleChoice={javSelection.toggleTag}
+        onClose={javSelection.closeTags}
+        onConfirm={javSelection.applyTags}
+        saving={javSelection.saving}
+      />
+
       <SelectionOpsModal
         open={selectionOpsOpen}
         onClose={() => setSelectionOpsOpen(false)}
         selectedList={selectedList}
         selectedCount={selectedCount}
         selectedJavCount={selectedJavIds.length}
+        mpvEnabled={mpvEnabled}
+        playing={selectionPlaying}
         deleting={selectionDeleting}
         onRemoveSelected={handleRemoveSelectedVideo}
+        onPlaySelected={handlePlaySelection}
         onOpenTags={() => {
           loadTags()
           setSelectionTagAction('add')
@@ -4438,7 +4774,8 @@ export default function App() {
             zh(
               '目录添加成功，首次扫描目录里的视频需要一定时间，请耐心等待，您可手动刷新页面查看扫描进度',
               'Directory added. The first scan may take some time. You can refresh manually to check progress.'
-            )
+            ),
+            4000
           )
           return created
         }}
@@ -4455,13 +4792,13 @@ export default function App() {
         onProcessDirectory={async (id, mode, layout) => {
           const result = await processDirectory(id, mode, layout)
           await loadDirectories()
-          showToast(zh('目录任务已启动', 'Directory task started'))
+          showToast(zh('目录任务已启动', 'Directory task started'), 4000)
           return result
         }}
         onScanDirectory={async (id) => {
           const result = await scanDirectory(id)
           await loadDirectories()
-          showToast(zh('目录扫描已启动', 'Directory scan started'))
+          showToast(zh('目录扫描已启动', 'Directory scan started'), 4000)
           return result
         }}
         onRefreshDirectories={loadDirectories}
@@ -4549,7 +4886,12 @@ export default function App() {
         onChangePassword={changePassword}
         onLogout={logout}
       />
-      <Toast open={Boolean(toastMessage)} message={toastMessage} onClose={closeToast} />
+      <Toast
+        open={Boolean(toastMessage)}
+        message={toastMessage}
+        duration={toastDuration}
+        onClose={closeToast}
+      />
       <CenterToast
         open={Boolean(centerToastMessage)}
         message={centerToastMessage}

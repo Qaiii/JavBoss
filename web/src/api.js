@@ -317,6 +317,18 @@ export async function playVideoFile({ id, locationId, path, dirPath, startTime }
   }
 }
 
+export async function playVideoPlaylist(items) {
+  const res = await apiFetch('/videos/playlist', {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify({ items }),
+  })
+  if (!res.ok) {
+    throw await apiError(res)
+  }
+  return res.json()
+}
+
 export async function revealVideoLocation({ path, dirPath }) {
   const res = await apiFetch('/videos/reveal', {
     method: 'POST',
@@ -1265,6 +1277,16 @@ export async function replaceJavFavoriteGroups(entityType = 'idol', id, groupIds
   if (!res.ok) {
     throw await apiError(res)
   }
+}
+
+export async function addJavsToFavoriteGroups(javIds, groupIds) {
+  const res = await apiFetch('/jav/items/favorite-groups/add', {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify({ jav_ids: javIds, group_ids: groupIds }),
+  })
+  if (!res.ok) throw await apiError(res)
+  return res.json()
 }
 
 export async function fetchJavIdolCoverOptions(id) {

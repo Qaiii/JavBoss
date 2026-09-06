@@ -8,6 +8,12 @@ export default function VideoRoute({
   onOpenScrapeSettings,
   onRenameVideo,
   onTagClick,
+  onSelectAll,
+  onSelectPage,
+  onPlayPage,
+  onPlayAll,
+  bulkActionBusy,
+  mpvEnabled,
   openAlternatePlayer,
   openPlayer,
   revealFile,
@@ -26,6 +32,12 @@ export default function VideoRoute({
       videos={videos}
       selectedVideoIds={selectedVideoIds}
       toggleSelectVideo={toggleSelectVideo}
+      onSelectAll={onSelectAll}
+      onSelectPage={onSelectPage}
+      onPlayPage={onPlayPage}
+      onPlayAll={onPlayAll}
+      bulkActionBusy={bulkActionBusy}
+      mpvEnabled={mpvEnabled}
       openPlayer={openPlayer}
       openAlternatePlayer={openAlternatePlayer}
       revealFile={revealFile}
