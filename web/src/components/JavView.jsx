@@ -1,6 +1,7 @@
 import BulkActionsMenu from '@/components/BulkActionsMenu'
 import JavGrid from '@/components/JavGrid'
 import JavIdolHero from '@/components/JavIdolHero'
+import JavSeriesDetailHeader from '@/components/JavSeriesDetailHeader'
 import WaterfallLoader from '@/components/WaterfallLoader'
 import { zh } from '@/utils/i18n'
 import { JAV_LIBRARY_SCOPE_OPTIONS, normalizeJavLibraryScope } from '@/utils/javLibrary'
@@ -52,16 +53,41 @@ export default function JavView({
   javLibraryScope,
   onJavLibraryScopeChange,
   activeIdolId = 0,
+  activeSeriesId = 0,
+  seriesName = '',
   onDislikeWork,
   playOnCoverClick = false,
 }) {
   const hasSingleIdolFilter = Number(activeIdolId) > 0
+  const seriesId = Number(activeSeriesId) || 0
+  const showSeriesHeader = seriesId > 0
   const showIdolProfile = hasSingleIdolFilter
   const libraryScope = normalizeJavLibraryScope(javLibraryScope)
   const hasItems = javItems.some((item) => Number(item?.id) > 0)
 
   const body = (
     <>
+      {showSeriesHeader ? (
+        <JavSeriesDetailHeader
+          seriesId={seriesId}
+          fallbackName={seriesName}
+          buildIdolUrl={(idol) =>
+            buildJavUrl?.({
+              page: 1,
+              search: '',
+              tab: 'list',
+              idolIds: [idol.id],
+              tagIds: [],
+              studioId: null,
+              seriesId: null,
+              prefix: '',
+              favoriteRatingEnabled: false,
+              tempSort: '',
+            })
+          }
+          onIdolClick={onIdolClick}
+        />
+      ) : null}
       <div className="sticky-pagination mb-4 flex items-center justify-end gap-2">
         <BulkActionsMenu
           label={zh('JAV 批量操作', 'JAV bulk actions')}
@@ -143,6 +169,7 @@ export default function JavView({
             activeIdolId={activeIdolId}
             onDislikeWork={onDislikeWork}
             playOnCoverClick={playOnCoverClick}
+            forceHideSeries={showSeriesHeader}
           />
         </div>
       )}

@@ -90,7 +90,11 @@ export default function JavCroppedCover({
 
     const updateFrame = () => {
       const rect = node.getBoundingClientRect()
-      setCoverFrame({ width: rect.width, height: rect.height })
+      const width = rect.width
+      const height = rect.height
+      setCoverFrame((current) =>
+        current.width === width && current.height === height ? current : { width, height }
+      )
     }
     updateFrame()
 

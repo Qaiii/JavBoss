@@ -95,7 +95,7 @@ export default function PlayerModal({
   showHotkeyHint = true,
   onPlaybackError,
 }) {
-  const videoRef = useRef(null)
+  const playerHostRef = useRef(null)
   const playerRef = useRef(null)
   const shellRef = useRef(null)
   const seekBarRef = useRef(null)
@@ -673,20 +673,24 @@ export default function PlayerModal({
   )
 
   // 视频区交互（移动/点击唤出控制条、移出隐藏、单击播放暂停、双击全屏）。
-  // 用原生事件挂在 shell 上而不是 JSX 属性，避免 eslint 对非交互元素的告警。
-  // 注意：PlayerModal 在 App 中始终挂载（video 为 null 时返回 null），本 effect
-  // 首次运行时 shell 尚未挂载；必须以 video 为依赖，在播放器真正打开（shell 挂载）
-  // 后再绑定，否则监听器永远不会挂上（控制条不再响应移动/点击）。
+  // 用原生事件挂在节点上而不是 JSX 属性，避免 eslint 对非交互元素的告警。
+  // 显隐必须听整张播放卡片（含标题栏、关闭按钮），不能只听 shell：
+  // 标题栏叠在 shell 外面，指针移上去时 shell 会 mouseleave，控制条立刻藏起，
+  // 标题随之 pointer-events-none，指针又落到 shell 上 → 循环闪烁。
+  // 点击/触摸仍挂在 shell 上，避免点标题误触播放或全屏。
+  // PlayerModal 在 App 中始终挂载（video 为 null 时返回 null），必须以 video
+  // 为依赖，等弹窗真正打开后再绑定。
   useEffect(() => {
     if (!video) return undefined
     const shell = shellRef.current
-    if (!shell) return undefined
+    const card = pipCardRef.current
+    if (!shell || !card) return undefined
 
     const isExcludedTarget = (event) =>
       event.target instanceof Element &&
       Boolean(event.target.closest('button, input, [role="slider"], .player-controls'))
 
-    // 记录指针是否曾在 shell 内移动过：shell 在 videoSize 加载后会改变尺寸
+    // 记录指针是否曾在卡片内移动过：卡片在 videoSize 加载后会改变尺寸
     // （如竖屏视频从 16:9 变 9:16），若指针静止，浏览器也会因几何变化触发
     // mouseleave —— 这种“假移出”不应隐藏控制条。只有指针真的移动出播放区域才隐藏。
     let pointerMovedInside = false
@@ -700,7 +704,7 @@ export default function PlayerModal({
       pointerMovedInside = false
     }
 
-    // 光标移出播放区域：立即隐藏控制条（桌面设备；触摸设备无移出概念）
+    // 光标移出整张播放卡片：立即隐藏控制条（桌面设备；触摸设备无移出概念）
     const handleMouseLeave = () => {
       if (!isFinePointer) return
       if (!pointerMovedInside) return
@@ -766,18 +770,18 @@ export default function PlayerModal({
       actionsRef.current?.toggleFullscreen()
     }
 
-    shell.addEventListener('mousemove', handleMouseMove)
-    shell.addEventListener('mouseenter', handleMouseEnter)
-    shell.addEventListener('mouseleave', handleMouseLeave)
+    card.addEventListener('mousemove', handleMouseMove)
+    card.addEventListener('mouseenter', handleMouseEnter)
+    card.addEventListener('mouseleave', handleMouseLeave)
     shell.addEventListener('touchstart', handleTouchStart, { passive: true })
     shell.addEventListener('touchend', handleTouchEnd, { passive: true })
     shell.addEventListener('click', handleClick)
     shell.addEventListener('dblclick', handleDblClick)
 
     return () => {
-      shell.removeEventListener('mousemove', handleMouseMove)
-      shell.removeEventListener('mouseenter', handleMouseEnter)
-      shell.removeEventListener('mouseleave', handleMouseLeave)
+      card.removeEventListener('mousemove', handleMouseMove)
+      card.removeEventListener('mouseenter', handleMouseEnter)
+      card.removeEventListener('mouseleave', handleMouseLeave)
       shell.removeEventListener('touchstart', handleTouchStart)
       shell.removeEventListener('touchend', handleTouchEnd)
       shell.removeEventListener('click', handleClick)
@@ -985,11 +989,28 @@ export default function PlayerModal({
   }, [duration, tooltipVisible, framePreview])
 
   useEffect(() => {
-    if (!video || !videoRef.current || !selectedSource?.src) return
+    const host = playerHostRef.current
+    if (!video || !host || !selectedSource?.src) return
     // 切换文件后播放信息未加载完前，不基于旧 source 重建播放器
     if (playbackInfoKeyRef.current !== playbackKey) return
 
-    const player = videojs(videoRef.current, {
+    // video.js 会改写 <video> 及其包装节点。这些节点必须由我们创建并挂在
+    // React 不管的宿主里；dispose 也只拆这块，不碰宿主。否则切换片源时
+    // React 提交 removeChild 会抛错，整页白屏。
+    const wrapper = document.createElement('div')
+    wrapper.setAttribute('data-vjs-player', '')
+    wrapper.className = 'h-full w-full'
+    const videoEl = document.createElement('video')
+    videoEl.className = 'video-js h-full w-full'
+    videoEl.playsInline = true
+    videoEl.disablePictureInPicture = true
+    const captionTrack = document.createElement('track')
+    captionTrack.kind = 'captions'
+    videoEl.appendChild(captionTrack)
+    wrapper.appendChild(videoEl)
+    host.appendChild(wrapper)
+
+    const player = videojs(videoEl, {
       controls: false, // 使用自绘 YouTube 风格控制条
       autoplay: true,
       preload: 'auto',
@@ -1265,8 +1286,7 @@ export default function PlayerModal({
     const focusPlayer = () => {
       playerEl?.focus({ preventScroll: true })
     }
-    // video.js 在 data-vjs-player 包装下会用新的 .vjs-tech 元素替换原 <video> 标签，
-    // 因此不能从 videoRef.current 读尺寸（恒为 0），必须走 player API。
+    // video.js 会用 .vjs-tech 接管媒体元素，尺寸必须走 player API。
     // 同时监听 resize：HLS 等流在 loadedmetadata 时可能还拿不到分辨率，稍后会再触发。
     const handleDimensions = () => {
       const width = player.videoWidth()
@@ -1304,7 +1324,8 @@ export default function PlayerModal({
       syncDuration()
       syncBuffered()
       syncVolumeState()
-      focusPlayer()
+      // 画中画时页面要继续点选其它卡片，不要把焦点抢回播放器
+      if (!isPiPRef.current) focusPlayer()
       const techEl = player.tech(true)?.el()
       if (techEl) techEl.disablePictureInPicture = true
     })
@@ -1367,6 +1388,7 @@ export default function PlayerModal({
       clearFrameCache()
       playerRef.current?.dispose()
       playerRef.current = null
+      if (host.isConnected) host.replaceChildren()
     }
   }, [
     video,
@@ -1629,26 +1651,16 @@ export default function PlayerModal({
                 ) : null}
               </div>
             ) : null}
+            <div ref={playerHostRef} className="h-full w-full" />
             {loadingPlayback ? (
-              <div className="flex h-full w-full items-center justify-center text-sm text-white">
+              <div className="absolute inset-0 z-[5] flex items-center justify-center bg-black text-sm text-white">
                 {zh('加载播放信息中…', 'Loading playback info...')}
               </div>
             ) : playbackError ? (
-              <div className="flex h-full w-full items-center justify-center px-6 text-center text-sm text-red-200">
+              <div className="absolute inset-0 z-[5] flex items-center justify-center bg-black px-6 text-center text-sm text-red-200">
                 {playbackError}
               </div>
-            ) : (
-              <div data-vjs-player className="h-full w-full">
-                <video
-                  ref={videoRef}
-                  className="video-js h-full w-full"
-                  playsInline
-                  disablePictureInPicture
-                >
-                  <track kind="captions" />
-                </video>
-              </div>
-            )}
+            ) : null}
 
             {/* 缓冲中加载动画 */}
             {!loadingPlayback && !playbackError && waiting && playing ? (

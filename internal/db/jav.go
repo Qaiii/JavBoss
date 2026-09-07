@@ -1479,13 +1479,22 @@ type JavStudioSummary struct {
 
 // JavSeriesSummary represents series info with aggregated work count and a sample code for cover lookup.
 type JavSeriesSummary struct {
-	ID            int64  `json:"id"`
-	Name          string `json:"name"`
-	StudioID      *int64 `json:"studio_id"`
-	StudioName    string `json:"studio_name"`
-	WorkCount     int64  `json:"work_count"`
-	SampleCode    string `json:"sample_code"`
-	FavoriteCount int64  `json:"favorite_count"`
+	ID            int64                  `json:"id"`
+	Name          string                 `json:"name"`
+	StudioID      *int64                 `json:"studio_id"`
+	StudioName    string                 `json:"studio_name"`
+	WorkCount     int64                  `json:"work_count"`
+	SampleCode    string                 `json:"sample_code"`
+	FavoriteCount int64                  `json:"favorite_count"`
+	Idols         []JavSeriesIdolSummary `json:"idols,omitempty" gorm:"-"`
+}
+
+// JavSeriesIdolSummary is one idol's in-library work count within a series.
+type JavSeriesIdolSummary struct {
+	ID          int64  `json:"id"`
+	Name        string `json:"name"`
+	ChineseName string `json:"chinese_name"`
+	WorkCount   int64  `json:"work_count"`
 }
 
 func applyJavStudioSearch(q *gorm.DB, search string) *gorm.DB {
@@ -2047,6 +2056,34 @@ func GetJavSeriesSummary(ctx context.Context, seriesID int64, directoryIDs []int
 		return nil, gorm.ErrRecordNotFound
 	}
 	return &item, nil
+}
+
+// ListJavSeriesIdols returns idols in a series, ordered by in-library work count.
+func ListJavSeriesIdols(ctx context.Context, seriesID int64, directoryIDs []int64) ([]JavSeriesIdolSummary, error) {
+	if seriesID <= 0 {
+		return nil, errors.New("series id must be positive")
+	}
+
+	var items []JavSeriesIdolSummary
+	query := common.DB.WithContext(ctx).
+		Table("jav_idol ji").
+		Joins("JOIN jav_idol_map jim ON jim.jav_idol_id = ji.id").
+		Joins("JOIN jav j ON j.id = jim.jav_id AND j.series_id = ?", seriesID).
+		Joins("JOIN video_location vl ON vl.jav_id = j.id").
+		Joins("JOIN directory d ON d.id = vl.directory_id").
+		Where(activeLocationWhereSQL("vl", "d"))
+	query = applyDirectoryFilter(query, "vl", directoryIDs)
+	if err := query.
+		Select("ji.id, ji.name, ji.chinese_name, COUNT(DISTINCT j.id) AS work_count").
+		Group("ji.id, ji.name, ji.chinese_name").
+		Order("work_count DESC, ji.name ASC").
+		Scan(&items).Error; err != nil {
+		return nil, fmt.Errorf("list jav series idols: %w", err)
+	}
+	if items == nil {
+		items = []JavSeriesIdolSummary{}
+	}
+	return items, nil
 }
 
 // ListSeriesCoverCodes returns a prioritized list of codes for a series.

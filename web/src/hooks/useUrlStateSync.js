@@ -232,6 +232,7 @@ export default function useUrlStateSync({
   useEffect(() => {
     if (!configLoaded) return
     ensureBrowserHistoryState()
+    const isFirstRoute = !routeInitializedRef.current
     const fromRouterPop = routeInitializedRef.current && navigationType === 'POP'
     isPoppingRef.current = fromRouterPop
     lastUrlRef.current = currentRoute
@@ -246,6 +247,8 @@ export default function useUrlStateSync({
       }
       cancelScheduledScrollRestore()
       setBrowserNavigationFromIndex(index, max)
+    } else if (isFirstRoute) {
+      window.scrollTo({ left: 0, top: 0, behavior: 'auto' })
     }
     const parsed = parseUrlState(location.search, { defaultView: initialViewMode })
     onParsedView?.(parsed.view)
@@ -290,11 +293,11 @@ export default function useUrlStateSync({
       saveCurrentScrollPosition()
     }
     const nextIndex = browserHistoryIndexRef.current + 1
-    const nextScroll = readWindowScrollPosition()
+    window.scrollTo({ left: 0, top: 0, behavior: 'auto' })
     navigate(nextUrl, {
       state: {
         [HISTORY_INDEX_KEY]: nextIndex,
-        [HISTORY_SCROLL_KEY]: nextScroll,
+        [HISTORY_SCROLL_KEY]: { x: 0, y: 0 },
       },
     })
     setBrowserNavigationFromIndex(nextIndex, nextIndex)

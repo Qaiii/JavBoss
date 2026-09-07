@@ -1384,6 +1384,35 @@ func TestListJavSeriesAndSearchBySeries(t *testing.T) {
 		t.Fatalf("expected sample code for zh series")
 	}
 
+	idolMore := models.JavIdol{Name: "Series Idol More", ChineseName: "系列多"}
+	idolLess := models.JavIdol{Name: "Series Idol Less"}
+	if err := db.Create(&idolMore).Error; err != nil {
+		t.Fatalf("create series idol more: %v", err)
+	}
+	if err := db.Create(&idolLess).Error; err != nil {
+		t.Fatalf("create series idol less: %v", err)
+	}
+	if err := db.Create(&[]models.JavIdolMap{
+		{JavID: javs[0].ID, JavIdolID: idolMore.ID},
+		{JavID: javs[1].ID, JavIdolID: idolMore.ID},
+		{JavID: javs[1].ID, JavIdolID: idolLess.ID},
+	}).Error; err != nil {
+		t.Fatalf("create series idol maps: %v", err)
+	}
+	idols, err := ListJavSeriesIdols(ctx, seriesA.ID, nil)
+	if err != nil {
+		t.Fatalf("ListJavSeriesIdols: %v", err)
+	}
+	if len(idols) != 2 {
+		t.Fatalf("series idol count = %d, want 2", len(idols))
+	}
+	if idols[0].ID != idolMore.ID || idols[0].WorkCount != 2 || idols[0].ChineseName != "系列多" {
+		t.Fatalf("first series idol = %#v", idols[0])
+	}
+	if idols[1].ID != idolLess.ID || idols[1].WorkCount != 1 {
+		t.Fatalf("second series idol = %#v", idols[1])
+	}
+
 	items, total, err := SearchJav(ctx, nil, nil, "", "code", 20, 0, nil, nil, 0, seriesA.ID)
 	if err != nil {
 		t.Fatalf("SearchJav by zh series: %v", err)

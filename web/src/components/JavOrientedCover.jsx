@@ -4,7 +4,7 @@ export default function JavOrientedCover({
   src,
   alt,
   className = '',
-  imageClassName = 'object-contain object-top',
+  imageClassName = 'object-cover object-top',
   fallback = null,
   referrerPolicy,
   onDisplayChange,

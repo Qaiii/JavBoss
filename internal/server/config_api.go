@@ -93,6 +93,8 @@ func updateConfig(c *gin.Context) {
 		JavTitleMaxRows          *int                  `json:"jav_title_max_rows"`
 		JavIdolTagMaxRows        *int                  `json:"jav_idol_tag_max_rows"`
 		JavTagMaxRows            *int                  `json:"jav_tag_max_rows"`
+		JavHideTitle             *bool                 `json:"jav_hide_title"`
+		JavHideMeta              *bool                 `json:"jav_hide_meta"`
 		JavHideSeries            *bool                 `json:"jav_hide_series"`
 		JavHideIdols             *bool                 `json:"jav_hide_idols"`
 		JavHideTags              *bool                 `json:"jav_hide_tags"`
@@ -227,6 +229,12 @@ func updateConfig(c *gin.Context) {
 			return
 		}
 		entries["jav_idol_retry_minutes"] = strconv.Itoa(minutes)
+	}
+	if req.JavHideTitle != nil {
+		entries["jav_hide_title"] = strconv.FormatBool(*req.JavHideTitle)
+	}
+	if req.JavHideMeta != nil {
+		entries["jav_hide_meta"] = strconv.FormatBool(*req.JavHideMeta)
 	}
 	if req.JavHideSeries != nil {
 		entries["jav_hide_series"] = strconv.FormatBool(*req.JavHideSeries)

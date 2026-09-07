@@ -197,6 +197,13 @@ func getJavSeries(c *gin.Context) {
 	}
 
 	enrichJavSeriesSummary(c.Request.Context(), item, javCoverDir())
+	idols, err := dbpkg.ListJavSeriesIdols(c.Request.Context(), item.ID, nil)
+	if err != nil {
+		logging.Error("list jav series idols id=%d: %v", item.ID, err)
+		respondLocalizedError(c, http.StatusInternalServerError, "加载系列女优失败", "Failed to load series actresses")
+		return
+	}
+	item.Idols = idols
 	c.JSON(http.StatusOK, item)
 }
 

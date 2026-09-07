@@ -110,11 +110,11 @@ function JavFavoriteRatingEditor({ value, saving, error, onChange }) {
         : zh('设置喜爱度评分', 'Set favorite rating')
 
   return (
-    <Tooltip title={tooltipTitle} placement="top" arrow>
+    <Tooltip title={tooltipTitle} placement="top" arrow disableInteractive>
       <span
         role="group"
         aria-label={zh('喜爱度评分', 'Favorite rating')}
-        className={`inline-flex items-center rounded-full bg-gray-100 px-1.5 py-0.5 transition-opacity ${
+        className={`inline-flex min-w-[7.75rem] items-center rounded-full bg-gray-100 px-1.5 py-0.5 transition-opacity ${
           saving ? 'opacity-60' : 'opacity-100'
         }`}
         onMouseLeave={() => {
@@ -233,6 +233,8 @@ function JavScreenshotGrid({ videos, onPlayAtTime, onCoverChanged }) {
   const [error, setError] = useState('')
   const [deletingKey, setDeletingKey] = useState('')
   const [previewItem, setPreviewItem] = useState(null)
+  const videosRef = useRef(videos)
+  videosRef.current = videos
   const videoIdentity = (videos || [])
     .map((video) => `${video?.id || ''}:${video?.updated_at || ''}`)
     .join('|')
@@ -241,16 +243,19 @@ function JavScreenshotGrid({ videos, onPlayAtTime, onCoverChanged }) {
     let cancelled = false
     let refreshInFlight = false
     let initialLoad = true
-    const videoById = new Map()
-    for (const video of videos || []) {
-      const videoId = Number(video?.id)
-      if (videoId > 0 && !videoById.has(videoId)) videoById.set(videoId, video)
+    const videoByIdFrom = (list) => {
+      const videoById = new Map()
+      for (const video of list || []) {
+        const videoId = Number(video?.id)
+        if (videoId > 0 && !videoById.has(videoId)) videoById.set(videoId, video)
+      }
+      return videoById
     }
     setItems([])
     setFailedCount(0)
     setError('')
     setDeletingKey('')
-    if (videoById.size === 0) {
+    if (videoByIdFrom(videosRef.current).size === 0) {
       setLoading(false)
       return undefined
     }
@@ -259,6 +264,7 @@ function JavScreenshotGrid({ videos, onPlayAtTime, onCoverChanged }) {
     const refreshScreenshots = async () => {
       if (refreshInFlight) return
       refreshInFlight = true
+      const videoById = videoByIdFrom(videosRef.current)
       try {
         const screenshots = await fetchVideoScreenshotsByIds(Array.from(videoById.keys()))
         if (cancelled) return
@@ -290,7 +296,7 @@ function JavScreenshotGrid({ videos, onPlayAtTime, onCoverChanged }) {
       cancelled = true
       window.clearInterval(refreshTimer)
     }
-  }, [videoIdentity, videos])
+  }, [videoIdentity])
 
   const handleDeleteScreenshot = async (video, screenshot) => {
     if (!video?.id || !screenshot?.name || deletingKey) return
@@ -391,7 +397,7 @@ function JavScreenshotGrid({ videos, onPlayAtTime, onCoverChanged }) {
                     {zh('当前封面', 'Current cover')}
                   </span>
                 ) : null}
-                <Tooltip title={zh('删除截图', 'Delete screenshot')}>
+                <Tooltip title={zh('删除截图', 'Delete screenshot')} disableInteractive>
                   <IconButton
                     size="small"
                     onClick={(event) => {
@@ -400,13 +406,13 @@ function JavScreenshotGrid({ videos, onPlayAtTime, onCoverChanged }) {
                     }}
                     disabled={Boolean(deletingKey)}
                     aria-label={zh('删除截图', 'Delete screenshot')}
-                    className="!absolute !right-1.5 !top-1.5 !z-10 !bg-white/90 !text-red-600 !opacity-0 hover:!bg-white disabled:!opacity-50 group-hover:!opacity-100"
+                    className="pointer-events-none !absolute !right-1.5 !top-1.5 !z-10 !bg-white/90 !text-red-600 !opacity-0 hover:!bg-white disabled:!opacity-50 group-hover:pointer-events-auto group-hover:!opacity-100"
                   >
                     <DeleteOutlineIcon fontSize="small" />
                   </IconButton>
                 </Tooltip>
-                <div className="absolute inset-0 flex items-center justify-center bg-transparent opacity-0 transition-opacity group-hover:opacity-100">
-                  <Tooltip title={zh('从此处播放', 'Play from here')}>
+                <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-transparent opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100">
+                  <Tooltip title={zh('从此处播放', 'Play from here')} disableInteractive>
                     <span>
                       <IconButton
                         onClick={(event) => {
@@ -696,7 +702,7 @@ export default function JavDetailModal({
         </button>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
+      <div className="app-modal-body min-h-0 flex-1 p-4 sm:p-6">
         <div className="grid items-stretch gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(19rem,2fr)]">
           <JavDisplayCover
             src={cover}
@@ -924,17 +930,20 @@ export default function JavDetailModal({
       <Popper
         open={Boolean(hoverPreview?.item && hoverPreview?.anchorEl)}
         anchorEl={hoverPreview?.anchorEl || null}
-        placement="right-start"
+        placement="left-start"
         className="z-[1550]"
-        modifiers={[{ name: 'offset', options: { offset: [10, 0] } }]}
+        modifiers={[
+          { name: 'offset', options: { offset: [0, 0] } },
+          { name: 'preventOverflow', options: { padding: 8, altAxis: true } },
+        ]}
       >
         <div
           className={
             hoverPreview?.type === 'studio'
-              ? 'w-[320px]'
+              ? 'w-[320px] p-2 -m-2'
               : hoverPreview?.type === 'series'
-                ? 'w-[260px]'
-                : 'w-[220px]'
+                ? 'w-[260px] p-2 -m-2'
+                : 'w-[220px] p-2 -m-2'
           }
           onMouseEnter={clearHoverCloseTimer}
           onMouseLeave={scheduleHoverClose}

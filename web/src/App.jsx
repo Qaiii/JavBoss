@@ -199,6 +199,7 @@ export default function App() {
     setSearchTerm,
     sortOrder,
     videoTempSort,
+    randomMode,
     videoHideJav,
     viewMode,
     javTab,
@@ -402,6 +403,8 @@ export default function App() {
   const [javTitleMaxRowsInput, setJavTitleMaxRowsInput] = useState(javTitleMaxRows)
   const [javIdolTagMaxRowsInput, setJavIdolTagMaxRowsInput] = useState(javIdolTagMaxRows)
   const [javTagMaxRowsInput, setJavTagMaxRowsInput] = useState(javTagMaxRows)
+  const [javHideTitleInput, setJavHideTitleInput] = useState(configFlag(config?.jav_hide_title))
+  const [javHideMetaInput, setJavHideMetaInput] = useState(configFlag(config?.jav_hide_meta))
   const [javHideSeriesInput, setJavHideSeriesInput] = useState(configFlag(config?.jav_hide_series))
   const [javHideIdolsInput, setJavHideIdolsInput] = useState(configFlag(config?.jav_hide_idols))
   const [javHideTagsInput, setJavHideTagsInput] = useState(configFlag(config?.jav_hide_tags))
@@ -2450,6 +2453,8 @@ export default function App() {
     setJavTitleMaxRowsInput(javTitleMaxRows)
     setJavIdolTagMaxRowsInput(javIdolTagMaxRows)
     setJavTagMaxRowsInput(javTagMaxRows)
+    setJavHideTitleInput(configFlag(config?.jav_hide_title))
+    setJavHideMetaInput(configFlag(config?.jav_hide_meta))
     setJavHideSeriesInput(configFlag(config?.jav_hide_series))
     setJavHideIdolsInput(configFlag(config?.jav_hide_idols))
     setJavHideTagsInput(configFlag(config?.jav_hide_tags))
@@ -2469,6 +2474,8 @@ export default function App() {
     javTitleMaxRows,
     javIdolTagMaxRows,
     javTagMaxRows,
+    config?.jav_hide_title,
+    config?.jav_hide_meta,
     config?.jav_hide_series,
     config?.jav_hide_idols,
     config?.jav_hide_tags,
@@ -2571,6 +2578,8 @@ export default function App() {
         jav_title_max_rows: javTitleRows,
         jav_idol_tag_max_rows: javIdolTagRows,
         jav_tag_max_rows: javTagRows,
+        jav_hide_title: Boolean(javHideTitleInput),
+        jav_hide_meta: Boolean(javHideMetaInput),
         jav_hide_series: Boolean(javHideSeriesInput),
         jav_hide_idols: Boolean(javHideIdolsInput),
         jav_hide_tags: Boolean(javHideTagsInput),
@@ -2642,6 +2651,8 @@ export default function App() {
       setJavTitleMaxRowsInput(javTitleMaxRows)
       setJavIdolTagMaxRowsInput(javIdolTagMaxRows)
       setJavTagMaxRowsInput(javTagMaxRows)
+      setJavHideTitleInput(configFlag(config?.jav_hide_title))
+      setJavHideMetaInput(configFlag(config?.jav_hide_meta))
       setJavHideSeriesInput(configFlag(config?.jav_hide_series))
       setJavHideIdolsInput(configFlag(config?.jav_hide_idols))
       setJavHideTagsInput(configFlag(config?.jav_hide_tags))
@@ -2663,6 +2674,8 @@ export default function App() {
     config?.jav_idol_prefer_chinese_name,
     config?.jav_title_language,
     config?.jav_tag_show_simplified,
+    config?.jav_hide_title,
+    config?.jav_hide_meta,
     config?.jav_hide_series,
     config?.jav_hide_idols,
     config?.jav_hide_tags,
@@ -4248,6 +4261,8 @@ export default function App() {
               javLibraryScope,
               onJavLibraryScopeChange: handleJavLibraryScopeChange,
               activeIdolId: Number(javIdolIds[0]) || 0,
+              activeSeriesId: Number(javSeriesId) || 0,
+              seriesName: javSeriesName,
               playOnCoverClick: Number(javIdolIds[0]) > 0 && javIdolIds.length === 1,
               onDislikeWork: (item) => {
                 const idolId = Number(javIdolIds[0]) || 0
@@ -4378,6 +4393,10 @@ export default function App() {
         onJavIdolTagMaxRowsChange={setJavIdolTagMaxRowsInput}
         javTagMaxRowsInput={javTagMaxRowsInput}
         onJavTagMaxRowsChange={setJavTagMaxRowsInput}
+        javHideTitleInput={javHideTitleInput}
+        onJavHideTitleChange={setJavHideTitleInput}
+        javHideMetaInput={javHideMetaInput}
+        onJavHideMetaChange={setJavHideMetaInput}
         javHideSeriesInput={javHideSeriesInput}
         onJavHideSeriesChange={setJavHideSeriesInput}
         javHideIdolsInput={javHideIdolsInput}

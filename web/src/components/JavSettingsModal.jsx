@@ -404,6 +404,10 @@ export default function JavSettingsModal({
   onJavIdolTagMaxRowsChange,
   javTagMaxRowsInput,
   onJavTagMaxRowsChange,
+  javHideTitleInput = false,
+  onJavHideTitleChange,
+  javHideMetaInput = false,
+  onJavHideMetaChange,
   javHideSeriesInput = false,
   onJavHideSeriesChange,
   javHideIdolsInput = false,
@@ -475,6 +479,8 @@ export default function JavSettingsModal({
         onJavTitleMaxRowsChange?.(2)
         onJavIdolTagMaxRowsChange?.(2)
         onJavTagMaxRowsChange?.(2)
+        onJavHideTitleChange?.(false)
+        onJavHideMetaChange?.(false)
         onJavHideSeriesChange?.(false)
         onJavHideIdolsChange?.(false)
         onJavHideTagsChange?.(false)
@@ -624,6 +630,20 @@ export default function JavSettingsModal({
                       </option>
                     ))}
                   </select>
+                </SettingsRow>
+                <SettingsRow label={zh('不显示标题', 'Hide title')}>
+                  <SettingsSwitch
+                    label={zh('不显示标题', 'Hide title')}
+                    checked={javHideTitleInput}
+                    onChange={onJavHideTitleChange}
+                  />
+                </SettingsRow>
+                <SettingsRow label={zh('不显示发行信息', 'Hide release info')}>
+                  <SettingsSwitch
+                    label={zh('不显示发行信息', 'Hide release info')}
+                    checked={javHideMetaInput}
+                    onChange={onJavHideMetaChange}
+                  />
                 </SettingsRow>
                 <SettingsRow label={zh('不显示系列', 'Hide series')}>
                   <SettingsSwitch

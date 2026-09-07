@@ -191,6 +191,8 @@ function JavListRoute({
   onDislikeWork,
   javLibraryScope,
   playOnCoverClick = false,
+  activeSeriesId = 0,
+  seriesName = '',
 }) {
   return (
     <JavView
@@ -240,6 +242,8 @@ function JavListRoute({
       javLibraryScope={javLibraryScope}
       onJavLibraryScopeChange={onJavLibraryScopeChange}
       activeIdolId={activeIdolId}
+      activeSeriesId={activeSeriesId}
+      seriesName={seriesName}
       onDislikeWork={onDislikeWork}
       playOnCoverClick={playOnCoverClick}
     />

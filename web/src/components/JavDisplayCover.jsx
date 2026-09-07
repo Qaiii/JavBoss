@@ -33,7 +33,7 @@ export default function JavDisplayCover({
 
   return (
     <div
-      className={`relative w-full overflow-hidden ${javCoverAspectClass('landscape')} ${className}`}
+      className={`relative w-full overflow-hidden bg-slate-900 ${javCoverAspectClass('landscape')} ${className}`}
     >
       <JavOrientedCover
         src={src}

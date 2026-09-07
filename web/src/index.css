@@ -21,6 +21,11 @@ html.app-modal-open {
   overflow-y: hidden;
 }
 
+.app-modal-body {
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
 body {
   min-height: 100%;
 }
@@ -41,10 +46,11 @@ body {
   margin-right: calc(-1 * var(--page-right-padding));
   padding-left: var(--page-left-padding);
   padding-right: var(--page-right-padding);
-  background: #fff;
+  background: transparent;
 }
 
 body.has-page-scroll .sticky-pagination {
+  background: #fff;
   box-shadow: 0 8px 18px -13px rgba(15, 23, 42, 0.38);
 }
 
@@ -1350,6 +1356,7 @@ body.has-page-scroll .sticky-pagination {
 }
 
 body.has-page-scroll .idol-profile .sticky-pagination {
+  background: transparent;
   box-shadow: none;
 }
 
@@ -1395,9 +1402,10 @@ body.has-page-scroll .idol-profile .sticky-pagination {
 
 .idol-hero__poster {
   position: absolute;
-  inset: calc(var(--idol-hero-scroll, 0) * -40px);
+  /* Slight oversize: just enough zoom, and shrink-on-scroll still covers. */
+  inset: -3%;
   filter: blur(calc(var(--idol-hero-scroll, 0) * 28px));
-  transform: scale(calc(1 + var(--idol-hero-scroll, 0) * 0.04));
+  transform: scale(calc(1 - var(--idol-hero-scroll, 0) * 0.05));
   transform-origin: center;
 }
 
@@ -1490,16 +1498,16 @@ body.has-page-scroll .idol-profile .sticky-pagination {
   z-index: 1;
   width: calc(100% + var(--page-left-padding) + var(--page-right-padding));
   margin-left: calc(-1 * var(--page-left-padding));
-  margin-top: calc(0px - (100dvh - var(--topbar-height)));
-  padding-top: calc(100dvh - var(--topbar-height));
-  pointer-events: none;
 }
 
 .idol-profile-works-inner {
-  pointer-events: auto;
   min-height: calc(100dvh - var(--topbar-height));
   padding: 0 var(--page-right-padding) 3rem var(--page-left-padding);
   background: transparent;
+}
+
+.idol-profile-works-inner .grid > * {
+  border-width: 0;
 }
 
 .player-card--viewport {

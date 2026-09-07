@@ -145,6 +145,7 @@ export default function JavGrid({
   activeIdolId = 0,
   onDislikeWork,
   playOnCoverClick = false,
+  forceHideSeries = false,
 }) {
   const directoryVisibilityKey = useStore((state) =>
     (state.directories || [])
@@ -154,7 +155,10 @@ export default function JavGrid({
   const preferChineseName = useStore((state) =>
     configFlag(state.config?.jav_idol_prefer_chinese_name)
   )
-  const hideSeries = useStore((state) => configFlag(state.config?.jav_hide_series))
+  const hideTitle = useStore((state) => configFlag(state.config?.jav_hide_title))
+  const hideMeta = useStore((state) => configFlag(state.config?.jav_hide_meta))
+  const hideSeriesSetting = useStore((state) => configFlag(state.config?.jav_hide_series))
+  const hideSeries = hideSeriesSetting || forceHideSeries
   const hideIdols = useStore((state) => configFlag(state.config?.jav_hide_idols))
   const hideTags = useStore((state) => configFlag(state.config?.jav_hide_tags))
   const hideActions = useStore((state) => configFlag(state.config?.jav_hide_actions))
@@ -354,6 +358,8 @@ export default function JavGrid({
             titleMaxRows={titleMaxRows}
             idolTagMaxRows={idolTagMaxRows}
             tagMaxRows={tagMaxRows}
+            hideTitle={hideTitle}
+            hideMeta={hideMeta}
             hideSeries={hideSeries}
             hideIdols={hideIdols}
             hideTags={hideTags}
@@ -2233,6 +2239,8 @@ function JavCard({
   titleMaxRows,
   idolTagMaxRows,
   tagMaxRows,
+  hideTitle = false,
+  hideMeta = false,
   hideSeries = false,
   hideIdols = false,
   hideTags = false,
@@ -2866,7 +2874,7 @@ function JavCard({
           imageClassName={
             inLibrary
               ? undefined
-              : 'object-contain object-top grayscale transition duration-200 group-hover:grayscale-0'
+              : 'object-cover object-top grayscale transition duration-200 group-hover:grayscale-0'
           }
           referrerPolicy={inLibrary ? undefined : 'no-referrer'}
           fallback={<JavCoverPlaceholder />}
@@ -3135,266 +3143,280 @@ function JavCard({
             </div>
           ) : null}
         </JavDisplayCover>
-        <div className="flex flex-1 flex-col gap-2 p-3">
-          <div className="text-sm leading-tight" title={titleText} style={titleClampStyle}>
-            {codeText ? <span className="font-semibold text-gray-800">{codeText}</span> : null}
-            {codeText ? ' ' : null}
-            <span className="font-medium text-gray-800">{mainTitle}</span>
-          </div>
-          <div className="flex min-w-0 flex-nowrap items-center gap-x-3 overflow-hidden text-xs text-gray-600">
-            <span className="inline-flex shrink-0 items-center gap-1">
-              <Tooltip title={zh('发行日期', 'Release date')} arrow>
-                <span className="inline-flex">
-                  <ReleaseIcon />
+        {(!hideTitle && titleText) ||
+        !hideMeta ||
+        (!hideSeries && seriesText) ||
+        (!hideIdols && Array.isArray(item?.idols) && item.idols.length > 0) ||
+        (!hideTags && tags.length > 0) ||
+        (!hideActions && inLibrary) ? (
+          <div className="flex flex-1 flex-col gap-2 p-3">
+            {!hideTitle && titleText ? (
+              <div className="text-sm leading-tight" title={titleText} style={titleClampStyle}>
+                {codeText ? <span className="font-semibold text-gray-800">{codeText}</span> : null}
+                {codeText ? ' ' : null}
+                <span className="font-medium text-gray-800">{mainTitle}</span>
+              </div>
+            ) : null}
+            {!hideMeta ? (
+              <div className="flex min-w-0 flex-nowrap items-center gap-x-3 overflow-hidden text-xs text-gray-600">
+                <span className="inline-flex shrink-0 items-center gap-1">
+                  <Tooltip title={zh('发行日期', 'Release date')} arrow>
+                    <span className="inline-flex">
+                      <ReleaseIcon />
+                    </span>
+                  </Tooltip>
+                  <span>{releaseText}</span>
                 </span>
-              </Tooltip>
-              <span>{releaseText}</span>
-            </span>
-            <span className="inline-flex shrink-0 items-center gap-1">
-              <Tooltip title={zh('时长', 'Duration')} arrow>
-                <span className="inline-flex">
-                  <DurationIcon />
+                <span className="inline-flex shrink-0 items-center gap-1">
+                  <Tooltip title={zh('时长', 'Duration')} arrow>
+                    <span className="inline-flex">
+                      <DurationIcon />
+                    </span>
+                  </Tooltip>
+                  <span>{durationText || zh('时长未知', 'Unknown duration')}</span>
                 </span>
-              </Tooltip>
-              <span>{durationText || zh('时长未知', 'Unknown duration')}</span>
-            </span>
-            {studioText ? (
-              <span className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
-                <Tooltip title={zh('片商', 'Studio')} arrow>
+                {studioText ? (
+                  <span className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
+                    <Tooltip title={zh('片商', 'Studio')} arrow>
+                      <span className="inline-flex">
+                        <VideocamOutlinedIcon
+                          sx={{ fontSize: 16 }}
+                          className="shrink-0 text-sky-600"
+                        />
+                      </span>
+                    </Tooltip>
+                    <a
+                      href={buildStudioFilterHref(item.studio)}
+                      className={`block min-w-0 truncate text-left ${
+                        canFilterStudio ? 'cursor-pointer hover:text-blue-700 hover:underline' : ''
+                      }`}
+                      onClick={(event) =>
+                        handleFilterLinkClick(event, () => {
+                          if (canFilterStudio) onStudioClick(item.studio)
+                        })
+                      }
+                      onMouseEnter={(event) => handleStudioHoverStart(item.studio, event)}
+                      onMouseLeave={scheduleHoverClose}
+                    >
+                      {studioText}
+                    </a>
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
+            {!hideSeries && seriesText ? (
+              <div className="flex min-w-0 items-center gap-1 text-xs text-gray-600">
+                <Tooltip title={zh('系列', 'Series')} arrow>
                   <span className="inline-flex">
-                    <VideocamOutlinedIcon sx={{ fontSize: 16 }} className="shrink-0 text-sky-600" />
+                    <CollectionsBookmarkOutlinedIcon
+                      sx={{ fontSize: 14 }}
+                      className="shrink-0 text-emerald-600"
+                    />
                   </span>
                 </Tooltip>
                 <a
-                  href={buildStudioFilterHref(item.studio)}
-                  className={`block min-w-0 truncate text-left ${
-                    canFilterStudio ? 'cursor-pointer hover:text-blue-700 hover:underline' : ''
+                  href={buildSeriesFilterHref(preferredSeries)}
+                  className={`min-w-0 whitespace-normal break-words text-left leading-snug ${
+                    canFilterSeries ? 'cursor-pointer hover:text-blue-700 hover:underline' : ''
                   }`}
                   onClick={(event) =>
                     handleFilterLinkClick(event, () => {
-                      if (canFilterStudio) onStudioClick(item.studio)
+                      if (canFilterSeries) onSeriesClick(preferredSeries)
                     })
                   }
-                  onMouseEnter={(event) => handleStudioHoverStart(item.studio, event)}
+                  onMouseEnter={(event) => handleSeriesHoverStart(preferredSeries, event)}
                   onMouseLeave={scheduleHoverClose}
                 >
-                  {studioText}
+                  {seriesText}
                 </a>
-              </span>
+              </div>
             ) : null}
-          </div>
-          {!hideSeries && seriesText ? (
-            <div className="flex min-w-0 items-center gap-1 text-xs text-gray-600">
-              <Tooltip title={zh('系列', 'Series')} arrow>
-                <span className="inline-flex">
-                  <CollectionsBookmarkOutlinedIcon
-                    sx={{ fontSize: 14 }}
-                    className="shrink-0 text-emerald-600"
-                  />
-                </span>
-              </Tooltip>
-              <a
-                href={buildSeriesFilterHref(preferredSeries)}
-                className={`min-w-0 whitespace-normal break-words text-left leading-snug ${
-                  canFilterSeries ? 'cursor-pointer hover:text-blue-700 hover:underline' : ''
-                }`}
-                onClick={(event) =>
-                  handleFilterLinkClick(event, () => {
-                    if (canFilterSeries) onSeriesClick(preferredSeries)
-                  })
-                }
-                onMouseEnter={(event) => handleSeriesHoverStart(preferredSeries, event)}
+            <Popper
+              open={Boolean(previewStudio && studioHoverAnchorEl)}
+              anchorEl={studioHoverAnchorEl}
+              placement="right-start"
+              className="z-[1400]"
+              modifiers={[
+                {
+                  name: 'offset',
+                  options: {
+                    offset: [10, 0],
+                  },
+                },
+              ]}
+            >
+              <div
+                className="w-[320px]"
+                onMouseEnter={clearHoverCloseTimer}
                 onMouseLeave={scheduleHoverClose}
               >
-                {seriesText}
-              </a>
-            </div>
-          ) : null}
-          <Popper
-            open={Boolean(previewStudio && studioHoverAnchorEl)}
-            anchorEl={studioHoverAnchorEl}
-            placement="right-start"
-            className="z-[1400]"
-            modifiers={[
-              {
-                name: 'offset',
-                options: {
-                  offset: [10, 0],
-                },
-              },
-            ]}
-          >
-            <div
-              className="w-[320px]"
-              onMouseEnter={clearHoverCloseTimer}
-              onMouseLeave={scheduleHoverClose}
-            >
-              {previewStudio ? (
-                <StudioCard
-                  item={previewStudio}
-                  href={buildStudioFilterHref(previewStudio)}
-                  onSelectStudio={(studio) => onStudioClick?.(studio)}
-                  onSelectSeries={(series) => onSeriesClick?.(series)}
-                  onSelectPrefix={(prefix) => onPrefixClick?.(prefix)}
-                  onOpenFavorites={onOpenStudioFavorites}
-                  buildSeriesUrl={buildSeriesFilterHref}
-                  onOpenSeriesFavorites={onOpenSeriesFavorites}
-                  onSeriesListOpenChange={handleStudioSeriesListOpenChange}
-                />
-              ) : null}
-            </div>
-          </Popper>
-          <Popper
-            open={Boolean(previewSeries && seriesHoverAnchorEl)}
-            anchorEl={seriesHoverAnchorEl}
-            placement="right-start"
-            className="z-[1400]"
-            modifiers={[
-              {
-                name: 'offset',
-                options: {
-                  offset: [10, 0],
-                },
-              },
-            ]}
-          >
-            <div
-              className="w-[260px]"
-              onMouseEnter={clearHoverCloseTimer}
-              onMouseLeave={scheduleHoverClose}
-            >
-              {previewSeries ? (
-                <SeriesCard
-                  item={previewSeries}
-                  href={buildSeriesFilterHref(previewSeries)}
-                  onSelectSeries={(series) => onSeriesClick?.(series)}
-                  onSelectStudio={(studio) => onStudioClick?.(studio)}
-                  onOpenFavorites={onOpenSeriesFavorites}
-                />
-              ) : null}
-            </div>
-          </Popper>
-          {!hideIdols && Array.isArray(item?.idols) && item.idols.length > 0 && (
-            <>
-              <IdolTagList
-                idols={item.idols}
-                maxRows={idolTagMaxRows}
-                preferChineseName={preferChineseName}
-                buildIdolFilterHref={buildIdolFilterHref}
-                onIdolClick={onIdolClick}
-                onFilterLinkClick={handleFilterLinkClick}
-                onIdolHoverStart={handleIdolHoverStart}
-                onIdolHoverEnd={scheduleHoverClose}
-              />
-              <Popper
-                open={Boolean(previewIdol && idolHoverAnchorEl)}
-                anchorEl={idolHoverAnchorEl}
-                placement="right-start"
-                className="z-[1400]"
-                modifiers={[
-                  {
-                    name: 'offset',
-                    options: {
-                      offset: [10, 0],
-                    },
-                  },
-                ]}
-              >
-                <div
-                  className="w-[220px]"
-                  onMouseEnter={clearHoverCloseTimer}
-                  onMouseLeave={scheduleHoverClose}
-                >
-                  {previewIdol ? (
-                    <IdolCard
-                      item={previewIdol}
-                      onSelectIdol={(idol) => onIdolClick?.(idol)}
-                      onOpenFavorites={onOpenFavorites}
-                      onOpenCoverEditor={handleOpenIdolCoverEditor}
-                      onOpenEditor={handleOpenIdolEditor}
-                      href={buildIdolFilterHref(previewIdol)}
-                      coverAspectPercent={coverAspectPercent}
-                      showWorkCount={showIdolWorkCount}
-                      preferChineseName={preferChineseName}
-                    />
-                  ) : null}
-                </div>
-              </Popper>
-              <JavIdolCoverModal
-                key={`idol-cover-${idolCoverEditorItem?.id || 'closed'}`}
-                open={Boolean(idolCoverEditorItem)}
-                item={idolCoverEditorItem}
-                preferChineseName={preferChineseName}
-                onClose={() => setIdolCoverEditorItem(null)}
-                onSaved={handleIdolCoverSaved}
-              />
-              <JavIdolEditModal
-                key={`idol-editor-${idolEditorItem?.id || 'closed'}`}
-                open={Boolean(idolEditorItem)}
-                item={idolEditorItem}
-                preferChineseName={preferChineseName}
-                onClose={() => setIdolEditorItem(null)}
-                onSaved={handleIdolSaved}
-                onMerged={() => {
-                  setIdolEditorItem(null)
-                  setPreviewIdol(null)
-                }}
-              />
-            </>
-          )}
-          {!hideTags && tags.length > 0 && (
-            <JavTagList
-              tags={tags}
-              maxRows={tagMaxRows}
-              buildTagFilterHref={buildTagFilterHref}
-              onTagClick={onTagClick}
-              onFilterLinkClick={handleFilterLinkClick}
-            />
-          )}
-          {!hideActions && inLibrary ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <Tooltip title={openFileLabel || zh('用默认程序打开', 'Open with default app')}>
-                  <IconButton
-                    size="small"
-                    onClick={handleOpenFile}
-                    disabled={!canOpen}
-                    aria-label={openFileLabel || zh('打开文件', 'Open file')}
-                    className="h-6 w-6"
-                  >
-                    <PlayArrowIcon fontSize="inherit" />
-                  </IconButton>
-                </Tooltip>
-                <Tooltip title={zh('编辑 JAV', 'Edit JAV')}>
-                  <IconButton
-                    size="small"
-                    onClick={handleOpenEditor}
-                    aria-label={zh('编辑 JAV', 'Edit JAV')}
-                    className="h-6 w-6"
-                  >
-                    <MovieEdit fontSize="inherit" />
-                  </IconButton>
-                </Tooltip>
-                <Tooltip title={zh('视频管理', 'Manage videos')}>
-                  <IconButton
-                    size="small"
-                    onClick={handleOpenVideoManager}
-                    disabled={!Array.isArray(item?.videos) || item.videos.length === 0}
-                    aria-label={zh('视频管理', 'Manage videos')}
-                    className="h-6 w-6"
-                  >
-                    <VideoLibraryOutlinedIcon fontSize="inherit" />
-                  </IconButton>
-                </Tooltip>
+                {previewStudio ? (
+                  <StudioCard
+                    item={previewStudio}
+                    href={buildStudioFilterHref(previewStudio)}
+                    onSelectStudio={(studio) => onStudioClick?.(studio)}
+                    onSelectSeries={(series) => onSeriesClick?.(series)}
+                    onSelectPrefix={(prefix) => onPrefixClick?.(prefix)}
+                    onOpenFavorites={onOpenStudioFavorites}
+                    buildSeriesUrl={buildSeriesFilterHref}
+                    onOpenSeriesFavorites={onOpenSeriesFavorites}
+                    onSeriesListOpenChange={handleStudioSeriesListOpenChange}
+                  />
+                ) : null}
               </div>
-              {Array.isArray(item?.videos) && item.videos.length > 1 && (
-                <span className="text-xs text-gray-500">
-                  {zh(`${item.videos.length} 个视频`, `${item.videos.length} video files`)}
-                </span>
-              )}
-            </div>
-          ) : null}
-        </div>
+            </Popper>
+            <Popper
+              open={Boolean(previewSeries && seriesHoverAnchorEl)}
+              anchorEl={seriesHoverAnchorEl}
+              placement="right-start"
+              className="z-[1400]"
+              modifiers={[
+                {
+                  name: 'offset',
+                  options: {
+                    offset: [10, 0],
+                  },
+                },
+              ]}
+            >
+              <div
+                className="w-[260px]"
+                onMouseEnter={clearHoverCloseTimer}
+                onMouseLeave={scheduleHoverClose}
+              >
+                {previewSeries ? (
+                  <SeriesCard
+                    item={previewSeries}
+                    href={buildSeriesFilterHref(previewSeries)}
+                    onSelectSeries={(series) => onSeriesClick?.(series)}
+                    onSelectStudio={(studio) => onStudioClick?.(studio)}
+                    onOpenFavorites={onOpenSeriesFavorites}
+                  />
+                ) : null}
+              </div>
+            </Popper>
+            {!hideIdols && Array.isArray(item?.idols) && item.idols.length > 0 && (
+              <>
+                <IdolTagList
+                  idols={item.idols}
+                  maxRows={idolTagMaxRows}
+                  preferChineseName={preferChineseName}
+                  buildIdolFilterHref={buildIdolFilterHref}
+                  onIdolClick={onIdolClick}
+                  onFilterLinkClick={handleFilterLinkClick}
+                  onIdolHoverStart={handleIdolHoverStart}
+                  onIdolHoverEnd={scheduleHoverClose}
+                />
+                <Popper
+                  open={Boolean(previewIdol && idolHoverAnchorEl)}
+                  anchorEl={idolHoverAnchorEl}
+                  placement="right-start"
+                  className="z-[1400]"
+                  modifiers={[
+                    {
+                      name: 'offset',
+                      options: {
+                        offset: [10, 0],
+                      },
+                    },
+                  ]}
+                >
+                  <div
+                    className="w-[220px]"
+                    onMouseEnter={clearHoverCloseTimer}
+                    onMouseLeave={scheduleHoverClose}
+                  >
+                    {previewIdol ? (
+                      <IdolCard
+                        item={previewIdol}
+                        onSelectIdol={(idol) => onIdolClick?.(idol)}
+                        onOpenFavorites={onOpenFavorites}
+                        onOpenCoverEditor={handleOpenIdolCoverEditor}
+                        onOpenEditor={handleOpenIdolEditor}
+                        href={buildIdolFilterHref(previewIdol)}
+                        coverAspectPercent={coverAspectPercent}
+                        showWorkCount={showIdolWorkCount}
+                        preferChineseName={preferChineseName}
+                      />
+                    ) : null}
+                  </div>
+                </Popper>
+                <JavIdolCoverModal
+                  key={`idol-cover-${idolCoverEditorItem?.id || 'closed'}`}
+                  open={Boolean(idolCoverEditorItem)}
+                  item={idolCoverEditorItem}
+                  preferChineseName={preferChineseName}
+                  onClose={() => setIdolCoverEditorItem(null)}
+                  onSaved={handleIdolCoverSaved}
+                />
+                <JavIdolEditModal
+                  key={`idol-editor-${idolEditorItem?.id || 'closed'}`}
+                  open={Boolean(idolEditorItem)}
+                  item={idolEditorItem}
+                  preferChineseName={preferChineseName}
+                  onClose={() => setIdolEditorItem(null)}
+                  onSaved={handleIdolSaved}
+                  onMerged={() => {
+                    setIdolEditorItem(null)
+                    setPreviewIdol(null)
+                  }}
+                />
+              </>
+            )}
+            {!hideTags && tags.length > 0 && (
+              <JavTagList
+                tags={tags}
+                maxRows={tagMaxRows}
+                buildTagFilterHref={buildTagFilterHref}
+                onTagClick={onTagClick}
+                onFilterLinkClick={handleFilterLinkClick}
+              />
+            )}
+            {!hideActions && inLibrary ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Tooltip title={openFileLabel || zh('用默认程序打开', 'Open with default app')}>
+                    <IconButton
+                      size="small"
+                      onClick={handleOpenFile}
+                      disabled={!canOpen}
+                      aria-label={openFileLabel || zh('打开文件', 'Open file')}
+                      className="h-6 w-6"
+                    >
+                      <PlayArrowIcon fontSize="inherit" />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title={zh('编辑 JAV', 'Edit JAV')}>
+                    <IconButton
+                      size="small"
+                      onClick={handleOpenEditor}
+                      aria-label={zh('编辑 JAV', 'Edit JAV')}
+                      className="h-6 w-6"
+                    >
+                      <MovieEdit fontSize="inherit" />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title={zh('视频管理', 'Manage videos')}>
+                    <IconButton
+                      size="small"
+                      onClick={handleOpenVideoManager}
+                      disabled={!Array.isArray(item?.videos) || item.videos.length === 0}
+                      aria-label={zh('视频管理', 'Manage videos')}
+                      className="h-6 w-6"
+                    >
+                      <VideoLibraryOutlinedIcon fontSize="inherit" />
+                    </IconButton>
+                  </Tooltip>
+                </div>
+                {Array.isArray(item?.videos) && item.videos.length > 1 && (
+                  <span className="text-xs text-gray-500">
+                    {zh(`${item.videos.length} 个视频`, `${item.videos.length} video files`)}
+                  </span>
+                )}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </div>
       <JavEditModal
         open={editorOpen}
