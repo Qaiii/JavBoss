@@ -1556,6 +1556,33 @@ body.has-page-scroll .idol-profile .sticky-pagination {
   max-width: calc(100% - 0.5rem);
 }
 
+.player-card--document-pip {
+  position: static;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  margin: 0;
+  overflow: hidden;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.player-card--document-pip .player-shell {
+  height: 100%;
+  aspect-ratio: auto;
+}
+
+.player-card--native-pip-host {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
 @media (max-width: 640px) {
   .skeuo-tag {
     width: 100%;

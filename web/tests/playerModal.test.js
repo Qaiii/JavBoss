@@ -18,7 +18,7 @@ test('player host stays mounted while loading or error overlays show', () => {
 })
 
 test('video.js media nodes are created outside React-managed children', () => {
-  assert.match(player, /document\.createElement\('video'\)/)
+  assert.match(player, /ownerDoc\.createElement\('video'\)/)
   assert.match(player, /host\.appendChild\(wrapper\)/)
   assert.match(player, /if \(host\.isConnected\) host\.replaceChildren\(\)/)
 })
@@ -28,4 +28,11 @@ test('hover show/hide listens on the player card so the title bar does not flick
   assert.match(player, /card\.addEventListener\('mousemove', handleMouseMove\)/)
   assert.match(player, /card\.addEventListener\('mouseleave', handleMouseLeave\)/)
   assert.doesNotMatch(player, /shell\.addEventListener\('mouseleave', handleMouseLeave\)/)
+})
+
+test('picture-in-picture prefers a system window that can leave the page', () => {
+  assert.match(player, /createPortal/)
+  assert.match(player, /documentPictureInPicture/)
+  assert.match(player, /requestPictureInPicture/)
+  assert.match(player, /player-card--document-pip/)
 })

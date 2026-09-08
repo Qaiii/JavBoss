@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { PIP_MARGIN, clampPipPosition } from '../../src/utils/playerPip.js'
+import {
+  PIP_CONTROLS_HEIGHT,
+  PIP_MARGIN,
+  clampPipPosition,
+  getDocumentPipWindowSize,
+} from '../../src/utils/playerPip.js'
 
 test('keeps a floating player inside the viewport', () => {
   assert.deepEqual(clampPipPosition(80, 40, 420, 236, 1280, 720), { left: 80, top: 40 })
@@ -20,4 +25,13 @@ test('falls back to the margin when the window is smaller than the player', () =
     left: PIP_MARGIN,
     top: PIP_MARGIN,
   })
+})
+
+test('sizes a document picture-in-picture window from the video aspect ratio', () => {
+  assert.deepEqual(getDocumentPipWindowSize(16 / 9, 420), {
+    width: 420,
+    height: Math.round(420 / (16 / 9)) + PIP_CONTROLS_HEIGHT,
+  })
+  assert.equal(getDocumentPipWindowSize(0, 420).width, 420)
+  assert.ok(getDocumentPipWindowSize(9 / 16, 420).height <= 800)
 })

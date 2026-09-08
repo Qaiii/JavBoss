@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import videojs from 'video.js'
 import 'video.js/dist/video-js.css'
 import CheckIcon from '@mui/icons-material/Check'
@@ -37,7 +38,14 @@ import {
   normalizePlayerHotkeyKey,
   parsePlayerHotkeys,
 } from '@/utils/playerHotkeys'
-import { clampPipPosition } from '@/utils/playerPip'
+import {
+  applyPipWindowBaseStyles,
+  copyStylesToDocument,
+  getDocumentPipWindowSize,
+  isDocumentPictureInPictureSupported,
+  isVideoPictureInPictureSupported,
+  clampPipPosition,
+} from '@/utils/playerPip'
 import { zh } from '@/utils/i18n'
 import { getErrorMessage } from '@/utils/errors'
 import {
@@ -114,6 +122,10 @@ export default function PlayerModal({
   const pipCardRef = useRef(null)
   const pipDragRef = useRef({ active: false, offsetX: 0, offsetY: 0 })
   const isPiPRef = useRef(false)
+  const pipKindRef = useRef('inline')
+  const documentPipWindowRef = useRef(null)
+  const resumePositionRef = useRef(0)
+  const exitPipModeRef = useRef(() => {})
   const subNoticeTimerRef = useRef(null)
   const subRetryRef = useRef(null)
   // 当前 playbackInfo 对应的播放标识（video.id:location_id）。选集/切换文件时，
@@ -165,8 +177,7 @@ export default function PlayerModal({
   const onPlaybackErrorRef = useRef(onPlaybackError)
   onPlaybackErrorRef.current = onPlaybackError
   const handleClose = useCallback(() => {
-    setIsPiP(false)
-    setPipPosition(null)
+    exitPipModeRef.current()
     onCloseRef.current()
   }, [])
   const [playbackInfo, setPlaybackInfo] = useState(null)
@@ -206,6 +217,8 @@ export default function PlayerModal({
   const [pendingSeekTime, setPendingSeekTime] = useState(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [isPiP, setIsPiP] = useState(false)
+  const [pipKind, setPipKind] = useState('inline')
+  const [pipPortalEl, setPipPortalEl] = useState(null)
   const [pipPosition, setPipPosition] = useState(null)
   // 精细指针（鼠标）设备：有“移出播放区域”概念，用于移出即隐藏控制条
   const [isFinePointer] = useState(
@@ -275,6 +288,7 @@ export default function PlayerModal({
 
   // 切换播放文件（选集/换源）时，清除上一部视频遗留的字幕选择与菜单状态
   useEffect(() => {
+    resumePositionRef.current = 0
     setActiveSubtitle(null)
     setSubMenu(null)
     setSubPreview(null)
@@ -308,6 +322,10 @@ export default function PlayerModal({
   }, [isPiP])
 
   useEffect(() => {
+    pipKindRef.current = pipKind
+  }, [pipKind])
+
+  useEffect(() => {
     return () => {
       if (screenshotNoticeTimerRef.current) {
         window.clearTimeout(screenshotNoticeTimerRef.current)
@@ -326,6 +344,15 @@ export default function PlayerModal({
       }
       if (clickTimerRef.current) {
         window.clearTimeout(clickTimerRef.current)
+      }
+      const pipWindow = documentPipWindowRef.current
+      documentPipWindowRef.current = null
+      if (pipWindow && !pipWindow.closed) {
+        try {
+          pipWindow.close()
+        } catch {
+          // 忽略
+        }
       }
     }
   }, [])
@@ -379,9 +406,29 @@ export default function PlayerModal({
     }
   }, [])
 
-  const togglePip = useCallback(() => {
+  const exitPipMode = useCallback(() => {
+    const pipWindow = documentPipWindowRef.current
+    documentPipWindowRef.current = null
+    setPipPortalEl(null)
+    if (pipWindow && !pipWindow.closed) {
+      try {
+        pipWindow.close()
+      } catch {
+        // 忽略关闭失败
+      }
+    }
+    if (typeof document !== 'undefined' && document.pictureInPictureElement) {
+      document.exitPictureInPicture().catch(() => {})
+    }
+    setIsPiP(false)
+    setPipKind('inline')
+    setPipPosition(null)
+  }, [])
+  exitPipModeRef.current = exitPipMode
+
+  const togglePip = useCallback(async () => {
     if (isPiPRef.current) {
-      setIsPiP(false)
+      exitPipMode()
       pokeControls()
       return
     }
@@ -389,9 +436,61 @@ export default function PlayerModal({
     setMenuOpen(null)
     setSubMenu((current) => (current === 'search' ? null : current))
     setSubPreview(null)
+
+    const aspectRatio =
+      videoSize && videoSize.height > 0 ? videoSize.width / videoSize.height : 16 / 9
+
+    if (isDocumentPictureInPictureSupported()) {
+      try {
+        const size = getDocumentPipWindowSize(aspectRatio)
+        const pipWindow = await window.documentPictureInPicture.requestWindow(size)
+        copyStylesToDocument(pipWindow.document)
+        applyPipWindowBaseStyles(pipWindow.document, {
+          title: video ? getVideoDisplayName(video) : 'JavBoss',
+        })
+        documentPipWindowRef.current = pipWindow
+        pipWindow.addEventListener(
+          'pagehide',
+          () => {
+            if (documentPipWindowRef.current !== pipWindow) return
+            documentPipWindowRef.current = null
+            setPipPortalEl(null)
+            setIsPiP(false)
+            setPipKind('inline')
+            setPipPosition(null)
+            pokeControls()
+          },
+          { once: true }
+        )
+        setPipKind('document')
+        setPipPortalEl(pipWindow.document.body)
+        setIsPiP(true)
+        pokeControls()
+        return
+      } catch {
+        documentPipWindowRef.current = null
+        setPipPortalEl(null)
+      }
+    }
+
+    const techEl = playerRef.current?.tech(true)?.el()
+    if (isVideoPictureInPictureSupported(techEl)) {
+      try {
+        techEl.disablePictureInPicture = false
+        await techEl.requestPictureInPicture()
+        setPipKind('video')
+        setIsPiP(true)
+        pokeControls()
+        return
+      } catch {
+        // 回落到页内浮层
+      }
+    }
+
+    setPipKind('inline')
     setIsPiP(true)
     pokeControls()
-  }, [exitBrowserFullscreen, pokeControls])
+  }, [exitBrowserFullscreen, exitPipMode, pokeControls, video, videoSize])
   const togglePipRef = useRef(togglePip)
   togglePipRef.current = togglePip
 
@@ -562,7 +661,7 @@ export default function PlayerModal({
   // 打开搜索字幕 tab：把输入框预填为当前视频番号（若已填别的内容则保留）
   const openSubtitleSearch = useCallback(() => {
     if (isPiPRef.current) {
-      setIsPiP(false)
+      exitPipModeRef.current()
       pokeControls()
     }
     setSubMenu('search')
@@ -791,7 +890,7 @@ export default function PlayerModal({
         clickTimerRef.current = null
       }
     }
-  }, [pokeControls, isFinePointer, video])
+  }, [pokeControls, isFinePointer, video, pipPortalEl])
 
   // 打开播放器时：控制条默认显示，3 秒无操作后自动隐藏。
   // 同样以 video 为依赖：挂载时 video 为 null（弹窗未渲染），若只在挂载时 poke，
@@ -799,7 +898,7 @@ export default function PlayerModal({
   useEffect(() => {
     if (!video) return undefined
     pokeControls()
-  }, [pokeControls, video])
+  }, [pokeControls, video, pipPortalEl])
 
   useEffect(() => {
     if (!video?.id) {
@@ -809,8 +908,7 @@ export default function PlayerModal({
       setLoadingPlayback(false)
       setScreenshotNotice(false)
       setVideoSize(null)
-      setIsPiP(false)
-      setPipPosition(null)
+      exitPipModeRef.current()
       setLocalSubtitles([])
       setActiveSubtitle(null)
       setSubSearchItems([])
@@ -997,14 +1095,15 @@ export default function PlayerModal({
     // video.js 会改写 <video> 及其包装节点。这些节点必须由我们创建并挂在
     // React 不管的宿主里；dispose 也只拆这块，不碰宿主。否则切换片源时
     // React 提交 removeChild 会抛错，整页白屏。
-    const wrapper = document.createElement('div')
+    const ownerDoc = host.ownerDocument || document
+    const wrapper = ownerDoc.createElement('div')
     wrapper.setAttribute('data-vjs-player', '')
     wrapper.className = 'h-full w-full'
-    const videoEl = document.createElement('video')
+    const videoEl = ownerDoc.createElement('video')
     videoEl.className = 'video-js h-full w-full'
     videoEl.playsInline = true
-    videoEl.disablePictureInPicture = true
-    const captionTrack = document.createElement('track')
+    videoEl.disablePictureInPicture = pipKindRef.current !== 'video'
+    const captionTrack = ownerDoc.createElement('track')
     captionTrack.kind = 'captions'
     videoEl.appendChild(captionTrack)
     wrapper.appendChild(videoEl)
@@ -1042,7 +1141,11 @@ export default function PlayerModal({
     }
 
     // ---- 状态同步 ----
-    const syncTime = () => setCurrentTime(player.currentTime() || 0)
+    const syncTime = () => {
+      const time = player.currentTime() || 0
+      resumePositionRef.current = time
+      setCurrentTime(time)
+    }
     const syncDuration = () =>
       setDuration(Number.isFinite(player.duration()) ? player.duration() : 0)
     const syncBuffered = () => {
@@ -1196,8 +1299,8 @@ export default function PlayerModal({
     }
 
     const handleKeyDown = (event) => {
-      // 画中画时页面应可正常操作，快捷键只在全屏播放器里接管
-      if (isPiPRef.current) return
+      // 页内/系统视频画中画时热键交给页面；独立画中画窗口里仍接管快捷键
+      if (isPiPRef.current && pipKindRef.current !== 'document') return
       // 带系统组合键（Ctrl/Cmd/Alt）时不触发播放器单键热键：否则 Ctrl+C 复制、
       // Ctrl+A 全选等会被 'c'（快进）/ 'a'（快退）等热键 preventDefault 拦掉。
       if (event.ctrlKey || event.metaKey || event.altKey) return
@@ -1296,7 +1399,9 @@ export default function PlayerModal({
       }
     }
     const applyStartTime = () => {
-      const nextStartTime = Number(startTime)
+      const resume = resumePositionRef.current
+      const fromProp = Number(startTime)
+      const nextStartTime = resume > 0.5 ? resume : fromProp
       if (!Number.isFinite(nextStartTime) || nextStartTime <= 0) return
       applySeek(nextStartTime)
     }
@@ -1305,8 +1410,9 @@ export default function PlayerModal({
       playerEl.setAttribute('tabindex', '-1')
     }
 
-    window.addEventListener('keydown', handleKeyDown, true)
-    window.addEventListener('keyup', handleKeyUp, true)
+    const keyWindow = documentPipWindowRef.current || window
+    keyWindow.addEventListener('keydown', handleKeyDown, true)
+    keyWindow.addEventListener('keyup', handleKeyUp, true)
 
     const handleVolumeChange = () => {
       try {
@@ -1317,6 +1423,12 @@ export default function PlayerModal({
     }
 
     const handleRateChange = () => setPlaybackRate(player.playbackRate())
+    const handleLeaveNativePip = () => {
+      if (pipKindRef.current !== 'video') return
+      setIsPiP(false)
+      setPipKind('inline')
+      setPipPosition(null)
+    }
 
     player.ready(() => {
       applyStartTime()
@@ -1327,7 +1439,18 @@ export default function PlayerModal({
       // 画中画时页面要继续点选其它卡片，不要把焦点抢回播放器
       if (!isPiPRef.current) focusPlayer()
       const techEl = player.tech(true)?.el()
-      if (techEl) techEl.disablePictureInPicture = true
+      if (techEl) {
+        const allowNative = pipKindRef.current === 'video'
+        techEl.disablePictureInPicture = !allowNative
+        techEl.addEventListener('leavepictureinpicture', handleLeaveNativePip)
+        if (
+          allowNative &&
+          isVideoPictureInPictureSupported(techEl) &&
+          !document.pictureInPictureElement
+        ) {
+          techEl.requestPictureInPicture().catch(() => {})
+        }
+      }
     })
     player.on('play', handlePlay)
     player.on('pause', handlePause)
@@ -1364,8 +1487,8 @@ export default function PlayerModal({
     player.on('resize', handleDimensions)
 
     return () => {
-      window.removeEventListener('keydown', handleKeyDown, true)
-      window.removeEventListener('keyup', handleKeyUp, true)
+      keyWindow.removeEventListener('keydown', handleKeyDown, true)
+      keyWindow.removeEventListener('keyup', handleKeyUp, true)
       stopArrowHold()
       player.off('play', handlePlay)
       player.off('pause', handlePause)
@@ -1383,6 +1506,7 @@ export default function PlayerModal({
       player.off('ratechange', handleRateChange)
       player.off('fullscreenchange', focusPlayer)
       player.off('resize', handleDimensions)
+      player.tech(true)?.el()?.removeEventListener('leavepictureinpicture', handleLeaveNativePip)
       setPendingSeekTime(null)
       // 清理悬停预览：取消在途请求、释放抽帧缓存
       clearFrameCache()
@@ -1399,6 +1523,7 @@ export default function PlayerModal({
     applySeek,
     handleClose,
     clearFrameCache,
+    pipPortalEl,
   ])
 
   // ---- 进度条交互 ----
@@ -1470,7 +1595,7 @@ export default function PlayerModal({
   }
 
   const handlePipPointerDown = (event) => {
-    if (!isPiP) return
+    if (!isPiP || pipKind !== 'inline') return
     if (event.button != null && event.button !== 0) return
     if (
       event.target instanceof Element &&
@@ -1532,7 +1657,7 @@ export default function PlayerModal({
   }
 
   useEffect(() => {
-    if (!isPiP || !pipPosition) return undefined
+    if (!isPiP || pipKind !== 'inline' || !pipPosition) return undefined
     const onResize = () => {
       const card = pipCardRef.current
       if (!card) return
@@ -1549,7 +1674,7 @@ export default function PlayerModal({
     }
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
-  }, [isPiP, pipPosition])
+  }, [isPiP, pipKind, pipPosition])
 
   useEffect(() => {
     if (isPiP || !video) return undefined
@@ -1585,6 +1710,688 @@ export default function PlayerModal({
     return clampPercent((Math.min(Math.max(0, leftPx), maxPx) / tooltipBox.barW) * 100)
   })()
 
+  const documentPip = isPiP && pipKind === 'document'
+  const videoPip = isPiP && pipKind === 'video'
+  const inlinePip = isPiP && pipKind === 'inline'
+  const playerCardClass = videoPip
+    ? 'player-card--native-pip-host'
+    : documentPip
+      ? 'player-card--document-pip pointer-events-auto'
+      : inlinePip
+        ? `player-card--pip pointer-events-auto${pipPosition ? ' is-dragged' : ''}`
+        : 'player-card--viewport mx-0 rounded-none'
+
+  const playerCard = (
+    <div
+      ref={pipCardRef}
+      className={`player-card relative bg-black shadow-none ${playerCardClass}`}
+      style={{
+        '--player-ar': `${aspectRatio}`,
+        ...(inlinePip && pipPosition ? { left: pipPosition.left, top: pipPosition.top } : null),
+      }}
+    >
+      <button
+        aria-label={zh('关闭', 'Close')}
+        onClick={handleClose}
+        className={`absolute right-3 top-3 z-20 rounded-full bg-black/60 px-2 py-1 text-sm text-white hover:bg-black/80 ${
+          isPiP || controlsVisible ? '' : 'pointer-events-none opacity-0'
+        }`}
+      >
+        ×
+      </button>
+      <div className="flex h-full flex-col gap-0 p-0">
+        <h2
+          className={`absolute inset-x-0 top-0 z-10 truncate bg-gradient-to-b from-black/60 to-transparent pb-5 pl-3 pr-14 pt-4 text-sm font-medium text-white ${
+            inlinePip ? 'cursor-move touch-none' : ''
+          } ${isPiP || controlsVisible ? '' : 'pointer-events-none opacity-0'}`}
+          title={displayName}
+          onPointerDown={inlinePip ? handlePipPointerDown : undefined}
+          onPointerMove={inlinePip ? handlePipPointerMove : undefined}
+          onPointerUp={inlinePip ? handlePipPointerUp : undefined}
+          onPointerCancel={inlinePip ? handlePipPointerUp : undefined}
+        >
+          {displayName}
+        </h2>
+        <div
+          ref={shellRef}
+          className={`player-shell relative w-full bg-black ${controlsVisible ? '' : 'cursor-none'} ${
+            inlinePip ? '' : 'h-full'
+          }`}
+          style={{
+            ...subtitleStyleCssVars(subtitleStyle),
+          }}
+        >
+          {screenshotNotice || (hotkeyHintVisible && !isPiP) ? (
+            <div className="pointer-events-none absolute left-3 top-3 z-10 flex max-w-[calc(100%-1.5rem)] flex-col items-start gap-2">
+              {screenshotNotice ? (
+                <div className="rounded bg-black/75 px-3 py-1.5 text-sm font-medium text-white shadow">
+                  {zh('截图成功', 'Screenshot saved')}
+                </div>
+              ) : null}
+              {hotkeyHintVisible && !isPiP ? (
+                <div className="max-h-[calc(100vh-12rem)] overflow-hidden rounded bg-black/75 px-3 py-2 text-xs leading-5 text-white shadow">
+                  {hotkeyHintLines.map((line, index) => (
+                    <div key={`${index}-${line}`}>{line}</div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+          <div ref={playerHostRef} className="h-full w-full" />
+          {loadingPlayback ? (
+            <div className="absolute inset-0 z-[5] flex items-center justify-center bg-black text-sm text-white">
+              {zh('加载播放信息中…', 'Loading playback info...')}
+            </div>
+          ) : playbackError ? (
+            <div className="absolute inset-0 z-[5] flex items-center justify-center bg-black px-6 text-center text-sm text-red-200">
+              {playbackError}
+            </div>
+          ) : null}
+
+          {/* 缓冲中加载动画 */}
+          {!loadingPlayback && !playbackError && waiting && playing ? (
+            <div className="pointer-events-none absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2">
+              <div className="h-12 w-12 animate-spin rounded-full border-4 border-white/20 border-t-white" />
+            </div>
+          ) : null}
+
+          {/* 暂停/结束时的中央大按钮 */}
+          {!loadingPlayback && !playbackError && !playing ? (
+            <button
+              type="button"
+              aria-label={ended ? zh('重新播放', 'Replay') : zh('播放', 'Play')}
+              onClick={(event) => {
+                event.stopPropagation()
+                pokeControls()
+                actionsRef.current?.togglePlay()
+              }}
+              className="absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/10 p-4 text-white backdrop-blur-sm transition-colors hover:bg-white/25"
+            >
+              {ended ? (
+                <ReplayIcon style={{ fontSize: 44 }} />
+              ) : (
+                <PlayArrowIcon style={{ fontSize: 44 }} />
+              )}
+            </button>
+          ) : null}
+
+          {/* YouTube 风格控制条 */}
+          <div
+            className={`player-controls absolute inset-x-0 bottom-0 z-20 select-none bg-gradient-to-t from-black/80 via-black/40 to-transparent pb-1 transition-opacity duration-200 ${
+              controlsVisible ? 'opacity-100' : 'pointer-events-none opacity-0'
+            }`}
+          >
+            {/* 进度条 */}
+            <div
+              ref={seekBarRef}
+              role="slider"
+              tabIndex={0}
+              aria-label={zh('播放进度', 'Seek')}
+              aria-valuemin={0}
+              aria-valuemax={Math.round(duration)}
+              aria-valuenow={Math.round(displayTime)}
+              className="group/seek relative h-5 w-full cursor-pointer touch-none"
+              onPointerDown={handleSeekPointerDown}
+              onPointerMove={handleSeekPointerMove}
+              onPointerUp={handleSeekPointerUp}
+              onPointerCancel={handleSeekPointerUp}
+              onPointerLeave={() => {
+                setSeekHoverTime(null)
+                cancelFrameHover()
+              }}
+              onKeyDown={handleSeekBarKeyDown}
+            >
+              {tooltipTime != null && duration > 0 ? (
+                <div
+                  ref={seekTooltipRef}
+                  className="pointer-events-none absolute bottom-8 z-10 -translate-x-1/2 rounded-md bg-black/90 px-2 py-1 text-xs font-medium tabular-nums text-white shadow"
+                  style={{ left: `${tooltipOffsetPercent}%` }}
+                >
+                  {framePreview ? (
+                    <div className="mb-1 overflow-hidden rounded border border-white/20">
+                      <img
+                        src={framePreview}
+                        alt=""
+                        draggable={false}
+                        className="block max-h-[8vh] max-w-[13vw] object-contain"
+                      />
+                    </div>
+                  ) : null}
+                  {formatTime(tooltipTime)}
+                </div>
+              ) : null}
+              <div className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-white/25 transition-all duration-100 group-hover/seek:h-1.5">
+                <div
+                  className="absolute inset-y-0 left-0 rounded-full bg-white/50"
+                  style={{ width: `${bufferedPercent}%` }}
+                />
+                <div
+                  className="absolute inset-y-0 left-0 rounded-full bg-[#f00]"
+                  style={{ width: `${playedPercent}%` }}
+                />
+              </div>
+              <div
+                className={`pointer-events-none absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow-md transition-opacity ${
+                  dragTime != null ? 'opacity-100' : 'opacity-0 group-hover/seek:opacity-100'
+                }`}
+                style={{ left: `${playedPercent}%` }}
+              />
+            </div>
+
+            {/* 按钮行 */}
+            <div className="flex items-center justify-between gap-2 px-3 pb-0.5">
+              <div className="flex min-w-0 items-center">
+                <button
+                  type="button"
+                  aria-label={playing ? zh('暂停', 'Pause') : zh('播放', 'Play')}
+                  onClick={() => actionsRef.current?.togglePlay()}
+                  className={iconButtonClass}
+                >
+                  {playing ? (
+                    <PauseIcon style={{ fontSize: 30 }} />
+                  ) : (
+                    <PlayArrowIcon style={{ fontSize: 30 }} />
+                  )}
+                </button>
+                <button
+                  type="button"
+                  aria-label={zh('后退 10 秒', 'Back 10 seconds')}
+                  onClick={() => actionsRef.current?.seekBy(-SEEK_STEP_SECONDS)}
+                  className={`${iconButtonClass} ${isPiP ? 'hidden' : 'pointer-coarse:hidden'}`}
+                >
+                  <Replay10Icon />
+                </button>
+                <button
+                  type="button"
+                  aria-label={zh('前进 10 秒', 'Forward 10 seconds')}
+                  onClick={() => actionsRef.current?.seekBy(SEEK_STEP_SECONDS)}
+                  className={`${iconButtonClass} ${isPiP ? 'hidden' : 'pointer-coarse:hidden'}`}
+                >
+                  <Forward10Icon />
+                </button>
+
+                {/* 音量 */}
+                <div className="group/vol relative flex items-center">
+                  <button
+                    type="button"
+                    aria-label={
+                      muted || volume === 0 ? zh('取消静音', 'Unmute') : zh('静音', 'Mute')
+                    }
+                    onClick={() => actionsRef.current?.toggleMute()}
+                    className={iconButtonClass}
+                  >
+                    {muted || volume === 0 ? (
+                      <VolumeOffIcon />
+                    ) : volume < 0.5 ? (
+                      <VolumeDownIcon />
+                    ) : (
+                      <VolumeUpIcon />
+                    )}
+                  </button>
+                  <div
+                    className={`flex items-center overflow-hidden transition-all duration-200 ${
+                      isPiP
+                        ? 'w-16 opacity-100'
+                        : 'w-0 opacity-0 group-hover/vol:w-24 group-hover/vol:opacity-100 pointer-coarse:w-16 pointer-coarse:opacity-100'
+                    }`}
+                  >
+                    <input
+                      type="range"
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      value={muted ? 0 : volume}
+                      onChange={(event) => actionsRef.current?.setVolumeLevel(event.target.value)}
+                      aria-label={zh('音量', 'Volume')}
+                      className="h-1 w-16 cursor-pointer accent-white pointer-coarse:w-12"
+                    />
+                  </div>
+                </div>
+
+                <div className="ml-1 whitespace-nowrap text-xs font-medium tabular-nums text-white/90">
+                  <span>{formatTime(displayTime)}</span>
+                  <span className="mx-0.5 text-white/60">/</span>
+                  <span className="text-white/60">{formatTime(duration)}</span>
+                </div>
+              </div>
+
+              <div className="flex shrink-0 items-center">
+                <button
+                  type="button"
+                  aria-label={zh('截图', 'Screenshot')}
+                  title={
+                    screenshotHotkeyLabel
+                      ? `${zh('截图', 'Screenshot')} (${screenshotHotkeyLabel})`
+                      : zh('截图', 'Screenshot')
+                  }
+                  onClick={() => actionsRef.current?.captureScreenshot()}
+                  className={`${iconButtonClass} ${isPiP ? 'hidden' : ''}`}
+                >
+                  <PhotoCameraIcon />
+                </button>
+
+                {/* 选集：同番号多文件时在播放器内切换视频 */}
+                {episodeList.length > 1 ? (
+                  <div className="relative">
+                    <button
+                      type="button"
+                      aria-label={zh('选集', 'Select episode')}
+                      title={zh('选集', 'Select episode')}
+                      onClick={() => {
+                        setMenuOpen(menuOpen === 'episodes' ? null : 'episodes')
+                        setSubMenu(null)
+                        showControls()
+                      }}
+                      className={`flex h-9 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-medium text-white transition-colors hover:bg-white/15 pointer-coarse:h-8 ${
+                        menuOpen === 'episodes' ? 'bg-white/15 text-yellow-300' : ''
+                      }`}
+                    >
+                      <PlaylistPlayIcon style={{ fontSize: 18 }} />
+                      {isPiP ? null : <span>{zh('选集', 'Episodes')}</span>}
+                      <span className="rounded-full bg-white/20 px-1.5 text-[10px] font-semibold tabular-nums leading-4">
+                        {episodeList.length}
+                      </span>
+                    </button>
+                    {menuOpen === 'episodes' ? (
+                      <div className="player-pip-menu absolute bottom-12 right-0 z-30 w-72 overflow-hidden rounded-xl border border-white/10 bg-black/90 shadow-2xl backdrop-blur-sm">
+                        <div className="flex items-center justify-between border-b border-white/10 px-3 py-2">
+                          <span className="text-xs font-semibold uppercase tracking-wider text-white/60">
+                            {zh('选集', 'Episodes')}
+                          </span>
+                          <button
+                            type="button"
+                            aria-label={zh('关闭选集菜单', 'Close episode menu')}
+                            onClick={() => setMenuOpen(null)}
+                            className="rounded px-1.5 text-sm text-white/60 hover:text-white"
+                          >
+                            ×
+                          </button>
+                        </div>
+                        <div className="max-h-72 overflow-y-auto py-1">
+                          {episodeList.map((ep, index) => {
+                            const fullPath = buildVideoFullPath(ep)
+                            const label =
+                              fullPath ||
+                              ep.filename ||
+                              ep.path ||
+                              zh('未命名文件', 'Untitled file')
+                            const active = String(ep.location_id) === activeEpisodeKey
+                            return (
+                              <button
+                                key={ep.location_id || `${ep.id}-${index}`}
+                                type="button"
+                                onClick={() => {
+                                  setMenuOpen(null)
+                                  scheduleHideControls()
+                                  onSwitchVideo?.(ep)
+                                }}
+                                title={label}
+                                className={`flex w-full items-center gap-2 px-3.5 py-1.5 text-left text-xs transition-colors hover:bg-white/10 ${
+                                  active ? 'font-semibold text-white' : 'text-white/80'
+                                }`}
+                              >
+                                {active ? (
+                                  <CheckIcon
+                                    style={{ fontSize: 14 }}
+                                    className="shrink-0 text-yellow-300"
+                                  />
+                                ) : (
+                                  <span className="inline-block w-3.5 shrink-0" />
+                                )}
+                                <span className="min-w-0 flex-1 truncate">{label}</span>
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                {/* 字幕：关闭 / 本地字幕 / 在线搜索 / 预览 / 保存 */}
+                <div className="relative">
+                  <button
+                    type="button"
+                    aria-label={zh('字幕', 'Subtitles')}
+                    onClick={() => {
+                      setMenuOpen(null)
+                      setSubMenu(subMenu === 'local' ? null : 'local')
+                      showControls()
+                    }}
+                    className={`${iconButtonClass} ${activeSubtitle ? 'text-yellow-300' : ''}`}
+                  >
+                    <ClosedCaptionIcon />
+                  </button>
+                  {subMenu != null ? (
+                    <div className="player-pip-menu absolute bottom-12 right-0 z-30 w-96 overflow-hidden rounded-xl border border-white/10 bg-black/90 shadow-2xl backdrop-blur-sm">
+                      {/* 顶栏：本地 / 搜索 切换 */}
+                      <div className="flex items-center justify-between gap-2 border-b border-white/10 px-3 py-2.5">
+                        <div className="flex min-w-0 flex-1 flex-wrap gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setSubMenu('local')}
+                            className={`rounded px-2.5 py-1.5 text-sm transition-colors ${
+                              subMenu === 'local'
+                                ? 'bg-white/15 font-semibold text-white'
+                                : 'text-white/60 hover:text-white'
+                            }`}
+                          >
+                            {zh('本地字幕', 'Local')}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openSubtitleSearch()}
+                            className={`rounded px-2.5 py-1.5 text-sm transition-colors ${
+                              subMenu === 'search'
+                                ? 'bg-white/15 font-semibold text-white'
+                                : 'text-white/60 hover:text-white'
+                            }`}
+                          >
+                            {zh('搜索字幕', 'Search')}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSubMenu('style')}
+                            className={`rounded px-2.5 py-1.5 text-sm transition-colors ${
+                              subMenu === 'style'
+                                ? 'bg-white/15 font-semibold text-white'
+                                : 'text-white/60 hover:text-white'
+                            }`}
+                          >
+                            {zh('样式', 'Style')}
+                          </button>
+                        </div>
+                        <button
+                          type="button"
+                          aria-label={zh('关闭字幕菜单', 'Close subtitle menu')}
+                          onClick={() => setSubMenu(null)}
+                          className="rounded px-2 py-0.5 text-lg text-white/60 hover:text-white"
+                        >
+                          ×
+                        </button>
+                      </div>
+
+                      {subMenu === 'local' ? (
+                        <div className="max-h-96 overflow-y-auto py-1.5">
+                          <SubMenuItem
+                            active={activeSubtitle == null}
+                            label={zh('关闭字幕', 'Off')}
+                            onClick={() => {
+                              playSubtitle(null)
+                            }}
+                          />
+                          {localSubtitles.length === 0 ? (
+                            <div className="px-4 py-3 text-sm text-white/50">
+                              {zh(
+                                '未找到本地字幕，可前往「搜索字幕」在线查找',
+                                'No local subtitles found. Try the online search tab.'
+                              )}
+                            </div>
+                          ) : (
+                            localSubtitles.map((item) => (
+                              <SubMenuItem
+                                key={item.name}
+                                active={
+                                  activeSubtitle?.kind === 'local' &&
+                                  activeSubtitle.name === item.name
+                                }
+                                label={item.label || item.name}
+                                onClick={() => playSubtitle({ kind: 'local', name: item.name })}
+                                onPreview={() =>
+                                  previewSubtitle({ kind: 'local', name: item.name })
+                                }
+                              />
+                            ))
+                          )}
+                        </div>
+                      ) : subMenu === 'style' ? (
+                        <SubtitleStylePanel
+                          style={subtitleStyle}
+                          onChange={updateSubtitleStyle}
+                          onReset={resetSubtitleStyle}
+                        />
+                      ) : (
+                        <div className="max-h-96 overflow-y-auto">
+                          <div className="flex gap-2 p-2.5">
+                            <input
+                              value={subSearchQuery}
+                              onChange={(event) => setSubSearchQuery(event.target.value)}
+                              onKeyDown={(event) => {
+                                if (event.key === 'Enter') {
+                                  runSubtitleSearch()
+                                }
+                              }}
+                              placeholder={zh('番号，如 SSIS-480', 'Movie code, e.g. SSIS-480')}
+                              className="min-w-0 flex-1 rounded bg-white/10 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:outline-none"
+                            />
+                            <button
+                              type="button"
+                              disabled={subSearchBusy}
+                              onClick={() => runSubtitleSearch()}
+                              className="rounded bg-white/15 px-2.5 text-white transition-colors hover:bg-white/25 disabled:opacity-50"
+                            >
+                              <SearchIcon style={{ fontSize: 20 }} />
+                            </button>
+                          </div>
+                          {subSearchBusy ? (
+                            <div className="px-4 py-4 text-sm text-white/50">
+                              {zh('搜索中…', 'Searching...')}
+                            </div>
+                          ) : null}
+                          {!subSearchBusy && subSearchItems.length === 0 ? (
+                            <div className="px-4 py-4 text-sm text-white/50">
+                              {zh(
+                                '输入番号搜索在线字幕；搜索结果可预览或保存到视频目录',
+                                'Search online subtitles by movie code. Results can be previewed or saved next to the video.'
+                              )}
+                            </div>
+                          ) : null}
+                          {subSearchItems.map((item) => {
+                            const detail = subDetailTracks[item.code]
+                            const tracks = detail?.tracks || []
+                            const versions = item.versions || []
+                            const lookupCode =
+                              detail?.lookupCode || item.canonical_code || item.code
+                            return (
+                              <div key={item.code} className="border-t border-white/5">
+                                <button
+                                  type="button"
+                                  onClick={(event) => {
+                                    event.preventDefault()
+                                    event.stopPropagation()
+                                    openSubtitleDetail(item)
+                                  }}
+                                  className="flex w-full items-center justify-between gap-2 px-4 py-2.5 text-left text-sm transition-colors hover:bg-white/10"
+                                >
+                                  <span className="min-w-0 flex-1">
+                                    <span className="block font-semibold text-white">
+                                      {item.code}
+                                    </span>
+                                    {item.title ? (
+                                      <span className="block truncate text-white/50">
+                                        {item.title}
+                                      </span>
+                                    ) : null}
+                                  </span>
+                                  <span className="shrink-0 text-white/40">
+                                    {versions.length > 0
+                                      ? zh(
+                                          `${versions.length} 个版本`,
+                                          `${versions.length} versions`
+                                        )
+                                      : item.has_subtitles
+                                        ? zh('有字幕', 'Has subs')
+                                        : zh('无字幕', 'No subs')}
+                                  </span>
+                                </button>
+                                {detail?.loading ? (
+                                  <div className="px-4 pb-2.5 text-xs text-white/50">
+                                    {zh('加载中…', 'Loading...')}
+                                  </div>
+                                ) : null}
+                                {detail?.error ? (
+                                  <div className="px-4 pb-2.5 text-xs text-red-300">
+                                    {detail.error}
+                                  </div>
+                                ) : null}
+                                {tracks.length > 0
+                                  ? tracks.map((track) => (
+                                      <div
+                                        key={track.id}
+                                        className="flex items-center gap-2 px-4 py-2 pl-10"
+                                      >
+                                        <span className="min-w-0 flex-1 truncate text-sm text-white/80">
+                                          {track.label || track.lang || track.id}
+                                        </span>
+                                        <button
+                                          type="button"
+                                          aria-label={zh('预览', 'Preview')}
+                                          onClick={() =>
+                                            previewSubtitle({
+                                              kind: 'online',
+                                              code: lookupCode,
+                                              id: track.id,
+                                              label: track.label || track.lang,
+                                            })
+                                          }
+                                          className="rounded p-1.5 text-white/50 transition-colors hover:bg-white/15 hover:text-white"
+                                        >
+                                          <PreviewIcon style={{ fontSize: 18 }} />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          aria-label={zh('保存', 'Save')}
+                                          onClick={() =>
+                                            saveSubtitle({
+                                              kind: 'online',
+                                              code: lookupCode,
+                                              id: track.id,
+                                              label: track.label || track.lang,
+                                            })
+                                          }
+                                          className="rounded p-1.5 text-white/50 transition-colors hover:bg-white/15 hover:text-white"
+                                        >
+                                          <DownloadIcon style={{ fontSize: 18 }} />
+                                        </button>
+                                      </div>
+                                    ))
+                                  : null}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  ) : null}
+                  {/* 字幕预览弹层 */}
+                  {subPreview ? (
+                    <div className="player-pip-menu absolute bottom-12 right-0 z-40 flex max-h-96 w-96 flex-col overflow-hidden rounded-xl border border-white/10 bg-black/90 shadow-2xl backdrop-blur-sm">
+                      <div className="flex items-center justify-between border-b border-white/10 px-3 py-2.5">
+                        <span className="min-w-0 flex-1 truncate text-sm font-semibold text-white">
+                          {subPreview.label}
+                        </span>
+                        <button
+                          type="button"
+                          aria-label={zh('关闭预览', 'Close preview')}
+                          onClick={() => setSubPreview(null)}
+                          className="rounded px-2 py-0.5 text-lg text-white/60 hover:text-white"
+                        >
+                          ×
+                        </button>
+                      </div>
+                      <div className="max-h-80 overflow-y-auto whitespace-pre-wrap px-4 py-3 text-sm leading-6 text-white/80">
+                        {subPreview.text}
+                      </div>
+                    </div>
+                  ) : null}
+                  {subNotice ? (
+                    <div className="absolute bottom-14 right-0 z-40 rounded-md bg-black/85 px-2 py-1 text-xs text-white shadow">
+                      {subNotice}
+                    </div>
+                  ) : null}
+                </div>
+
+                <button
+                  type="button"
+                  aria-label={
+                    isPiP
+                      ? zh('退出画中画', 'Exit picture-in-picture')
+                      : zh('画中画', 'Picture-in-picture')
+                  }
+                  title={zh('画中画', 'Picture-in-picture')}
+                  onClick={() => {
+                    void togglePip()
+                  }}
+                  className={iconButtonClass}
+                >
+                  {isPiP ? <PictureInPictureAltIcon /> : <PictureInPictureAltOutlinedIcon />}
+                </button>
+
+                {/* 播放速度菜单 */}
+                <div className="relative">
+                  <button
+                    type="button"
+                    aria-label={zh('播放速度', 'Playback speed')}
+                    onClick={() => {
+                      setSubMenu(null)
+                      setMenuOpen(menuOpen === 'speed' ? null : 'speed')
+                      showControls()
+                    }}
+                    className={iconButtonClass}
+                  >
+                    <SettingsIcon />
+                  </button>
+                  {menuOpen === 'speed' ? (
+                    <div className="player-pip-menu absolute bottom-12 right-0 z-30 w-40 overflow-hidden rounded-xl border border-white/10 bg-black/90 py-1.5 shadow-2xl backdrop-blur-sm">
+                      <div className="px-3.5 pb-1 pt-1 text-xs font-semibold uppercase tracking-wider text-white/60">
+                        {zh('播放速度', 'Playback speed')}
+                      </div>
+                      {PLAYBACK_RATES.map((rate) => {
+                        const active = rate === playbackRate
+                        return (
+                          <button
+                            key={rate}
+                            type="button"
+                            onClick={() => {
+                              actionsRef.current?.setRate(rate)
+                              setMenuOpen(null)
+                              scheduleHideControls()
+                            }}
+                            className={`flex w-full items-center justify-between px-3.5 py-1.5 text-sm transition-colors hover:bg-white/10 ${
+                              active ? 'font-semibold text-white' : 'text-white/80'
+                            }`}
+                          >
+                            <span>{rate}x</span>
+                            {active ? <CheckIcon fontSize="small" /> : null}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  ) : null}
+                </div>
+
+                <button
+                  type="button"
+                  aria-label={
+                    isFullscreen ? zh('退出全屏', 'Exit fullscreen') : zh('全屏', 'Fullscreen')
+                  }
+                  onClick={() => actionsRef.current?.toggleFullscreen()}
+                  className={iconButtonClass}
+                >
+                  {isFullscreen ? <FullscreenExitIcon /> : <FullscreenIcon />}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+
+  if (documentPip && pipPortalEl) {
+    return createPortal(playerCard, pipPortalEl)
+  }
+
   return (
     <div
       ref={overlayRef}
@@ -1594,670 +2401,7 @@ export default function PlayerModal({
           : 'fixed inset-0 z-[1700] flex items-center justify-center bg-black'
       }
     >
-      <div
-        ref={pipCardRef}
-        className={`player-card relative bg-black shadow-none ${
-          isPiP ? 'player-card--pip pointer-events-auto' : 'player-card--viewport mx-0 rounded-none'
-        } ${isPiP && pipPosition ? 'is-dragged' : ''}`}
-        style={{
-          '--player-ar': `${aspectRatio}`,
-          ...(isPiP && pipPosition ? { left: pipPosition.left, top: pipPosition.top } : null),
-        }}
-      >
-        <button
-          aria-label={zh('关闭', 'Close')}
-          onClick={handleClose}
-          className={`absolute right-3 top-3 z-20 rounded-full bg-black/60 px-2 py-1 text-sm text-white hover:bg-black/80 ${
-            isPiP || controlsVisible ? '' : 'pointer-events-none opacity-0'
-          }`}
-        >
-          ×
-        </button>
-        <div className="flex h-full flex-col gap-0 p-0">
-          <h2
-            className={`absolute inset-x-0 top-0 z-10 truncate bg-gradient-to-b from-black/60 to-transparent pb-5 pl-3 pr-14 pt-4 text-sm font-medium text-white ${
-              isPiP ? 'cursor-move touch-none' : ''
-            } ${isPiP || controlsVisible ? '' : 'pointer-events-none opacity-0'}`}
-            title={displayName}
-            onPointerDown={isPiP ? handlePipPointerDown : undefined}
-            onPointerMove={isPiP ? handlePipPointerMove : undefined}
-            onPointerUp={isPiP ? handlePipPointerUp : undefined}
-            onPointerCancel={isPiP ? handlePipPointerUp : undefined}
-          >
-            {displayName}
-          </h2>
-          <div
-            ref={shellRef}
-            className={`player-shell relative w-full bg-black ${controlsVisible ? '' : 'cursor-none'} ${
-              isPiP ? '' : 'h-full'
-            }`}
-            style={{
-              ...subtitleStyleCssVars(subtitleStyle),
-            }}
-          >
-            {screenshotNotice || (hotkeyHintVisible && !isPiP) ? (
-              <div className="pointer-events-none absolute left-3 top-3 z-10 flex max-w-[calc(100%-1.5rem)] flex-col items-start gap-2">
-                {screenshotNotice ? (
-                  <div className="rounded bg-black/75 px-3 py-1.5 text-sm font-medium text-white shadow">
-                    {zh('截图成功', 'Screenshot saved')}
-                  </div>
-                ) : null}
-                {hotkeyHintVisible && !isPiP ? (
-                  <div className="max-h-[calc(100vh-12rem)] overflow-hidden rounded bg-black/75 px-3 py-2 text-xs leading-5 text-white shadow">
-                    {hotkeyHintLines.map((line, index) => (
-                      <div key={`${index}-${line}`}>{line}</div>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-            <div ref={playerHostRef} className="h-full w-full" />
-            {loadingPlayback ? (
-              <div className="absolute inset-0 z-[5] flex items-center justify-center bg-black text-sm text-white">
-                {zh('加载播放信息中…', 'Loading playback info...')}
-              </div>
-            ) : playbackError ? (
-              <div className="absolute inset-0 z-[5] flex items-center justify-center bg-black px-6 text-center text-sm text-red-200">
-                {playbackError}
-              </div>
-            ) : null}
-
-            {/* 缓冲中加载动画 */}
-            {!loadingPlayback && !playbackError && waiting && playing ? (
-              <div className="pointer-events-none absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2">
-                <div className="h-12 w-12 animate-spin rounded-full border-4 border-white/20 border-t-white" />
-              </div>
-            ) : null}
-
-            {/* 暂停/结束时的中央大按钮 */}
-            {!loadingPlayback && !playbackError && !playing ? (
-              <button
-                type="button"
-                aria-label={ended ? zh('重新播放', 'Replay') : zh('播放', 'Play')}
-                onClick={(event) => {
-                  event.stopPropagation()
-                  pokeControls()
-                  actionsRef.current?.togglePlay()
-                }}
-                className="absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/10 p-4 text-white backdrop-blur-sm transition-colors hover:bg-white/25"
-              >
-                {ended ? (
-                  <ReplayIcon style={{ fontSize: 44 }} />
-                ) : (
-                  <PlayArrowIcon style={{ fontSize: 44 }} />
-                )}
-              </button>
-            ) : null}
-
-            {/* YouTube 风格控制条 */}
-            <div
-              className={`player-controls absolute inset-x-0 bottom-0 z-20 select-none bg-gradient-to-t from-black/80 via-black/40 to-transparent pb-1 transition-opacity duration-200 ${
-                controlsVisible ? 'opacity-100' : 'pointer-events-none opacity-0'
-              }`}
-            >
-              {/* 进度条 */}
-              <div
-                ref={seekBarRef}
-                role="slider"
-                tabIndex={0}
-                aria-label={zh('播放进度', 'Seek')}
-                aria-valuemin={0}
-                aria-valuemax={Math.round(duration)}
-                aria-valuenow={Math.round(displayTime)}
-                className="group/seek relative h-5 w-full cursor-pointer touch-none"
-                onPointerDown={handleSeekPointerDown}
-                onPointerMove={handleSeekPointerMove}
-                onPointerUp={handleSeekPointerUp}
-                onPointerCancel={handleSeekPointerUp}
-                onPointerLeave={() => {
-                  setSeekHoverTime(null)
-                  cancelFrameHover()
-                }}
-                onKeyDown={handleSeekBarKeyDown}
-              >
-                {tooltipTime != null && duration > 0 ? (
-                  <div
-                    ref={seekTooltipRef}
-                    className="pointer-events-none absolute bottom-8 z-10 -translate-x-1/2 rounded-md bg-black/90 px-2 py-1 text-xs font-medium tabular-nums text-white shadow"
-                    style={{ left: `${tooltipOffsetPercent}%` }}
-                  >
-                    {framePreview ? (
-                      <div className="mb-1 overflow-hidden rounded border border-white/20">
-                        <img
-                          src={framePreview}
-                          alt=""
-                          draggable={false}
-                          className="block max-h-[8vh] max-w-[13vw] object-contain"
-                        />
-                      </div>
-                    ) : null}
-                    {formatTime(tooltipTime)}
-                  </div>
-                ) : null}
-                <div className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-white/25 transition-all duration-100 group-hover/seek:h-1.5">
-                  <div
-                    className="absolute inset-y-0 left-0 rounded-full bg-white/50"
-                    style={{ width: `${bufferedPercent}%` }}
-                  />
-                  <div
-                    className="absolute inset-y-0 left-0 rounded-full bg-[#f00]"
-                    style={{ width: `${playedPercent}%` }}
-                  />
-                </div>
-                <div
-                  className={`pointer-events-none absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow-md transition-opacity ${
-                    dragTime != null ? 'opacity-100' : 'opacity-0 group-hover/seek:opacity-100'
-                  }`}
-                  style={{ left: `${playedPercent}%` }}
-                />
-              </div>
-
-              {/* 按钮行 */}
-              <div className="flex items-center justify-between gap-2 px-3 pb-0.5">
-                <div className="flex min-w-0 items-center">
-                  <button
-                    type="button"
-                    aria-label={playing ? zh('暂停', 'Pause') : zh('播放', 'Play')}
-                    onClick={() => actionsRef.current?.togglePlay()}
-                    className={iconButtonClass}
-                  >
-                    {playing ? (
-                      <PauseIcon style={{ fontSize: 30 }} />
-                    ) : (
-                      <PlayArrowIcon style={{ fontSize: 30 }} />
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={zh('后退 10 秒', 'Back 10 seconds')}
-                    onClick={() => actionsRef.current?.seekBy(-SEEK_STEP_SECONDS)}
-                    className={`${iconButtonClass} ${isPiP ? 'hidden' : 'pointer-coarse:hidden'}`}
-                  >
-                    <Replay10Icon />
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={zh('前进 10 秒', 'Forward 10 seconds')}
-                    onClick={() => actionsRef.current?.seekBy(SEEK_STEP_SECONDS)}
-                    className={`${iconButtonClass} ${isPiP ? 'hidden' : 'pointer-coarse:hidden'}`}
-                  >
-                    <Forward10Icon />
-                  </button>
-
-                  {/* 音量 */}
-                  <div className="group/vol relative flex items-center">
-                    <button
-                      type="button"
-                      aria-label={
-                        muted || volume === 0 ? zh('取消静音', 'Unmute') : zh('静音', 'Mute')
-                      }
-                      onClick={() => actionsRef.current?.toggleMute()}
-                      className={iconButtonClass}
-                    >
-                      {muted || volume === 0 ? (
-                        <VolumeOffIcon />
-                      ) : volume < 0.5 ? (
-                        <VolumeDownIcon />
-                      ) : (
-                        <VolumeUpIcon />
-                      )}
-                    </button>
-                    <div
-                      className={`flex items-center overflow-hidden transition-all duration-200 ${
-                        isPiP
-                          ? 'w-16 opacity-100'
-                          : 'w-0 opacity-0 group-hover/vol:w-24 group-hover/vol:opacity-100 pointer-coarse:w-16 pointer-coarse:opacity-100'
-                      }`}
-                    >
-                      <input
-                        type="range"
-                        min={0}
-                        max={1}
-                        step={0.05}
-                        value={muted ? 0 : volume}
-                        onChange={(event) => actionsRef.current?.setVolumeLevel(event.target.value)}
-                        aria-label={zh('音量', 'Volume')}
-                        className="h-1 w-16 cursor-pointer accent-white pointer-coarse:w-12"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="ml-1 whitespace-nowrap text-xs font-medium tabular-nums text-white/90">
-                    <span>{formatTime(displayTime)}</span>
-                    <span className="mx-0.5 text-white/60">/</span>
-                    <span className="text-white/60">{formatTime(duration)}</span>
-                  </div>
-                </div>
-
-                <div className="flex shrink-0 items-center">
-                  <button
-                    type="button"
-                    aria-label={zh('截图', 'Screenshot')}
-                    title={
-                      screenshotHotkeyLabel
-                        ? `${zh('截图', 'Screenshot')} (${screenshotHotkeyLabel})`
-                        : zh('截图', 'Screenshot')
-                    }
-                    onClick={() => actionsRef.current?.captureScreenshot()}
-                    className={`${iconButtonClass} ${isPiP ? 'hidden' : ''}`}
-                  >
-                    <PhotoCameraIcon />
-                  </button>
-
-                  {/* 选集：同番号多文件时在播放器内切换视频 */}
-                  {episodeList.length > 1 ? (
-                    <div className="relative">
-                      <button
-                        type="button"
-                        aria-label={zh('选集', 'Select episode')}
-                        title={zh('选集', 'Select episode')}
-                        onClick={() => {
-                          setMenuOpen(menuOpen === 'episodes' ? null : 'episodes')
-                          setSubMenu(null)
-                          showControls()
-                        }}
-                        className={`flex h-9 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-medium text-white transition-colors hover:bg-white/15 pointer-coarse:h-8 ${
-                          menuOpen === 'episodes' ? 'bg-white/15 text-yellow-300' : ''
-                        }`}
-                      >
-                        <PlaylistPlayIcon style={{ fontSize: 18 }} />
-                        {isPiP ? null : <span>{zh('选集', 'Episodes')}</span>}
-                        <span className="rounded-full bg-white/20 px-1.5 text-[10px] font-semibold tabular-nums leading-4">
-                          {episodeList.length}
-                        </span>
-                      </button>
-                      {menuOpen === 'episodes' ? (
-                        <div className="player-pip-menu absolute bottom-12 right-0 z-30 w-72 overflow-hidden rounded-xl border border-white/10 bg-black/90 shadow-2xl backdrop-blur-sm">
-                          <div className="flex items-center justify-between border-b border-white/10 px-3 py-2">
-                            <span className="text-xs font-semibold uppercase tracking-wider text-white/60">
-                              {zh('选集', 'Episodes')}
-                            </span>
-                            <button
-                              type="button"
-                              aria-label={zh('关闭选集菜单', 'Close episode menu')}
-                              onClick={() => setMenuOpen(null)}
-                              className="rounded px-1.5 text-sm text-white/60 hover:text-white"
-                            >
-                              ×
-                            </button>
-                          </div>
-                          <div className="max-h-72 overflow-y-auto py-1">
-                            {episodeList.map((ep, index) => {
-                              const fullPath = buildVideoFullPath(ep)
-                              const label =
-                                fullPath ||
-                                ep.filename ||
-                                ep.path ||
-                                zh('未命名文件', 'Untitled file')
-                              const active = String(ep.location_id) === activeEpisodeKey
-                              return (
-                                <button
-                                  key={ep.location_id || `${ep.id}-${index}`}
-                                  type="button"
-                                  onClick={() => {
-                                    setMenuOpen(null)
-                                    scheduleHideControls()
-                                    onSwitchVideo?.(ep)
-                                  }}
-                                  title={label}
-                                  className={`flex w-full items-center gap-2 px-3.5 py-1.5 text-left text-xs transition-colors hover:bg-white/10 ${
-                                    active ? 'font-semibold text-white' : 'text-white/80'
-                                  }`}
-                                >
-                                  {active ? (
-                                    <CheckIcon
-                                      style={{ fontSize: 14 }}
-                                      className="shrink-0 text-yellow-300"
-                                    />
-                                  ) : (
-                                    <span className="inline-block w-3.5 shrink-0" />
-                                  )}
-                                  <span className="min-w-0 flex-1 truncate">{label}</span>
-                                </button>
-                              )
-                            })}
-                          </div>
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : null}
-
-                  {/* 字幕：关闭 / 本地字幕 / 在线搜索 / 预览 / 保存 */}
-                  <div className="relative">
-                    <button
-                      type="button"
-                      aria-label={zh('字幕', 'Subtitles')}
-                      onClick={() => {
-                        setMenuOpen(null)
-                        setSubMenu(subMenu === 'local' ? null : 'local')
-                        showControls()
-                      }}
-                      className={`${iconButtonClass} ${activeSubtitle ? 'text-yellow-300' : ''}`}
-                    >
-                      <ClosedCaptionIcon />
-                    </button>
-                    {subMenu != null ? (
-                      <div className="player-pip-menu absolute bottom-12 right-0 z-30 w-96 overflow-hidden rounded-xl border border-white/10 bg-black/90 shadow-2xl backdrop-blur-sm">
-                        {/* 顶栏：本地 / 搜索 切换 */}
-                        <div className="flex items-center justify-between gap-2 border-b border-white/10 px-3 py-2.5">
-                          <div className="flex min-w-0 flex-1 flex-wrap gap-1">
-                            <button
-                              type="button"
-                              onClick={() => setSubMenu('local')}
-                              className={`rounded px-2.5 py-1.5 text-sm transition-colors ${
-                                subMenu === 'local'
-                                  ? 'bg-white/15 font-semibold text-white'
-                                  : 'text-white/60 hover:text-white'
-                              }`}
-                            >
-                              {zh('本地字幕', 'Local')}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => openSubtitleSearch()}
-                              className={`rounded px-2.5 py-1.5 text-sm transition-colors ${
-                                subMenu === 'search'
-                                  ? 'bg-white/15 font-semibold text-white'
-                                  : 'text-white/60 hover:text-white'
-                              }`}
-                            >
-                              {zh('搜索字幕', 'Search')}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setSubMenu('style')}
-                              className={`rounded px-2.5 py-1.5 text-sm transition-colors ${
-                                subMenu === 'style'
-                                  ? 'bg-white/15 font-semibold text-white'
-                                  : 'text-white/60 hover:text-white'
-                              }`}
-                            >
-                              {zh('样式', 'Style')}
-                            </button>
-                          </div>
-                          <button
-                            type="button"
-                            aria-label={zh('关闭字幕菜单', 'Close subtitle menu')}
-                            onClick={() => setSubMenu(null)}
-                            className="rounded px-2 py-0.5 text-lg text-white/60 hover:text-white"
-                          >
-                            ×
-                          </button>
-                        </div>
-
-                        {subMenu === 'local' ? (
-                          <div className="max-h-96 overflow-y-auto py-1.5">
-                            <SubMenuItem
-                              active={activeSubtitle == null}
-                              label={zh('关闭字幕', 'Off')}
-                              onClick={() => {
-                                playSubtitle(null)
-                              }}
-                            />
-                            {localSubtitles.length === 0 ? (
-                              <div className="px-4 py-3 text-sm text-white/50">
-                                {zh(
-                                  '未找到本地字幕，可前往「搜索字幕」在线查找',
-                                  'No local subtitles found. Try the online search tab.'
-                                )}
-                              </div>
-                            ) : (
-                              localSubtitles.map((item) => (
-                                <SubMenuItem
-                                  key={item.name}
-                                  active={
-                                    activeSubtitle?.kind === 'local' &&
-                                    activeSubtitle.name === item.name
-                                  }
-                                  label={item.label || item.name}
-                                  onClick={() => playSubtitle({ kind: 'local', name: item.name })}
-                                  onPreview={() =>
-                                    previewSubtitle({ kind: 'local', name: item.name })
-                                  }
-                                />
-                              ))
-                            )}
-                          </div>
-                        ) : subMenu === 'style' ? (
-                          <SubtitleStylePanel
-                            style={subtitleStyle}
-                            onChange={updateSubtitleStyle}
-                            onReset={resetSubtitleStyle}
-                          />
-                        ) : (
-                          <div className="max-h-96 overflow-y-auto">
-                            <div className="flex gap-2 p-2.5">
-                              <input
-                                value={subSearchQuery}
-                                onChange={(event) => setSubSearchQuery(event.target.value)}
-                                onKeyDown={(event) => {
-                                  if (event.key === 'Enter') {
-                                    runSubtitleSearch()
-                                  }
-                                }}
-                                placeholder={zh('番号，如 SSIS-480', 'Movie code, e.g. SSIS-480')}
-                                className="min-w-0 flex-1 rounded bg-white/10 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:outline-none"
-                              />
-                              <button
-                                type="button"
-                                disabled={subSearchBusy}
-                                onClick={() => runSubtitleSearch()}
-                                className="rounded bg-white/15 px-2.5 text-white transition-colors hover:bg-white/25 disabled:opacity-50"
-                              >
-                                <SearchIcon style={{ fontSize: 20 }} />
-                              </button>
-                            </div>
-                            {subSearchBusy ? (
-                              <div className="px-4 py-4 text-sm text-white/50">
-                                {zh('搜索中…', 'Searching...')}
-                              </div>
-                            ) : null}
-                            {!subSearchBusy && subSearchItems.length === 0 ? (
-                              <div className="px-4 py-4 text-sm text-white/50">
-                                {zh(
-                                  '输入番号搜索在线字幕；搜索结果可预览或保存到视频目录',
-                                  'Search online subtitles by movie code. Results can be previewed or saved next to the video.'
-                                )}
-                              </div>
-                            ) : null}
-                            {subSearchItems.map((item) => {
-                              const detail = subDetailTracks[item.code]
-                              const tracks = detail?.tracks || []
-                              const versions = item.versions || []
-                              const lookupCode =
-                                detail?.lookupCode || item.canonical_code || item.code
-                              return (
-                                <div key={item.code} className="border-t border-white/5">
-                                  <button
-                                    type="button"
-                                    onClick={(event) => {
-                                      event.preventDefault()
-                                      event.stopPropagation()
-                                      openSubtitleDetail(item)
-                                    }}
-                                    className="flex w-full items-center justify-between gap-2 px-4 py-2.5 text-left text-sm transition-colors hover:bg-white/10"
-                                  >
-                                    <span className="min-w-0 flex-1">
-                                      <span className="block font-semibold text-white">
-                                        {item.code}
-                                      </span>
-                                      {item.title ? (
-                                        <span className="block truncate text-white/50">
-                                          {item.title}
-                                        </span>
-                                      ) : null}
-                                    </span>
-                                    <span className="shrink-0 text-white/40">
-                                      {versions.length > 0
-                                        ? zh(
-                                            `${versions.length} 个版本`,
-                                            `${versions.length} versions`
-                                          )
-                                        : item.has_subtitles
-                                          ? zh('有字幕', 'Has subs')
-                                          : zh('无字幕', 'No subs')}
-                                    </span>
-                                  </button>
-                                  {detail?.loading ? (
-                                    <div className="px-4 pb-2.5 text-xs text-white/50">
-                                      {zh('加载中…', 'Loading...')}
-                                    </div>
-                                  ) : null}
-                                  {detail?.error ? (
-                                    <div className="px-4 pb-2.5 text-xs text-red-300">
-                                      {detail.error}
-                                    </div>
-                                  ) : null}
-                                  {tracks.length > 0
-                                    ? tracks.map((track) => (
-                                        <div
-                                          key={track.id}
-                                          className="flex items-center gap-2 px-4 py-2 pl-10"
-                                        >
-                                          <span className="min-w-0 flex-1 truncate text-sm text-white/80">
-                                            {track.label || track.lang || track.id}
-                                          </span>
-                                          <button
-                                            type="button"
-                                            aria-label={zh('预览', 'Preview')}
-                                            onClick={() =>
-                                              previewSubtitle({
-                                                kind: 'online',
-                                                code: lookupCode,
-                                                id: track.id,
-                                                label: track.label || track.lang,
-                                              })
-                                            }
-                                            className="rounded p-1.5 text-white/50 transition-colors hover:bg-white/15 hover:text-white"
-                                          >
-                                            <PreviewIcon style={{ fontSize: 18 }} />
-                                          </button>
-                                          <button
-                                            type="button"
-                                            aria-label={zh('保存', 'Save')}
-                                            onClick={() =>
-                                              saveSubtitle({
-                                                kind: 'online',
-                                                code: lookupCode,
-                                                id: track.id,
-                                                label: track.label || track.lang,
-                                              })
-                                            }
-                                            className="rounded p-1.5 text-white/50 transition-colors hover:bg-white/15 hover:text-white"
-                                          >
-                                            <DownloadIcon style={{ fontSize: 18 }} />
-                                          </button>
-                                        </div>
-                                      ))
-                                    : null}
-                                </div>
-                              )
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    ) : null}
-                    {/* 字幕预览弹层 */}
-                    {subPreview ? (
-                      <div className="player-pip-menu absolute bottom-12 right-0 z-40 flex max-h-96 w-96 flex-col overflow-hidden rounded-xl border border-white/10 bg-black/90 shadow-2xl backdrop-blur-sm">
-                        <div className="flex items-center justify-between border-b border-white/10 px-3 py-2.5">
-                          <span className="min-w-0 flex-1 truncate text-sm font-semibold text-white">
-                            {subPreview.label}
-                          </span>
-                          <button
-                            type="button"
-                            aria-label={zh('关闭预览', 'Close preview')}
-                            onClick={() => setSubPreview(null)}
-                            className="rounded px-2 py-0.5 text-lg text-white/60 hover:text-white"
-                          >
-                            ×
-                          </button>
-                        </div>
-                        <div className="max-h-80 overflow-y-auto whitespace-pre-wrap px-4 py-3 text-sm leading-6 text-white/80">
-                          {subPreview.text}
-                        </div>
-                      </div>
-                    ) : null}
-                    {subNotice ? (
-                      <div className="absolute bottom-14 right-0 z-40 rounded-md bg-black/85 px-2 py-1 text-xs text-white shadow">
-                        {subNotice}
-                      </div>
-                    ) : null}
-                  </div>
-
-                  <button
-                    type="button"
-                    aria-label={
-                      isPiP
-                        ? zh('退出画中画', 'Exit picture-in-picture')
-                        : zh('画中画', 'Picture-in-picture')
-                    }
-                    title={zh('画中画', 'Picture-in-picture')}
-                    onClick={() => togglePip()}
-                    className={iconButtonClass}
-                  >
-                    {isPiP ? <PictureInPictureAltIcon /> : <PictureInPictureAltOutlinedIcon />}
-                  </button>
-
-                  {/* 播放速度菜单 */}
-                  <div className="relative">
-                    <button
-                      type="button"
-                      aria-label={zh('播放速度', 'Playback speed')}
-                      onClick={() => {
-                        setSubMenu(null)
-                        setMenuOpen(menuOpen === 'speed' ? null : 'speed')
-                        showControls()
-                      }}
-                      className={iconButtonClass}
-                    >
-                      <SettingsIcon />
-                    </button>
-                    {menuOpen === 'speed' ? (
-                      <div className="player-pip-menu absolute bottom-12 right-0 z-30 w-40 overflow-hidden rounded-xl border border-white/10 bg-black/90 py-1.5 shadow-2xl backdrop-blur-sm">
-                        <div className="px-3.5 pb-1 pt-1 text-xs font-semibold uppercase tracking-wider text-white/60">
-                          {zh('播放速度', 'Playback speed')}
-                        </div>
-                        {PLAYBACK_RATES.map((rate) => {
-                          const active = rate === playbackRate
-                          return (
-                            <button
-                              key={rate}
-                              type="button"
-                              onClick={() => {
-                                actionsRef.current?.setRate(rate)
-                                setMenuOpen(null)
-                                scheduleHideControls()
-                              }}
-                              className={`flex w-full items-center justify-between px-3.5 py-1.5 text-sm transition-colors hover:bg-white/10 ${
-                                active ? 'font-semibold text-white' : 'text-white/80'
-                              }`}
-                            >
-                              <span>{rate}x</span>
-                              {active ? <CheckIcon fontSize="small" /> : null}
-                            </button>
-                          )
-                        })}
-                      </div>
-                    ) : null}
-                  </div>
-
-                  <button
-                    type="button"
-                    aria-label={
-                      isFullscreen ? zh('退出全屏', 'Exit fullscreen') : zh('全屏', 'Fullscreen')
-                    }
-                    onClick={() => actionsRef.current?.toggleFullscreen()}
-                    className={iconButtonClass}
-                  >
-                    {isFullscreen ? <FullscreenExitIcon /> : <FullscreenIcon />}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      {playerCard}
     </div>
   )
 }
