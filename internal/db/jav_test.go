@@ -1438,6 +1438,110 @@ func TestListJavSeriesAndSearchBySeries(t *testing.T) {
 	}
 }
 
+func TestListJavStudioAndTagIdolsRanksByWorkCount(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+	now := time.Unix(1710000000, 0).UTC()
+
+	dir := models.Directory{Path: "/tmp/media"}
+	if err := db.Create(&dir).Error; err != nil {
+		t.Fatalf("create directory: %v", err)
+	}
+	studio := models.JavStudio{Name: "Idol Studio"}
+	if err := db.Create(&studio).Error; err != nil {
+		t.Fatalf("create studio: %v", err)
+	}
+	tag := models.JavTag{Name: "偶像"}
+	if err := db.Create(&tag).Error; err != nil {
+		t.Fatalf("create tag: %v", err)
+	}
+	otherTag := models.JavTag{Name: "其它"}
+	if err := db.Create(&otherTag).Error; err != nil {
+		t.Fatalf("create other tag: %v", err)
+	}
+
+	javs := []models.Jav{
+		{Code: "IDL-001", Title: "One", StudioID: int64Ptr(studio.ID), FetchedAt: now},
+		{Code: "IDL-002", Title: "Two", StudioID: int64Ptr(studio.ID), FetchedAt: now},
+		{Code: "IDL-003", Title: "Other", FetchedAt: now},
+	}
+	if err := db.Create(&javs).Error; err != nil {
+		t.Fatalf("create javs: %v", err)
+	}
+
+	videos := []models.Video{
+		{DirectoryID: dir.ID, Path: "idl-001.mp4", Filename: "idl-001.mp4", Fingerprint: "fp-idl-001", JavID: int64Ptr(javs[0].ID), ModifiedAt: now},
+		{DirectoryID: dir.ID, Path: "idl-002.mp4", Filename: "idl-002.mp4", Fingerprint: "fp-idl-002", JavID: int64Ptr(javs[1].ID), ModifiedAt: now},
+		{DirectoryID: dir.ID, Path: "idl-003.mp4", Filename: "idl-003.mp4", Fingerprint: "fp-idl-003", JavID: int64Ptr(javs[2].ID), ModifiedAt: now},
+	}
+	if err := db.Create(&videos).Error; err != nil {
+		t.Fatalf("create videos: %v", err)
+	}
+	createVideoLocationsForVideos(t, db, videos...)
+
+	idols := []models.JavIdol{
+		{Name: "Studio Idol More", ChineseName: "片商多"},
+		{Name: "Studio Idol Less"},
+		{Name: "Other Idol"},
+	}
+	if err := db.Create(&idols).Error; err != nil {
+		t.Fatalf("create idols: %v", err)
+	}
+	idolMore, idolLess, idolOther := idols[0], idols[1], idols[2]
+
+	if err := db.Create(&[]models.JavIdolMap{
+		{JavID: javs[0].ID, JavIdolID: idolMore.ID},
+		{JavID: javs[1].ID, JavIdolID: idolMore.ID},
+		{JavID: javs[1].ID, JavIdolID: idolLess.ID},
+		{JavID: javs[2].ID, JavIdolID: idolOther.ID},
+	}).Error; err != nil {
+		t.Fatalf("create idol maps: %v", err)
+	}
+	if err := db.Create(&[]models.JavTagMap{
+		{JavID: javs[0].ID, JavTagID: tag.ID, Provider: int(jav.ProviderJavBus)},
+		{JavID: javs[1].ID, JavTagID: tag.ID, Provider: int(jav.ProviderJavBus)},
+		{JavID: javs[2].ID, JavTagID: otherTag.ID, Provider: int(jav.ProviderJavBus)},
+	}).Error; err != nil {
+		t.Fatalf("create tag maps: %v", err)
+	}
+
+	studioIdols, err := ListJavStudioIdols(ctx, studio.ID, nil)
+	if err != nil {
+		t.Fatalf("ListJavStudioIdols: %v", err)
+	}
+	if len(studioIdols) != 2 {
+		t.Fatalf("studio idol count = %d, want 2", len(studioIdols))
+	}
+	if studioIdols[0].ID != idolMore.ID || studioIdols[0].WorkCount != 2 || studioIdols[0].ChineseName != "片商多" {
+		t.Fatalf("first studio idol = %#v", studioIdols[0])
+	}
+	if studioIdols[1].ID != idolLess.ID || studioIdols[1].WorkCount != 1 {
+		t.Fatalf("second studio idol = %#v", studioIdols[1])
+	}
+
+	tagSummary, err := GetJavTagSummary(ctx, tag.ID, nil)
+	if err != nil {
+		t.Fatalf("GetJavTagSummary: %v", err)
+	}
+	if tagSummary.Name != "偶像" || tagSummary.WorkCount != 2 {
+		t.Fatalf("tag summary = %#v", tagSummary)
+	}
+
+	tagIdols, err := ListJavTagIdols(ctx, tag.ID, nil)
+	if err != nil {
+		t.Fatalf("ListJavTagIdols: %v", err)
+	}
+	if len(tagIdols) != 2 {
+		t.Fatalf("tag idol count = %d, want 2", len(tagIdols))
+	}
+	if tagIdols[0].ID != idolMore.ID || tagIdols[0].WorkCount != 2 {
+		t.Fatalf("first tag idol = %#v", tagIdols[0])
+	}
+	if tagIdols[1].ID != idolLess.ID || tagIdols[1].WorkCount != 1 {
+		t.Fatalf("second tag idol = %#v", tagIdols[1])
+	}
+}
+
 func TestSaveJavInfoAppendsIdolsOnlyWhenMappingMissing(t *testing.T) {
 	gdb := openTestDB(t)
 	now := time.Unix(1710000000, 0).UTC()

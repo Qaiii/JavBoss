@@ -4263,6 +4263,10 @@ export default function App() {
               activeIdolId: Number(javIdolIds[0]) || 0,
               activeSeriesId: Number(javSeriesId) || 0,
               seriesName: javSeriesName,
+              activeStudioId: Number(javStudioId) || 0,
+              studioName: javStudioName,
+              activeTagId: javTags.length === 1 ? Number(javTags[0]) || 0 : 0,
+              tagName: javTags.length === 1 ? javTagNameMap.get(javTags[0]) || '' : '',
               playOnCoverClick: Number(javIdolIds[0]) > 0 && javIdolIds.length === 1,
               onDislikeWork: (item) => {
                 const idolId = Number(javIdolIds[0]) || 0

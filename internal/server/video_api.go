@@ -109,6 +109,8 @@ type playbackSource struct {
 type playbackInfo struct {
 	VideoID       int64            `json:"video_id"`
 	PreferredKind string           `json:"preferred_kind"`
+	VideoCodec    string           `json:"video_codec,omitempty"`
+	Container     string           `json:"container,omitempty"`
 	Sources       []playbackSource `json:"sources"`
 }
 
@@ -186,13 +188,23 @@ func getVideoStreams(c *gin.Context) {
 		return
 	}
 
+	c.JSON(http.StatusOK, buildPlaybackInfo(video, locationID, probe))
+}
+
+func buildPlaybackInfo(video *models.Video, locationID int64, probe *util.PlaybackProbeResult) playbackInfo {
 	info := playbackInfo{
 		VideoID:       video.ID,
 		PreferredKind: "hls",
 		Sources:       []playbackSource{},
 	}
-	if probe.SupportsDirect {
-		info.PreferredKind = "direct"
+	if probe != nil {
+		info.VideoCodec = probe.VideoCodec
+		info.Container = probe.Container
+	}
+	if probe != nil && (probe.SupportsDirect || probe.OffersMP4) {
+		if probe.SupportsDirect {
+			info.PreferredKind = "direct"
+		}
 		info.Sources = append(info.Sources, playbackSource{
 			Kind:     "direct",
 			Src:      buildDirectStreamURL(video, locationID),
@@ -206,8 +218,7 @@ func getVideoStreams(c *gin.Context) {
 		MimeType: manager.MimeHLS,
 		Label:    "HLS",
 	})
-
-	c.JSON(http.StatusOK, info)
+	return info
 }
 
 func streamVideo(c *gin.Context) {

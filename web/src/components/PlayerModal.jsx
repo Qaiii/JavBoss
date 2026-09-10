@@ -45,7 +45,15 @@ import {
   isDocumentPictureInPictureSupported,
   isVideoPictureInPictureSupported,
   clampPipPosition,
+  clampPipWidth,
+  loadStoredPipSize,
+  pipResizeMaxWidth,
+  resizeDocumentPipWindow,
+  saveStoredPipSize,
+  PIP_DEFAULT_WIDTH,
+  PIP_MARGIN,
 } from '@/utils/playerPip'
+import { canPlayHEVC, selectPlaybackSource } from '@/utils/playerSource'
 import { zh } from '@/utils/i18n'
 import { getErrorMessage } from '@/utils/errors'
 import {
@@ -87,6 +95,12 @@ function clampPercent(value) {
 const iconButtonClass =
   'flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white transition-colors hover:bg-white/15 pointer-coarse:h-8 pointer-coarse:w-8'
 
+function isPlayerChromeTarget(target) {
+  return Boolean(
+    target && typeof target.closest === 'function' && target.closest('[data-player-chrome]')
+  )
+}
+
 const HOTKEY_HINT_DURATION_MS = 5000
 
 function formatSignedAmount(amount) {
@@ -112,6 +126,8 @@ export default function PlayerModal({
   const overlayRef = useRef(null)
   const hotkeyMapRef = useRef(new Map())
   const hideTimerRef = useRef(null)
+  const pointerOnChromeRef = useRef(false)
+  const suppressShowUntilRef = useRef(0)
   const clickTimerRef = useRef(null)
   const dragRef = useRef({ active: false })
   const menuOpenRef = useRef(null)
@@ -121,6 +137,13 @@ export default function PlayerModal({
   const pendingSeekTimerRef = useRef(null)
   const pipCardRef = useRef(null)
   const pipDragRef = useRef({ active: false, offsetX: 0, offsetY: 0 })
+  const pipResizeRef = useRef({
+    active: false,
+    startX: 0,
+    startY: 0,
+    startWidth: 0,
+    startHeight: 0,
+  })
   const isPiPRef = useRef(false)
   const pipKindRef = useRef('inline')
   const documentPipWindowRef = useRef(null)
@@ -181,6 +204,7 @@ export default function PlayerModal({
     onCloseRef.current()
   }, [])
   const [playbackInfo, setPlaybackInfo] = useState(null)
+  const [forceHls, setForceHls] = useState(false)
   const [playbackError, setPlaybackError] = useState('')
   const [loadingPlayback, setLoadingPlayback] = useState(false)
   // ---- 字幕 ----
@@ -220,6 +244,7 @@ export default function PlayerModal({
   const [pipKind, setPipKind] = useState('inline')
   const [pipPortalEl, setPipPortalEl] = useState(null)
   const [pipPosition, setPipPosition] = useState(null)
+  const [pipSize, setPipSize] = useState(() => loadStoredPipSize())
   // 精细指针（鼠标）设备：有“移出播放区域”概念，用于移出即隐藏控制条
   const [isFinePointer] = useState(
     () =>
@@ -258,13 +283,14 @@ export default function PlayerModal({
     )
     return lines
   }, [normalizedHotkeys])
-  const selectedSource = useMemo(() => {
-    if (!playbackInfo?.sources?.length) return null
-    return (
-      playbackInfo.sources.find((item) => item.kind === playbackInfo.preferred_kind) ||
-      playbackInfo.sources[0]
-    )
-  }, [playbackInfo])
+  const selectedSource = useMemo(
+    () =>
+      selectPlaybackSource(playbackInfo, {
+        canPlayHEVC: canPlayHEVC(),
+        forceHls,
+      }),
+    [playbackInfo, forceHls]
+  )
   // 当前视频的 JAV 番号（如 SSIS-480）；无则空。用于搜索字幕时预填关键词。
   const videoJavCode = useMemo(
     () =>
@@ -386,6 +412,13 @@ export default function PlayerModal({
       if (dragRef.current.active || menuOpenRef.current || subMenuRef.current) {
         return
       }
+      // 指针停在标题栏/控制条上时不要藏：藏了之后标题 pointer-events-none，
+      // 浏览器会把指针当成落到视频上并补发 mousemove，界面立刻再出现，循环闪烁。
+      if (pointerOnChromeRef.current) {
+        scheduleHideControls()
+        return
+      }
+      suppressShowUntilRef.current = performance.now() + 200
       setControlsVisible(false)
       setMenuOpen(null)
       setSubMenu(null)
@@ -442,7 +475,7 @@ export default function PlayerModal({
 
     if (isDocumentPictureInPictureSupported()) {
       try {
-        const size = getDocumentPipWindowSize(aspectRatio)
+        const size = getDocumentPipWindowSize(aspectRatio, loadStoredPipSize()?.width)
         const pipWindow = await window.documentPictureInPicture.requestWindow(size)
         copyStylesToDocument(pipWindow.document)
         applyPipWindowBaseStyles(pipWindow.document, {
@@ -794,8 +827,10 @@ export default function PlayerModal({
     // mouseleave —— 这种“假移出”不应隐藏控制条。只有指针真的移动出播放区域才隐藏。
     let pointerMovedInside = false
 
-    const handleMouseMove = () => {
+    const handleMouseMove = (event) => {
+      if (performance.now() < suppressShowUntilRef.current) return
       pointerMovedInside = true
+      pointerOnChromeRef.current = isPlayerChromeTarget(event.target)
       pokeControls()
     }
 
@@ -805,12 +840,14 @@ export default function PlayerModal({
 
     // 光标移出整张播放卡片：立即隐藏控制条（桌面设备；触摸设备无移出概念）
     const handleMouseLeave = () => {
+      pointerOnChromeRef.current = false
       if (!isFinePointer) return
       if (!pointerMovedInside) return
       if (hideTimerRef.current) {
         window.clearTimeout(hideTimerRef.current)
         hideTimerRef.current = null
       }
+      suppressShowUntilRef.current = performance.now() + 200
       setControlsVisible(false)
       setMenuOpen(null)
       setSubMenu(null)
@@ -904,6 +941,7 @@ export default function PlayerModal({
     if (!video?.id) {
       playbackInfoKeyRef.current = ''
       setPlaybackInfo(null)
+      setForceHls(false)
       setPlaybackError('')
       setLoadingPlayback(false)
       setScreenshotNotice(false)
@@ -926,6 +964,7 @@ export default function PlayerModal({
     playbackInfoKeyRef.current = ''
     setLoadingPlayback(true)
     setPlaybackError('')
+    setForceHls(false)
     setPlaybackInfo(null)
     setScreenshotNotice(false)
     setVideoSize(null)
@@ -1485,6 +1524,13 @@ export default function PlayerModal({
     player.on('ratechange', handleRateChange)
     player.on('fullscreenchange', focusPlayer)
     player.on('resize', handleDimensions)
+    const handlePlaybackError = () => {
+      const hasHls = playbackInfo?.sources?.some((item) => item.kind === 'hls')
+      if (selectedSource?.kind === 'direct' && hasHls && !forceHls) {
+        setForceHls(true)
+      }
+    }
+    player.on('error', handlePlaybackError)
 
     return () => {
       keyWindow.removeEventListener('keydown', handleKeyDown, true)
@@ -1506,6 +1552,7 @@ export default function PlayerModal({
       player.off('ratechange', handleRateChange)
       player.off('fullscreenchange', focusPlayer)
       player.off('resize', handleDimensions)
+      player.off('error', handlePlaybackError)
       player.tech(true)?.el()?.removeEventListener('leavepictureinpicture', handleLeaveNativePip)
       setPendingSeekTime(null)
       // 清理悬停预览：取消在途请求、释放抽帧缓存
@@ -1518,6 +1565,8 @@ export default function PlayerModal({
     video,
     startTime,
     selectedSource,
+    playbackInfo,
+    forceHls,
     playbackKey,
     pokeControls,
     applySeek,
@@ -1656,6 +1705,85 @@ export default function PlayerModal({
     }
   }
 
+  const applyPipResizeFromDelta = (event, persist) => {
+    const drag = pipResizeRef.current
+    if (!drag.active) return null
+    const aspect = videoSize && videoSize.height > 0 ? videoSize.width / videoSize.height : 16 / 9
+    const maxWidth = pipResizeMaxWidth(
+      pipKind,
+      window.innerWidth,
+      typeof screen !== 'undefined' ? screen.availWidth : undefined
+    )
+    const nextWidth = clampPipWidth(drag.startWidth + (event.clientX - drag.startX), maxWidth)
+    const size = getDocumentPipWindowSize(aspect, nextWidth)
+    if (pipKind === 'document') {
+      resizeDocumentPipWindow(documentPipWindowRef.current, size.width, size.height)
+    } else {
+      setPipSize({ width: size.width })
+      setPipPosition((prev) => {
+        const card = pipCardRef.current
+        const rect = card?.getBoundingClientRect()
+        return clampPipPosition(
+          prev?.left ?? rect?.left ?? PIP_MARGIN,
+          prev?.top ?? rect?.top ?? PIP_MARGIN,
+          size.width,
+          Math.round(size.width / aspect),
+          window.innerWidth,
+          window.innerHeight
+        )
+      })
+    }
+    if (persist) saveStoredPipSize(size)
+    return size
+  }
+
+  const handlePipResizePointerDown = (event) => {
+    if (!isPiP || (pipKind !== 'inline' && pipKind !== 'document')) return
+    if (event.button != null && event.button !== 0) return
+    const pipWindow = documentPipWindowRef.current
+    const card = pipCardRef.current
+    pipResizeRef.current = {
+      active: true,
+      startX: event.clientX,
+      startY: event.clientY,
+      startWidth:
+        pipKind === 'document'
+          ? pipWindow?.innerWidth || card?.offsetWidth || PIP_DEFAULT_WIDTH
+          : card?.offsetWidth || pipSize?.width || PIP_DEFAULT_WIDTH,
+      startHeight:
+        pipKind === 'document'
+          ? pipWindow?.innerHeight || card?.offsetHeight || 236
+          : card?.offsetHeight || 236,
+    }
+    try {
+      event.currentTarget.setPointerCapture?.(event.pointerId)
+    } catch {
+      // 忽略捕获失败
+    }
+    event.preventDefault()
+    event.stopPropagation()
+  }
+
+  const handlePipResizePointerMove = (event) => {
+    if (!pipResizeRef.current.active) return
+    event.preventDefault()
+    event.stopPropagation()
+    applyPipResizeFromDelta(event, false)
+  }
+
+  const handlePipResizePointerUp = (event) => {
+    if (!pipResizeRef.current.active) return
+    applyPipResizeFromDelta(event, true)
+    pipResizeRef.current.active = false
+    try {
+      event.currentTarget.releasePointerCapture?.(event.pointerId)
+    } catch {
+      // 忽略释放失败
+    }
+    event.preventDefault()
+    event.stopPropagation()
+  }
+
   useEffect(() => {
     if (!isPiP || pipKind !== 'inline' || !pipPosition) return undefined
     const onResize = () => {
@@ -1675,6 +1803,23 @@ export default function PlayerModal({
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
   }, [isPiP, pipKind, pipPosition])
+
+  useEffect(() => {
+    if (!isPiP || pipKind !== 'document') return undefined
+    const pipWindow = documentPipWindowRef.current
+    if (!pipWindow) return undefined
+    const onResize = () => {
+      saveStoredPipSize({ width: pipWindow.innerWidth })
+      setPipSize({ width: clampPipWidth(pipWindow.innerWidth) })
+      try {
+        playerRef.current?.trigger('resize')
+      } catch {
+        // 忽略 video.js 未就绪
+      }
+    }
+    pipWindow.addEventListener('resize', onResize)
+    return () => pipWindow.removeEventListener('resize', onResize)
+  }, [isPiP, pipKind, pipPortalEl])
 
   useEffect(() => {
     if (isPiP || !video) return undefined
@@ -1727,10 +1872,12 @@ export default function PlayerModal({
       className={`player-card relative bg-black shadow-none ${playerCardClass}`}
       style={{
         '--player-ar': `${aspectRatio}`,
+        ...(inlinePip && pipSize?.width ? { width: pipSize.width } : null),
         ...(inlinePip && pipPosition ? { left: pipPosition.left, top: pipPosition.top } : null),
       }}
     >
       <button
+        data-player-chrome=""
         aria-label={zh('关闭', 'Close')}
         onClick={handleClose}
         className={`absolute right-3 top-3 z-20 rounded-full bg-black/60 px-2 py-1 text-sm text-white hover:bg-black/80 ${
@@ -1741,6 +1888,7 @@ export default function PlayerModal({
       </button>
       <div className="flex h-full flex-col gap-0 p-0">
         <h2
+          data-player-chrome=""
           className={`absolute inset-x-0 top-0 z-10 truncate bg-gradient-to-b from-black/60 to-transparent pb-5 pl-3 pr-14 pt-4 text-sm font-medium text-white ${
             inlinePip ? 'cursor-move touch-none' : ''
           } ${isPiP || controlsVisible ? '' : 'pointer-events-none opacity-0'}`}
@@ -1799,6 +1947,7 @@ export default function PlayerModal({
           {!loadingPlayback && !playbackError && !playing ? (
             <button
               type="button"
+              data-player-chrome=""
               aria-label={ended ? zh('重新播放', 'Replay') : zh('播放', 'Play')}
               onClick={(event) => {
                 event.stopPropagation()
@@ -1817,6 +1966,7 @@ export default function PlayerModal({
 
           {/* YouTube 风格控制条 */}
           <div
+            data-player-chrome=""
             className={`player-controls absolute inset-x-0 bottom-0 z-20 select-none bg-gradient-to-t from-black/80 via-black/40 to-transparent pb-1 transition-opacity duration-200 ${
               controlsVisible ? 'opacity-100' : 'pointer-events-none opacity-0'
             }`}
@@ -2385,6 +2535,18 @@ export default function PlayerModal({
           </div>
         </div>
       </div>
+      {inlinePip || documentPip ? (
+        <button
+          type="button"
+          aria-label={zh('调整画中画大小', 'Resize picture-in-picture')}
+          className="player-pip-resize"
+          onPointerDown={handlePipResizePointerDown}
+          onPointerMove={handlePipResizePointerMove}
+          onPointerUp={handlePipResizePointerUp}
+          onPointerCancel={handlePipResizePointerUp}
+          onClick={(event) => event.stopPropagation()}
+        />
+      ) : null}
     </div>
   )
 

@@ -1475,6 +1475,7 @@ type JavStudioSummary struct {
 	FavoriteCount int64                        `json:"favorite_count"`
 	CodePrefixes  []JavStudioCodePrefixSummary `json:"code_prefixes" gorm:"-"`
 	Series        []JavSeriesSummary           `json:"series" gorm:"-"`
+	Idols         []JavSeriesIdolSummary       `json:"idols,omitempty" gorm:"-"`
 }
 
 // JavSeriesSummary represents series info with aggregated work count and a sample code for cover lookup.
@@ -1489,12 +1490,21 @@ type JavSeriesSummary struct {
 	Idols         []JavSeriesIdolSummary `json:"idols,omitempty" gorm:"-"`
 }
 
-// JavSeriesIdolSummary is one idol's in-library work count within a series.
+// JavSeriesIdolSummary is one idol's in-library work count within a series, studio, or tag.
 type JavSeriesIdolSummary struct {
 	ID          int64  `json:"id"`
 	Name        string `json:"name"`
 	ChineseName string `json:"chinese_name"`
 	WorkCount   int64  `json:"work_count"`
+}
+
+// JavTagSummary is one tag with its in-library work count and ranked idols.
+type JavTagSummary struct {
+	ID             int64                  `json:"id"`
+	Name           string                 `json:"name"`
+	SimplifiedName string                 `json:"simplified_name,omitempty"`
+	WorkCount      int64                  `json:"work_count"`
+	Idols          []JavSeriesIdolSummary `json:"idols,omitempty" gorm:"-"`
 }
 
 func applyJavStudioSearch(q *gorm.DB, search string) *gorm.DB {
@@ -2063,12 +2073,44 @@ func ListJavSeriesIdols(ctx context.Context, seriesID int64, directoryIDs []int6
 	if seriesID <= 0 {
 		return nil, errors.New("series id must be positive")
 	}
+	return listJavScopedIdols(ctx, directoryIDs, "list jav series idols", func(query *gorm.DB) *gorm.DB {
+		return query.Joins("JOIN jav j ON j.id = jim.jav_id AND j.series_id = ?", seriesID)
+	})
+}
 
+// ListJavStudioIdols returns idols in a studio, ordered by in-library work count.
+func ListJavStudioIdols(ctx context.Context, studioID int64, directoryIDs []int64) ([]JavSeriesIdolSummary, error) {
+	if studioID <= 0 {
+		return nil, errors.New("studio id must be positive")
+	}
+	return listJavScopedIdols(ctx, directoryIDs, "list jav studio idols", func(query *gorm.DB) *gorm.DB {
+		return query.Joins("JOIN jav j ON j.id = jim.jav_id AND j.studio_id = ?", studioID)
+	})
+}
+
+// ListJavTagIdols returns idols on works with a tag, ordered by in-library work count.
+func ListJavTagIdols(ctx context.Context, tagID int64, directoryIDs []int64) ([]JavSeriesIdolSummary, error) {
+	if tagID <= 0 {
+		return nil, errors.New("tag id must be positive")
+	}
+	return listJavScopedIdols(ctx, directoryIDs, "list jav tag idols", func(query *gorm.DB) *gorm.DB {
+		return query.
+			Joins("JOIN jav j ON j.id = jim.jav_id").
+			Joins("JOIN jav_tag_map jtm ON jtm.jav_id = j.id AND jtm.jav_tag_id = ?", tagID)
+	})
+}
+
+func listJavScopedIdols(
+	ctx context.Context,
+	directoryIDs []int64,
+	op string,
+	applyScope func(*gorm.DB) *gorm.DB,
+) ([]JavSeriesIdolSummary, error) {
 	var items []JavSeriesIdolSummary
 	query := common.DB.WithContext(ctx).
 		Table("jav_idol ji").
-		Joins("JOIN jav_idol_map jim ON jim.jav_idol_id = ji.id").
-		Joins("JOIN jav j ON j.id = jim.jav_id AND j.series_id = ?", seriesID).
+		Joins("JOIN jav_idol_map jim ON jim.jav_idol_id = ji.id")
+	query = applyScope(query).
 		Joins("JOIN video_location vl ON vl.jav_id = j.id").
 		Joins("JOIN directory d ON d.id = vl.directory_id").
 		Where(activeLocationWhereSQL("vl", "d"))
@@ -2078,12 +2120,41 @@ func ListJavSeriesIdols(ctx context.Context, seriesID int64, directoryIDs []int6
 		Group("ji.id, ji.name, ji.chinese_name").
 		Order("work_count DESC, ji.name ASC").
 		Scan(&items).Error; err != nil {
-		return nil, fmt.Errorf("list jav series idols: %w", err)
+		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 	if items == nil {
 		items = []JavSeriesIdolSummary{}
 	}
 	return items, nil
+}
+
+// GetJavTagSummary returns one tag with its in-library work count.
+func GetJavTagSummary(ctx context.Context, tagID int64, directoryIDs []int64) (*JavTagSummary, error) {
+	if tagID <= 0 {
+		return nil, errors.New("tag id must be positive")
+	}
+
+	var tag models.JavTag
+	if err := common.DB.WithContext(ctx).First(&tag, tagID).Error; err != nil {
+		return nil, err
+	}
+
+	item := JavTagSummary{
+		ID:             tag.ID,
+		Name:           tag.Name,
+		SimplifiedName: util.SimplifyChineseName(tag.Name),
+	}
+	query := common.DB.WithContext(ctx).
+		Table("jav_tag_map jtm").
+		Joins("JOIN video_location vl ON vl.jav_id = jtm.jav_id").
+		Joins("JOIN directory d ON d.id = vl.directory_id").
+		Where("jtm.jav_tag_id = ?", tagID).
+		Where(activeLocationWhereSQL("vl", "d"))
+	query = applyDirectoryFilter(query, "vl", directoryIDs)
+	if err := query.Select("COUNT(DISTINCT jtm.jav_id)").Scan(&item.WorkCount).Error; err != nil {
+		return nil, fmt.Errorf("count jav tag works: %w", err)
+	}
+	return &item, nil
 }
 
 // ListSeriesCoverCodes returns a prioritized list of codes for a series.

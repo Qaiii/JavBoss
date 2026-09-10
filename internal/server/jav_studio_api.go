@@ -146,6 +146,13 @@ func getJavStudio(c *gin.Context) {
 	}
 
 	enrichJavStudioSummary(c.Request.Context(), item, javCoverDir())
+	idols, err := dbpkg.ListJavStudioIdols(c.Request.Context(), item.ID, nil)
+	if err != nil {
+		logging.Error("list jav studio idols id=%d: %v", item.ID, err)
+		respondLocalizedError(c, http.StatusInternalServerError, "加载片商女优失败", "Failed to load studio actresses")
+		return
+	}
+	item.Idols = idols
 	c.JSON(http.StatusOK, item)
 }
 

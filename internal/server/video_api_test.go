@@ -16,6 +16,7 @@ import (
 	dbpkg "javboss/internal/db"
 	"javboss/internal/jav"
 	"javboss/internal/models"
+	"javboss/internal/util"
 
 	"github.com/gin-gonic/gin"
 )
@@ -471,6 +472,29 @@ func TestManualScrapeRequestToJavInfoRequiresCoreMetadata(t *testing.T) {
 				t.Fatalf("error = %v, want %q", err, test.wantErr)
 			}
 		})
+	}
+}
+
+func TestBuildPlaybackInfoOffersHEVCMP4WithoutPreferringIt(t *testing.T) {
+	video := &models.Video{ID: 42}
+	info := buildPlaybackInfo(video, 7, &util.PlaybackProbeResult{
+		Container:      "mp4",
+		VideoCodec:     "hevc",
+		AudioCodec:     "aac",
+		SupportsDirect: false,
+		OffersMP4:      true,
+	})
+	if info.PreferredKind != "hls" {
+		t.Fatalf("preferred_kind = %q, want hls", info.PreferredKind)
+	}
+	if info.VideoCodec != "hevc" || info.Container != "mp4" {
+		t.Fatalf("codec/container = %q/%q", info.VideoCodec, info.Container)
+	}
+	if len(info.Sources) != 2 || info.Sources[0].Kind != "direct" || info.Sources[1].Kind != "hls" {
+		t.Fatalf("sources = %+v", info.Sources)
+	}
+	if info.Sources[0].Src != "/videos/42/stream?location_id=7" {
+		t.Fatalf("direct src = %q", info.Sources[0].Src)
 	}
 }
 

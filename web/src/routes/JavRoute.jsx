@@ -193,6 +193,10 @@ function JavListRoute({
   playOnCoverClick = false,
   activeSeriesId = 0,
   seriesName = '',
+  activeStudioId = 0,
+  studioName = '',
+  activeTagId = 0,
+  tagName = '',
 }) {
   return (
     <JavView
@@ -244,6 +248,10 @@ function JavListRoute({
       activeIdolId={activeIdolId}
       activeSeriesId={activeSeriesId}
       seriesName={seriesName}
+      activeStudioId={activeStudioId}
+      studioName={studioName}
+      activeTagId={activeTagId}
+      tagName={tagName}
       onDislikeWork={onDislikeWork}
       playOnCoverClick={playOnCoverClick}
     />

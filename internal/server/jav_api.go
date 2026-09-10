@@ -412,6 +412,34 @@ func javSampleImagesToModel(info *jav.JavInfo) models.JavSampleImages {
 	return images
 }
 
+func getJavTag(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || id <= 0 {
+		respondLocalizedError(c, http.StatusBadRequest, "标签 ID 无效", "Invalid tag ID")
+		return
+	}
+
+	item, err := dbpkg.GetJavTagSummary(c.Request.Context(), id, nil)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			respondLocalizedError(c, http.StatusNotFound, "标签不存在", "Tag was not found")
+			return
+		}
+		logging.Error("get jav tag id=%d: %v", id, err)
+		respondLocalizedError(c, http.StatusInternalServerError, "加载标签信息失败", "Failed to load tag information")
+		return
+	}
+
+	idols, err := dbpkg.ListJavTagIdols(c.Request.Context(), item.ID, nil)
+	if err != nil {
+		logging.Error("list jav tag idols id=%d: %v", item.ID, err)
+		respondLocalizedError(c, http.StatusInternalServerError, "加载标签女优失败", "Failed to load tag actresses")
+		return
+	}
+	item.Idols = idols
+	c.JSON(http.StatusOK, item)
+}
+
 func listJavTags(c *gin.Context) {
 	tags, err := dbpkg.ListJavTags(c.Request.Context(), nil, parseClosedSubdirectories(c.Query("closed_subdirs")), parseDirectorySubpaths(c.Query("directory_subpaths")))
 	if err != nil {

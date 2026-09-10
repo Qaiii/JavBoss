@@ -1420,6 +1420,14 @@ export async function fetchJavStudioPreview(id) {
   return res.json()
 }
 
+export async function fetchJavTagPreview(id) {
+  const res = await apiFetch(`/jav/tags/${encodeURIComponent(id)}`)
+  if (!res.ok) {
+    throw await apiError(res)
+  }
+  return res.json()
+}
+
 export async function fetchJavSeries({
   limit = 25,
   offset = 0,

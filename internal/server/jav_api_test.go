@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -90,6 +91,68 @@ func TestCreateJavEditOptionsReturnsPersistentIDs(t *testing.T) {
 	}
 	if len(tags) != 1 || tags[0].ID != tag.ID || tags[0].Count != 0 {
 		t.Fatalf("listed tags = %#v, want zero-count created tag %#v", tags, tag)
+	}
+}
+
+func TestGetJavTagReturnsSummaryAndIdols(t *testing.T) {
+	database, err := dbpkg.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatalf("open test database: %v", err)
+	}
+	previousDB := common.DB
+	common.DB = database
+	t.Cleanup(func() {
+		common.DB = previousDB
+		if sqlDB, dbErr := database.DB(); dbErr == nil {
+			_ = sqlDB.Close()
+		}
+	})
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.POST("/jav/tags/scraped", createJavScrapedTag)
+	router.GET("/jav/tags/:id", getJavTag)
+
+	requestJSON := func(method, path, body string) *httptest.ResponseRecorder {
+		recorder := httptest.NewRecorder()
+		request := httptest.NewRequest(method, path, strings.NewReader(body))
+		request.Header.Set("Content-Type", "application/json")
+		router.ServeHTTP(recorder, request)
+		return recorder
+	}
+
+	createResponse := requestJSON(http.MethodPost, "/jav/tags/scraped", `{"name":"单体作品"}`)
+	if createResponse.Code != http.StatusCreated {
+		t.Fatalf("create scraped tag status = %d body=%s", createResponse.Code, createResponse.Body.String())
+	}
+	var created dbpkg.JavTagCount
+	if err := json.Unmarshal(createResponse.Body.Bytes(), &created); err != nil {
+		t.Fatalf("decode scraped tag response: %v", err)
+	}
+	if created.ID <= 0 {
+		t.Fatalf("created tag = %#v", created)
+	}
+
+	response := requestJSON(http.MethodGet, "/jav/tags/"+strconv.FormatInt(created.ID, 10), "")
+	if response.Code != http.StatusOK {
+		t.Fatalf("get tag status = %d body=%s", response.Code, response.Body.String())
+	}
+	var item dbpkg.JavTagSummary
+	if err := json.Unmarshal(response.Body.Bytes(), &item); err != nil {
+		t.Fatalf("decode tag summary: %v", err)
+	}
+	if item.ID != created.ID || item.Name != created.Name || item.WorkCount != 0 {
+		t.Fatalf("tag summary = %#v, want id %d name %q", item, created.ID, created.Name)
+	}
+	if len(item.Idols) != 0 {
+		t.Fatalf("tag idols = %#v, want empty", item.Idols)
+	}
+
+	if got := requestJSON(http.MethodGet, "/jav/tags/abc", ""); got.Code != http.StatusBadRequest {
+		t.Fatalf("invalid id status = %d body=%s", got.Code, got.Body.String())
+	}
+	if got := requestJSON(http.MethodGet, "/jav/tags/999999", ""); got.Code != http.StatusNotFound {
+		t.Fatalf("missing tag status = %d body=%s", got.Code, got.Body.String())
 	}
 }
 

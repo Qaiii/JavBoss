@@ -1,7 +1,7 @@
 import BulkActionsMenu from '@/components/BulkActionsMenu'
 import JavGrid from '@/components/JavGrid'
 import JavIdolHero from '@/components/JavIdolHero'
-import JavSeriesDetailHeader from '@/components/JavSeriesDetailHeader'
+import { JavDetailHeader } from '@/components/JavSeriesDetailHeader'
 import WaterfallLoader from '@/components/WaterfallLoader'
 import { zh } from '@/utils/i18n'
 import { JAV_LIBRARY_SCOPE_OPTIONS, normalizeJavLibraryScope } from '@/utils/javLibrary'
@@ -55,22 +55,35 @@ export default function JavView({
   activeIdolId = 0,
   activeSeriesId = 0,
   seriesName = '',
+  activeStudioId = 0,
+  studioName = '',
+  activeTagId = 0,
+  tagName = '',
   onDislikeWork,
   playOnCoverClick = false,
 }) {
   const hasSingleIdolFilter = Number(activeIdolId) > 0
   const seriesId = Number(activeSeriesId) || 0
-  const showSeriesHeader = seriesId > 0
+  const studioId = Number(activeStudioId) || 0
+  const tagId = Number(activeTagId) || 0
+  const headerKind = seriesId > 0 ? 'series' : studioId > 0 ? 'studio' : tagId > 0 ? 'tag' : ''
+  const headerId = headerKind === 'series' ? seriesId : headerKind === 'studio' ? studioId : tagId
+  const headerName =
+    headerKind === 'series' ? seriesName : headerKind === 'studio' ? studioName : tagName
+  const showDetailHeader = Boolean(headerKind)
+  const showSeriesHeader = headerKind === 'series'
   const showIdolProfile = hasSingleIdolFilter
   const libraryScope = normalizeJavLibraryScope(javLibraryScope)
   const hasItems = javItems.some((item) => Number(item?.id) > 0)
 
   const body = (
     <>
-      {showSeriesHeader ? (
-        <JavSeriesDetailHeader
-          seriesId={seriesId}
-          fallbackName={seriesName}
+      {showDetailHeader ? (
+        <JavDetailHeader
+          kind={headerKind}
+          entityId={headerId}
+          fallbackName={headerName}
+          collapseIdols={headerKind !== 'series'}
           buildIdolUrl={(idol) =>
             buildJavUrl?.({
               page: 1,

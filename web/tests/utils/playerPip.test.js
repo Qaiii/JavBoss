@@ -4,8 +4,12 @@ import test from 'node:test'
 import {
   PIP_CONTROLS_HEIGHT,
   PIP_MARGIN,
+  PIP_MAX_WIDTH,
+  PIP_MIN_WIDTH,
   clampPipPosition,
+  clampPipWidth,
   getDocumentPipWindowSize,
+  pipResizeMaxWidth,
 } from '../../src/utils/playerPip.js'
 
 test('keeps a floating player inside the viewport', () => {
@@ -33,5 +37,22 @@ test('sizes a document picture-in-picture window from the video aspect ratio', (
     height: Math.round(420 / (16 / 9)) + PIP_CONTROLS_HEIGHT,
   })
   assert.equal(getDocumentPipWindowSize(0, 420).width, 420)
-  assert.ok(getDocumentPipWindowSize(9 / 16, 420).height <= 800)
+  assert.ok(getDocumentPipWindowSize(9 / 16, 420).height <= 1600)
+})
+
+test('clamps picture-in-picture width for resize', () => {
+  assert.equal(clampPipWidth(80), PIP_MIN_WIDTH)
+  assert.equal(clampPipWidth(4000), PIP_MAX_WIDTH)
+  assert.equal(clampPipWidth(500), 500)
+  assert.equal(clampPipWidth(800, 600), 600)
+})
+
+test('document picture-in-picture resize max is not the current window width', () => {
+  assert.equal(pipResizeMaxWidth('document', 420), PIP_MAX_WIDTH)
+  assert.equal(pipResizeMaxWidth('document', 420, 900), 900)
+  assert.equal(pipResizeMaxWidth('document', 420, 1920), PIP_MAX_WIDTH)
+  assert.ok(clampPipWidth(420 + 200, pipResizeMaxWidth('document', 420)) > 420)
+  assert.equal(clampPipWidth(420 + 200, 420), 420)
+  assert.equal(pipResizeMaxWidth('inline', 900), 900)
+  assert.equal(pipResizeMaxWidth('inline', 1920), 1920)
 })

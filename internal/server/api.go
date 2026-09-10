@@ -114,6 +114,7 @@ func RegisterRoutes(router gin.IRoutes) {
 	router.POST("/jav/tags/scraped", createJavScrapedTag)
 	router.POST("/jav/tags/organize", organizeJavTags)
 	router.POST("/jav/tags/category", assignJavTagsCategory)
+	router.GET("/jav/tags/:id", getJavTag)
 	router.PATCH("/jav/tags/:id", renameJavTag)
 	router.DELETE("/jav/tags/:id", deleteJavTag)
 	router.POST("/jav/tags/batch_delete", deleteJavTagsBatch)

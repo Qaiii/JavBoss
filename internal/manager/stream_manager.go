@@ -27,6 +27,11 @@ const (
 	MimeMpegTS = "video/MP2T"
 
 	segmentLength = 2
+	// Live HLS used to encode at CRF 25, which looks much softer than the
+	// source file mpv plays. CRF 18 stays realtime with -preset veryfast on
+	// typical desktops and keeps browser playback close to the original.
+	hlsTranscodeCRF    = "18"
+	hlsTranscodePreset = "veryfast"
 
 	maxSegmentWait   = 15 * time.Second
 	monitorInterval  = 200 * time.Millisecond
@@ -64,7 +69,15 @@ type StreamType struct {
 	Name          string
 	SegmentType   *SegmentType
 	ServeManifest func(sm *StreamManager, w http.ResponseWriter, r *http.Request, sourcePath string, durationHint float64, resolution string)
-	Args          func(segment int, videoFilter string, videoOnly bool, outputDir string) []string
+	Args          func(opts hlsEncodeOptions) []string
+}
+
+type hlsEncodeOptions struct {
+	Segment     int
+	VideoFilter string
+	VideoOnly   bool
+	OutputDir   string
+	CopyAudio   bool
 }
 
 type SegmentType struct {
@@ -138,39 +151,7 @@ var (
 		ServeManifest: func(sm *StreamManager, w http.ResponseWriter, r *http.Request, sourcePath string, durationHint float64, resolution string) {
 			serveHLSManifest(sm, w, r, sourcePath, durationHint, resolution)
 		},
-		Args: func(segment int, videoFilter string, videoOnly bool, outputDir string) []string {
-			args := []string{
-				"-c:v", "libx264",
-				"-pix_fmt", "yuv420p",
-				"-preset", "veryfast",
-				"-crf", "25",
-				"-sc_threshold", "0",
-				"-flags", "+cgop",
-				"-force_key_frames", fmt.Sprintf("expr:gte(t,n_forced*%d)", segmentLength),
-			}
-			if videoFilter != "" {
-				args = append(args, "-vf", videoFilter)
-			}
-			if videoOnly {
-				args = append(args, "-an")
-			} else {
-				args = append(args, "-c:a", "aac", "-ac", "2")
-			}
-			args = append(args,
-				"-sn",
-				"-copyts",
-				"-avoid_negative_ts", "disabled",
-				"-f", "hls",
-				"-start_number", fmt.Sprint(segment),
-				"-hls_time", fmt.Sprint(segmentLength),
-				"-hls_flags", "split_by_time",
-				"-hls_segment_type", "mpegts",
-				"-hls_playlist_type", "vod",
-				"-hls_segment_filename", filepath.Join(outputDir, ".%d.ts"),
-				filepath.Join(outputDir, "manifest.m3u8"),
-			)
-			return args
-		},
+		Args: buildHLSArgs,
 	}
 )
 
@@ -580,8 +561,62 @@ func (s *runningStream) makeStreamArgs(segment int) []string {
 
 	videoOnly := strings.TrimSpace(s.vf.AudioCodec) == ""
 	videoFilter := scaleFilter(s.vf, s.maxTranscodeSize)
-	args = append(args, s.streamType.Args(segment, videoFilter, videoOnly, s.outputDir)...)
+	args = append(args, s.streamType.Args(hlsEncodeOptions{
+		Segment:     segment,
+		VideoFilter: videoFilter,
+		VideoOnly:   videoOnly,
+		OutputDir:   s.outputDir,
+		CopyAudio:   canCopyAudio(s.vf) && !videoOnly,
+	})...)
 	return args
+}
+
+func buildHLSArgs(opts hlsEncodeOptions) []string {
+	args := []string{
+		"-c:v", "libx264",
+		"-pix_fmt", "yuv420p",
+		"-preset", hlsTranscodePreset,
+		"-crf", hlsTranscodeCRF,
+		"-sc_threshold", "0",
+		"-flags", "+cgop",
+		"-force_key_frames", fmt.Sprintf("expr:gte(t,n_forced*%d)", segmentLength),
+	}
+	if opts.VideoFilter != "" {
+		args = append(args, "-vf", opts.VideoFilter)
+	}
+	if opts.VideoOnly {
+		args = append(args, "-an")
+	} else if opts.CopyAudio {
+		args = append(args, "-c:a", "copy")
+	} else {
+		args = append(args, "-c:a", "aac", "-ac", "2")
+	}
+	args = append(args,
+		"-sn",
+		"-copyts",
+		"-avoid_negative_ts", "disabled",
+		"-f", "hls",
+		"-start_number", fmt.Sprint(opts.Segment),
+		"-hls_time", fmt.Sprint(segmentLength),
+		"-hls_flags", "split_by_time",
+		"-hls_segment_type", "mpegts",
+		"-hls_playlist_type", "vod",
+		"-hls_segment_filename", filepath.Join(opts.OutputDir, ".%d.ts"),
+		filepath.Join(opts.OutputDir, "manifest.m3u8"),
+	)
+	return args
+}
+
+func canCopyAudio(vf *streamVideoFile) bool {
+	if vf == nil {
+		return false
+	}
+	switch strings.ToLower(strings.TrimSpace(vf.AudioCodec)) {
+	case "aac", "mp3":
+		return true
+	default:
+		return false
+	}
 }
 
 func (tp *transcodeProcess) checkSegments() {
@@ -693,5 +728,5 @@ func scaleFilter(vf *streamVideoFile, maxTranscodeSize int) string {
 	if width <= 0 || height <= 0 {
 		return ""
 	}
-	return fmt.Sprintf("scale=%d:%d", width, height)
+	return fmt.Sprintf("scale=%d:%d:flags=lanczos", width, height)
 }
