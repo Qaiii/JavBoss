@@ -53,7 +53,7 @@ import {
   PIP_DEFAULT_WIDTH,
   PIP_MARGIN,
 } from '@/utils/playerPip'
-import { canPlayHEVC, selectPlaybackSource } from '@/utils/playerSource'
+import { selectPlaybackSource, startBrowserPlayback } from '@/utils/browserPlayback'
 import { zh } from '@/utils/i18n'
 import { getErrorMessage } from '@/utils/errors'
 import {
@@ -204,7 +204,6 @@ export default function PlayerModal({
     onCloseRef.current()
   }, [])
   const [playbackInfo, setPlaybackInfo] = useState(null)
-  const [forceHls, setForceHls] = useState(false)
   const [playbackError, setPlaybackError] = useState('')
   const [loadingPlayback, setLoadingPlayback] = useState(false)
   // ---- 字幕 ----
@@ -283,14 +282,10 @@ export default function PlayerModal({
     )
     return lines
   }, [normalizedHotkeys])
-  const selectedSource = useMemo(
-    () =>
-      selectPlaybackSource(playbackInfo, {
-        canPlayHEVC: canPlayHEVC(),
-        forceHls,
-      }),
-    [playbackInfo, forceHls]
-  )
+  const selectedSource = useMemo(() => {
+    const media = typeof document !== 'undefined' ? document.createElement('video') : null
+    return selectPlaybackSource(playbackInfo, media)
+  }, [playbackInfo])
   // 当前视频的 JAV 番号（如 SSIS-480）；无则空。用于搜索字幕时预填关键词。
   const videoJavCode = useMemo(
     () =>
@@ -941,7 +936,6 @@ export default function PlayerModal({
     if (!video?.id) {
       playbackInfoKeyRef.current = ''
       setPlaybackInfo(null)
-      setForceHls(false)
       setPlaybackError('')
       setLoadingPlayback(false)
       setScreenshotNotice(false)
@@ -964,7 +958,6 @@ export default function PlayerModal({
     playbackInfoKeyRef.current = ''
     setLoadingPlayback(true)
     setPlaybackError('')
-    setForceHls(false)
     setPlaybackInfo(null)
     setScreenshotNotice(false)
     setVideoSize(null)
@@ -1153,15 +1146,29 @@ export default function PlayerModal({
       autoplay: true,
       preload: 'auto',
       bigPlayButton: false,
-      sources: [
-        {
-          src: selectedSource.src,
-          type: selectedSource.mime_type || 'video/mp4',
-        },
-      ],
     })
 
     playerRef.current = player
+    const fallback =
+      selectedSource.kind === 'direct'
+        ? playbackInfo?.sources?.find((item) => item.kind === 'hls') || null
+        : null
+    const resume = resumePositionRef.current
+    const fromProp = Number(startTime)
+    const nextStartTime = resume > 0.5 ? resume : fromProp
+    const stopPlayback = startBrowserPlayback(
+      player,
+      selectedSource,
+      fallback,
+      Number.isFinite(nextStartTime) && nextStartTime > 0 ? nextStartTime : 0,
+      (error) => {
+        const message =
+          error?.message ||
+          zh('当前视频无法在浏览器中播放', 'This video cannot be played in the browser')
+        setPlaybackError(message)
+        onPlaybackErrorRef.current?.(message)
+      }
+    )
 
     const playerEl = player.el()
     const savedVolume = (() => {
@@ -1524,13 +1531,6 @@ export default function PlayerModal({
     player.on('ratechange', handleRateChange)
     player.on('fullscreenchange', focusPlayer)
     player.on('resize', handleDimensions)
-    const handlePlaybackError = () => {
-      const hasHls = playbackInfo?.sources?.some((item) => item.kind === 'hls')
-      if (selectedSource?.kind === 'direct' && hasHls && !forceHls) {
-        setForceHls(true)
-      }
-    }
-    player.on('error', handlePlaybackError)
 
     return () => {
       keyWindow.removeEventListener('keydown', handleKeyDown, true)
@@ -1552,11 +1552,11 @@ export default function PlayerModal({
       player.off('ratechange', handleRateChange)
       player.off('fullscreenchange', focusPlayer)
       player.off('resize', handleDimensions)
-      player.off('error', handlePlaybackError)
       player.tech(true)?.el()?.removeEventListener('leavepictureinpicture', handleLeaveNativePip)
       setPendingSeekTime(null)
       // 清理悬停预览：取消在途请求、释放抽帧缓存
       clearFrameCache()
+      stopPlayback()
       playerRef.current?.dispose()
       playerRef.current = null
       if (host.isConnected) host.replaceChildren()
@@ -1566,7 +1566,6 @@ export default function PlayerModal({
     startTime,
     selectedSource,
     playbackInfo,
-    forceHls,
     playbackKey,
     pokeControls,
     applySeek,

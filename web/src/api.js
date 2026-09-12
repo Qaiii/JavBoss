@@ -608,9 +608,11 @@ export async function createDirectory({ path }) {
   return res.json()
 }
 
-export async function pickDirectory() {
-  const res = await apiFetch('/directories/pick', {
-    method: 'POST',
+export async function browseDirectories(path = '', { showHidden = false, signal } = {}) {
+  const params = new URLSearchParams({ path, show_hidden: String(showHidden) })
+  const res = await apiFetch(`/directories/browse?${params}`, {
+    cache: 'no-store',
+    signal,
   })
   if (!res.ok) {
     throw await apiError(res)
@@ -781,17 +783,21 @@ export async function fetchCloudDrive2Token() {
   return parseJSONResponse(res)
 }
 
-export async function testCloudDrive2() {
+export async function testCloudDrive2(payload) {
   const res = await apiFetch('/downloader/clouddrive2/test', {
     method: 'POST',
+    headers: jsonHeaders,
+    body: payload === undefined ? undefined : JSON.stringify(payload),
   })
   if (!res.ok) throw await apiError(res)
   return parseJSONResponse(res)
 }
 
-export async function fetchDownloadJobs({ limit = 100 } = {}) {
-  const res = await apiFetch(`/downloads?limit=${encodeURIComponent(limit)}`, {
+export async function fetchDownloadJobs({ limit = 20, offset = 0, signal } = {}) {
+  const params = new URLSearchParams({ limit: String(limit), offset: String(offset) })
+  const res = await apiFetch(`/downloads?${params}`, {
     cache: 'no-store',
+    signal,
   })
   if (!res.ok) throw await apiError(res)
   return parseJSONResponse(res)
@@ -1550,4 +1556,35 @@ export async function resolveJavIdols(ids = []) {
     })
   javIdolResolveInFlight.set(key, request)
   return request
+}
+
+export async function fetchExtensionTokens() {
+  const res = await apiFetch('/auth/extension-tokens', { cache: 'no-store' })
+  if (!res.ok) throw await apiError(res)
+  return res.json()
+}
+
+export async function createExtensionToken(name, expiresInDays) {
+  const res = await apiFetch('/auth/extension-tokens', {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify({ name, expires_in_days: expiresInDays }),
+  })
+  if (!res.ok) throw await apiError(res)
+  return res.json()
+}
+
+export async function rotateExtensionToken(id, expiresInDays) {
+  const res = await apiFetch(`/auth/extension-tokens/${id}/rotate`, {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify({ expires_in_days: expiresInDays }),
+  })
+  if (!res.ok) throw await apiError(res)
+  return res.json()
+}
+
+export async function deleteExtensionToken(id) {
+  const res = await apiFetch(`/auth/extension-tokens/${id}`, { method: 'DELETE' })
+  if (!res.ok) throw await apiError(res)
 }

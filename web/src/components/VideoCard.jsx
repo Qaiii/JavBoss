@@ -8,6 +8,8 @@ import FolderOpenIcon from '@mui/icons-material/FolderOpen'
 import FolderOutlinedIcon from '@mui/icons-material/FolderOutlined'
 import ManageSearchIcon from '@mui/icons-material/ManageSearch'
 import { revealVideoLocation } from '@/api'
+import { useStore } from '@/store'
+import { displayHostPath, hostPathsEnabled } from '@/utils/hostPath'
 import {
   buildVideoFullPath,
   formatBytes,
@@ -36,6 +38,7 @@ export default function VideoCard({
   onDeleteVideo,
   onTagClick,
 }) {
+  const useHostPaths = useStore((state) => hostPathsEnabled(state.config))
   const [editAnchorEl, setEditAnchorEl] = useState(null)
   const displayName = getVideoDisplayName(video)
   const durationSec = Number(video?.duration_sec)
@@ -62,6 +65,7 @@ export default function VideoCard({
   const directoryPath = video?.directory?.path || video?.directory_path || ''
   const videoPath = video?.path || ''
   const fullPath = buildVideoFullPath(video)
+  const displayPath = displayHostPath(fullPath, useHostPaths)
   const canOpen = Boolean(directoryPath && videoPath)
   const inputId = `check-${video?.location_id || video.id}`
   const javCode = String(video?.jav?.code || video?.locations?.[0]?.jav?.code || '').trim()
@@ -279,7 +283,7 @@ export default function VideoCard({
             <Tooltip
               title={
                 <span className="whitespace-normal break-all">
-                  {zh(`打开所在位置：${fullPath}`, `Reveal in folder: ${fullPath}`)}
+                  {zh(`打开所在位置：${displayPath}`, `Reveal in folder: ${displayPath}`)}
                 </span>
               }
             >

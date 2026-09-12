@@ -110,6 +110,7 @@ type playbackInfo struct {
 	VideoID       int64            `json:"video_id"`
 	PreferredKind string           `json:"preferred_kind"`
 	VideoCodec    string           `json:"video_codec,omitempty"`
+	AudioCodec    string           `json:"audio_codec,omitempty"`
 	Container     string           `json:"container,omitempty"`
 	Sources       []playbackSource `json:"sources"`
 }
@@ -199,18 +200,21 @@ func buildPlaybackInfo(video *models.Video, locationID int64, probe *util.Playba
 	}
 	if probe != nil {
 		info.VideoCodec = probe.VideoCodec
+		info.AudioCodec = probe.AudioCodec
 		info.Container = probe.Container
-	}
-	if probe != nil && (probe.SupportsDirect || probe.OffersMP4) {
 		if probe.SupportsDirect {
 			info.PreferredKind = "direct"
 		}
-		info.Sources = append(info.Sources, playbackSource{
-			Kind:     "direct",
-			Src:      buildDirectStreamURL(video, locationID),
-			MimeType: directMimeType(probe.Container),
-			Label:    "Direct",
-		})
+		// Advertise the original file even when the conservative server policy
+		// rejects it. The browser decides whether its native decoder can try it.
+		if mimeType := directMimeType(probe.Container); mimeType != "" {
+			info.Sources = append(info.Sources, playbackSource{
+				Kind:     "direct",
+				Src:      buildDirectStreamURL(video, locationID),
+				MimeType: mimeType,
+				Label:    "Direct",
+			})
+		}
 	}
 	info.Sources = append(info.Sources, playbackSource{
 		Kind:     "hls",
@@ -377,10 +381,18 @@ func respondPlaybackError(c *gin.Context, err error) {
 
 func directMimeType(container string) string {
 	switch strings.ToLower(strings.TrimSpace(container)) {
+	case "mp4":
+		return "video/mp4"
 	case "webm":
 		return "video/webm"
+	case "mov":
+		return "video/quicktime"
+	case "mkv", "matroska":
+		return "video/x-matroska"
+	case "ogg", "ogv":
+		return "video/ogg"
 	default:
-		return "video/mp4"
+		return ""
 	}
 }
 

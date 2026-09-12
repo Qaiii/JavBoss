@@ -102,6 +102,7 @@ export default function GlobalSettingsModal({
   directoryPickerEnabled = true,
   hostPathPrefixEnabled = false,
   hostAgentConfigured = false,
+  serverOS = '',
   mpvEnabled = true,
   onCreateDirectory,
   onUpdateDirectory,
@@ -1251,6 +1252,7 @@ export default function GlobalSettingsModal({
           onRefresh={onRefreshDirectories}
           directoryPickerEnabled={directoryPickerEnabled}
           useHostPaths={hostPathPrefixEnabled}
+          serverOS={serverOS}
         />
       </section>
     </div>

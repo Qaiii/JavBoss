@@ -17,12 +17,12 @@ import (
 // NewRouter constructs a gin router with API routes and optional static file serving.
 func NewRouter(staticDir string, auth *AuthService) *gin.Engine {
 	router := gin.New()
-	router.Use(ginLogger(), gin.Recovery())
+	router.Use(ginLogger(), gin.Recovery(), extensionAPIAccess())
 	router.GET("/healthz", handleHealth)
 	registerAuthRoutes(router, auth)
-	registerExtensionDownloadRoutes(router)
 	protected := router.Group("/")
 	protected.Use(auth.requireAuth())
+	registerExtensionRoutes(protected)
 	registerProtectedAuthRoutes(protected, auth)
 	RegisterRoutes(protected)
 

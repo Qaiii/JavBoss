@@ -25,9 +25,9 @@ test('video.js media nodes are created outside React-managed children', () => {
 
 test('browser player prefers native HEVC and falls back to HLS on decode error', () => {
   assert.match(player, /selectPlaybackSource/)
-  assert.match(player, /canPlayHEVC/)
-  assert.match(player, /setForceHls\(true\)/)
-  assert.match(player, /player\.on\('error', handlePlaybackError\)/)
+  assert.match(player, /startBrowserPlayback/)
+  assert.match(player, /@\/utils\/browserPlayback/)
+  assert.match(player, /kind === 'hls'/)
 })
 
 test('hover show/hide listens on the player card so the title bar does not flicker', () => {

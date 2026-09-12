@@ -2,13 +2,15 @@ import { useEffect, useState } from 'react'
 import BuildRoundedIcon from '@mui/icons-material/BuildRounded'
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded'
 import EditRoundedIcon from '@mui/icons-material/EditRounded'
-import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded'
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
+import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded'
 import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded'
 import { CircularProgress, IconButton, Switch, Tooltip } from '@mui/material'
 
-import { pickDirectory } from '@/api'
+import DirectoryPickerModal from '@/components/DirectoryPickerModal'
 import AppModal from '@/components/AppModal'
-import { apiHostPath, displayHostPath } from '@/utils/hostPath'
+import { useStore } from '@/store'
+import { apiHostPath, displayHostPath, hostPathsEnabled } from '@/utils/hostPath'
 import { zh } from '@/utils/i18n'
 import { getErrorMessage } from '@/utils/errors'
 
@@ -99,6 +101,14 @@ const formatScanDuration = (summary) => {
   return zh(`${hours} 小时 ${minutes} 分`, `${hours} hr ${minutes} min`)
 }
 
+const formatScanElapsedTime = (elapsedMS) => {
+  const value = Number(elapsedMS)
+  const seconds = Number.isFinite(value) ? Math.max(0, Math.floor(value / 1000)) : 0
+  return [Math.floor(seconds / 3600), Math.floor(seconds / 60) % 60, seconds % 60]
+    .map((part) => String(part).padStart(2, '0'))
+    .join(':')
+}
+
 const directoryWorkStatus = (directory) =>
   directory?.work_status || (directory?.is_scanning ? 'scanning' : 'idle')
 
@@ -131,12 +141,6 @@ const directoryWorkStatusDisplay = (status) => {
         badge: 'bg-amber-50 text-amber-700',
         dot: 'animate-pulse bg-amber-500',
       }
-    case 'rescanning':
-      return {
-        label: zh('当前状态：重新扫描中', 'Status: Rescanning'),
-        badge: 'bg-blue-50 text-blue-700',
-        dot: 'animate-pulse bg-blue-500',
-      }
     default:
       return {
         label: zh('当前状态：空闲', 'Status: Idle'),
@@ -144,15 +148,6 @@ const directoryWorkStatusDisplay = (status) => {
         dot: 'bg-zinc-400',
       }
   }
-}
-
-function isWindowsPlatform() {
-  if (typeof navigator === 'undefined') return false
-
-  const platform =
-    navigator.userAgentData?.platform || navigator.platform || navigator.userAgent || ''
-
-  return /windows/i.test(String(platform))
 }
 
 function DirectoryRowIconButton({ label, disabled = false, children, ...props }) {
@@ -165,12 +160,13 @@ function DirectoryRowIconButton({ label, disabled = false, children, ...props })
           size="small"
           disabled={disabled}
           aria-label={label}
-          className="!h-8 !w-8 !rounded-lg !p-1.5 disabled:!opacity-60"
+          className="!h-7 !w-7 !rounded-md !p-1 disabled:!opacity-60"
           sx={{
             border: '1px solid',
             borderColor: 'grey.300',
             backgroundColor: 'common.white',
             color: 'grey.800',
+            '& .MuiSvgIcon-root': { fontSize: 18 },
             '&:hover': {
               borderColor: 'grey.500',
               backgroundColor: 'grey.100',
@@ -199,11 +195,13 @@ export default function DirectoryManager({
   onScan,
   onRefresh,
   directoryPickerEnabled = true,
-  useHostPaths = false,
+  serverOS = '',
 }) {
+  const useHostPaths = useStore((state) => hostPathsEnabled(state.config))
   const [path, setPath] = useState('')
   const [submitting, setSubmitting] = useState(false)
-  const [picking, setPicking] = useState(false)
+  const [pickerTarget, setPickerTarget] = useState(null)
+  const picking = pickerTarget !== null
   const [error, setError] = useState('')
   const [adding, setAdding] = useState(false)
 
@@ -224,15 +222,19 @@ export default function DirectoryManager({
   const [toolDirectory, setToolDirectory] = useState(null)
   const [toolMode, setToolMode] = useState(DIRECTORY_PROCESS_SIDECAR)
   const [toolLayout, setToolLayout] = useState(DIRECTORY_PROCESS_LAYOUT_PREFIX)
-  const windowsPlatform = isWindowsPlatform()
+  const pathExample = {
+    windows: 'D:\\Videos',
+    darwin: '/Volumes/Videos',
+    linux: '/mnt/videos',
+  }[serverOS]
   const pathPlaceholder = useHostPaths
     ? zh(
         '输入宿主机目录路径，例如 /mnt/disk1/videos',
         'Enter a host folder path, e.g. /mnt/disk1/videos'
       )
-    : windowsPlatform
-      ? zh('输入目录路径，例如 D:\\Videos', 'Enter a folder path, e.g. D:\\Videos')
-      : zh('输入目录路径，例如 /Volumes/Videos', 'Enter a folder path, e.g. /Volumes/Videos')
+    : pathExample
+      ? zh(`输入目录路径，例如 ${pathExample}`, `Enter a folder path, e.g. ${pathExample}`)
+      : zh('输入服务端的完整目录路径', 'Enter the full folder path on the server')
   const pathHelperText = zh(
     directoryPickerEnabled
       ? '建议优先使用“选择目录”，也可以手动输入完整目录路径。'
@@ -250,6 +252,7 @@ export default function DirectoryManager({
 
   useEffect(() => {
     if (open) {
+      setPickerTarget(null)
       setPath('')
       setError('')
       setAdding(false)
@@ -313,30 +316,6 @@ export default function DirectoryManager({
     const timer = window.setInterval(refresh, 1000)
     return () => window.clearInterval(timer)
   }, [onRefresh, open])
-
-  const handlePick = async ({ setValue, setErr, setRowId }) => {
-    setError('')
-    setPicking(true)
-    try {
-      const data = await pickDirectory()
-      const picked = data?.path?.trim()
-      if (!picked) {
-        throw new Error(zh('未获取到目录路径', 'No directory path returned'))
-      }
-      setValue?.(displayPath(picked))
-    } catch (err) {
-      if (setErr) {
-        setErr(getErrorMessage(err))
-      } else {
-        setError(getErrorMessage(err))
-      }
-      if (setRowId) {
-        setRowId()
-      }
-    } finally {
-      setPicking(false)
-    }
-  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -521,8 +500,7 @@ export default function DirectoryManager({
     directories.find((directory) => directory.id === scanSettingsDirectory?.id) ||
     scanSettingsDirectory
   const scanSettingsWorkStatus = directoryWorkStatus(currentScanSettingsDirectory)
-  const scanSettingsRunning =
-    scanSettingsWorkStatus === 'scanning' || scanSettingsWorkStatus === 'rescanning'
+  const scanSettingsRunning = scanSettingsWorkStatus === 'scanning'
 
   return (
     <div className="space-y-3">
@@ -561,6 +539,125 @@ export default function DirectoryManager({
                       <div className="min-w-0 truncate text-sm font-medium">
                         {displayPath(d.path)}
                       </div>
+                    </div>
+                  ) : (
+                    <form onSubmit={handleEditSubmit} className="space-y-2">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                        <input
+                          value={editPath}
+                          onChange={(e) => setEditPath(e.target.value)}
+                          className="w-full rounded border px-3 py-2 text-sm sm:min-w-[420px] sm:flex-1"
+                          placeholder={pathPlaceholder}
+                        />
+                        {directoryPickerEnabled ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setRowErrorId(null)
+                              setRowErrorMsg('')
+                              setPickerTarget('edit')
+                            }}
+                            disabled={picking || working}
+                            className="rounded border px-3 py-2 text-sm hover:bg-gray-100 disabled:opacity-60"
+                          >
+                            {picking
+                              ? zh('选择中…', 'Picking...')
+                              : zh('选择目录', 'Choose directory')}
+                          </button>
+                        ) : null}
+                      </div>
+                      <div className="text-xs text-blue-700">{pathHelperText}</div>
+                    </form>
+                  )}
+                  <div className="flex flex-wrap items-center gap-2">
+                    {!isEditing && (
+                      <div className="flex items-center divide-x divide-zinc-200 text-xs text-zinc-500">
+                        {status === 'scanning' && (
+                          <span
+                            className="pr-3"
+                            title={zh(
+                              '本轮已遍历的文件数，包含非视频文件，不含文件夹',
+                              'Files visited in this scan, including non-video files and excluding folders'
+                            )}
+                          >
+                            {zh('已扫描文件', 'Scanned files')}{' '}
+                            <strong className="font-semibold tabular-nums text-zinc-800">
+                              {Number(d.scanned_file_count) || 0}
+                            </strong>
+                          </span>
+                        )}
+                        <span className={status === 'scanning' ? 'px-3' : 'pr-3'}>
+                          {zh('已扫描视频', 'Scanned videos')}{' '}
+                          <strong className="font-semibold tabular-nums text-zinc-800">
+                            {Number(d.scanned_video_count) || 0}
+                          </strong>
+                        </span>
+                        <span className="pl-3">
+                          {zh('已刮削视频', 'Scraped videos')}{' '}
+                          <strong className="font-semibold tabular-nums text-zinc-800">
+                            {Number(d.scraped_video_count) || 0}
+                          </strong>
+                        </span>
+                      </div>
+                    )}
+                    {!isEditing && (
+                      <span
+                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${statusDisplay.badge}`}
+                      >
+                        <span className={`mr-1.5 h-1.5 w-1.5 rounded-full ${statusDisplay.dot}`} />
+                        {statusDisplay.label}
+                        {status === 'scanning' && (
+                          <span className="ml-1.5 tabular-nums">
+                            {formatScanElapsedTime(d.scan_elapsed_ms)}
+                          </span>
+                        )}
+                      </span>
+                    )}
+                    {d.missing && (
+                      <span className="inline-flex items-center rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">
+                        {zh('目录缺失', 'Missing')}
+                      </span>
+                    )}
+                    {d.is_delete && (
+                      <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
+                        {zh('已删除', 'Deleted')}
+                      </span>
+                    )}
+                  </div>
+                  {!isEditing && (
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-zinc-500">
+                      <div className="flex items-center">
+                        <span>{zh('上次扫描：', 'Last scan:')}</span>
+                        <Tooltip
+                          arrow
+                          describeChild
+                          slotProps={{ tooltip: { sx: { maxWidth: 'none' } } }}
+                          title={
+                            lastScanFinishedAt ? (
+                              <div className="whitespace-nowrap py-1 text-xs">
+                                {zh('结束时间：', 'Finished at: ')}
+                                <span className="tabular-nums">{lastScanFinishedAt}</span>
+                                <span className="mx-2" aria-hidden="true">
+                                  ·
+                                </span>
+                                {zh('耗时：', 'Duration: ')}
+                                {formatScanDuration(d.last_scan_summary)}
+                              </div>
+                            ) : (
+                              zh('暂无扫描记录', 'No scan record')
+                            )
+                          }
+                        >
+                          <IconButton
+                            type="button"
+                            size="small"
+                            aria-label={zh('上次扫描详情', 'Last scan details')}
+                            className="!-ml-1.5 !h-6 !w-6 !p-0.5 !text-zinc-500 hover:!bg-zinc-100 hover:!text-zinc-900"
+                          >
+                            <InfoOutlinedIcon sx={{ fontSize: 15 }} />
+                          </IconButton>
+                        </Tooltip>
+                      </div>
                       <div className="flex shrink-0 items-center gap-1 text-xs font-normal text-zinc-500">
                         <span>{autoScanDisplay}</span>
                         <Tooltip title={zh('编辑扫描设置', 'Edit scan settings')} arrow>
@@ -583,97 +680,6 @@ export default function DirectoryManager({
                         </Tooltip>
                       </div>
                     </div>
-                  ) : (
-                    <form onSubmit={handleEditSubmit} className="space-y-2">
-                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                        <input
-                          value={editPath}
-                          onChange={(e) => setEditPath(e.target.value)}
-                          className="w-full rounded border px-3 py-2 text-sm sm:min-w-[420px] sm:flex-1"
-                          placeholder={pathPlaceholder}
-                        />
-                        {directoryPickerEnabled ? (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setRowErrorId(null)
-                              setRowErrorMsg('')
-                              handlePick({
-                                setValue: setEditPath,
-                                setErr: setRowErrorMsg,
-                                setRowId: () => setRowErrorId(editId),
-                              })
-                            }}
-                            disabled={picking || working}
-                            className="rounded border px-3 py-2 text-sm hover:bg-gray-100 disabled:opacity-60"
-                          >
-                            {picking
-                              ? zh('选择中…', 'Picking...')
-                              : zh('选择目录', 'Choose directory')}
-                          </button>
-                        ) : null}
-                      </div>
-                      <div className="text-xs text-blue-700">{pathHelperText}</div>
-                    </form>
-                  )}
-                  <div className="flex flex-wrap items-center gap-2">
-                    {!isEditing && (
-                      <div className="flex items-center divide-x divide-zinc-200 text-xs text-zinc-500">
-                        <span className="pr-3">
-                          {zh('已扫描视频', 'Scanned videos')}{' '}
-                          <strong className="font-semibold tabular-nums text-zinc-800">
-                            {Number(d.scanned_video_count) || 0}
-                          </strong>
-                        </span>
-                        <span className="pl-3">
-                          {zh('已刮削视频', 'Scraped videos')}{' '}
-                          <strong className="font-semibold tabular-nums text-zinc-800">
-                            {Number(d.scraped_video_count) || 0}
-                          </strong>
-                        </span>
-                      </div>
-                    )}
-                    {!isEditing && (
-                      <span
-                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${statusDisplay.badge}`}
-                      >
-                        <span className={`mr-1.5 h-1.5 w-1.5 rounded-full ${statusDisplay.dot}`} />
-                        {statusDisplay.label}
-                      </span>
-                    )}
-                    {d.missing && (
-                      <span className="inline-flex items-center rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">
-                        {zh('目录缺失', 'Missing')}
-                      </span>
-                    )}
-                    {d.is_delete && (
-                      <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
-                        {zh('已删除', 'Deleted')}
-                      </span>
-                    )}
-                  </div>
-                  {!isEditing && (
-                    <>
-                      {lastScanFinishedAt ? (
-                        <div className="overflow-x-auto whitespace-nowrap text-xs text-zinc-500">
-                          <span>{zh('上次扫描：结束时间 ', 'Last scan: Finished at ')}</span>
-                          <span className="font-semibold tabular-nums text-zinc-900">
-                            {lastScanFinishedAt}
-                          </span>
-                          <span aria-hidden="true" className="mx-2 text-zinc-300">
-                            ·
-                          </span>
-                          <span>{zh('耗时 ', 'Duration ')}</span>
-                          <span className="font-semibold tabular-nums text-zinc-900">
-                            {formatScanDuration(d.last_scan_summary)}
-                          </span>
-                        </div>
-                      ) : (
-                        <div className="text-xs text-zinc-500">
-                          {zh('上次扫描：暂无记录', 'Last scan: No record')}
-                        </div>
-                      )}
-                    </>
                   )}
                   {rowErrorId === d.id && rowErrorMsg && (
                     <div className="text-xs text-red-600">{rowErrorMsg}</div>
@@ -701,23 +707,21 @@ export default function DirectoryManager({
                       }}
                     />
                   </label>
-                  <div className="flex w-full flex-nowrap items-center justify-end gap-2 overflow-x-auto whitespace-nowrap pb-1 md:w-auto md:overflow-visible [&>button]:shrink-0 [&>span]:shrink-0">
+                  <div className="mt-2 flex w-full flex-nowrap items-center justify-end gap-2 overflow-x-auto whitespace-nowrap pb-1 md:w-auto md:overflow-visible [&>button]:shrink-0 [&>span]:shrink-0">
                     {!isEditing ? (
                       <>
-                        {scanningId !== d.id &&
-                          status !== 'scanning' &&
-                          status !== 'rescanning' && (
-                            <DirectoryRowIconButton
-                              label={zh(
-                                '手动扫描（点击立刻进行一次目录扫描和 JAV 刮削）',
-                                'Manual scan (click to immediately scan the directory and scrape JAV metadata)'
-                              )}
-                              onClick={() => handleScan(d)}
-                              disabled={d.is_delete || working}
-                            >
-                              <RefreshRoundedIcon fontSize="small" />
-                            </DirectoryRowIconButton>
-                          )}
+                        {scanningId !== d.id && status !== 'scanning' && (
+                          <DirectoryRowIconButton
+                            label={zh(
+                              '手动扫描（点击立刻进行一次目录扫描和 JAV 刮削）',
+                              'Manual scan (click to immediately scan the directory and scrape JAV metadata)'
+                            )}
+                            onClick={() => handleScan(d)}
+                            disabled={d.is_delete || working}
+                          >
+                            <PlayArrowRoundedIcon fontSize="small" />
+                          </DirectoryRowIconButton>
+                        )}
                         <DirectoryRowIconButton
                           label={zh('工具', 'Tools')}
                           onClick={() => {
@@ -798,7 +802,10 @@ export default function DirectoryManager({
             {directoryPickerEnabled ? (
               <button
                 type="button"
-                onClick={() => handlePick({ setValue: setPath, setErr: setError })}
+                onClick={() => {
+                  setError('')
+                  setPickerTarget('add')
+                }}
                 disabled={picking || submitting}
                 className="rounded border px-3 py-2 text-sm hover:bg-gray-100 disabled:opacity-60"
               >
@@ -894,12 +901,12 @@ export default function DirectoryManager({
               <div className="text-sm font-medium text-zinc-900">
                 {zh('整理方式', 'Organization layout')}
               </div>
-              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+              <div className="mt-2 grid grid-cols-3 gap-2">
                 {directoryProcessLayoutOptions().map((option) => (
                   <label
                     key={option.layout}
                     htmlFor={`directory-process-layout-${option.layout}`}
-                    className={`cursor-pointer rounded-xl border p-3 transition ${
+                    className={`min-w-0 cursor-pointer rounded-xl border p-3 transition ${
                       toolLayout === option.layout
                         ? 'border-blue-400 bg-blue-50'
                         : 'border-zinc-200 hover:bg-zinc-50'
@@ -916,7 +923,9 @@ export default function DirectoryManager({
                       />
                       <span className="text-sm font-medium text-zinc-900">{option.title}</span>
                     </span>
-                    <span className="mt-1 block pl-6 text-xs text-zinc-500">{option.example}</span>
+                    <span className="mt-1 block whitespace-nowrap text-[10px] text-zinc-500">
+                      {option.example}
+                    </span>
                   </label>
                 ))}
               </div>
@@ -1058,6 +1067,17 @@ export default function DirectoryManager({
             </button>
           </div>
         </AppModal>
+      )}
+      {open && pickerTarget && (
+        <DirectoryPickerModal
+          initialPath={pickerTarget === 'edit' ? editPath : path}
+          onClose={() => setPickerTarget(null)}
+          onSelect={(selectedPath) => {
+            if (pickerTarget === 'edit') setEditPath(displayPath(selectedPath))
+            else setPath(displayPath(selectedPath))
+            setPickerTarget(null)
+          }}
+        />
       )}
     </div>
   )

@@ -26,6 +26,8 @@
 
 - 深度集成 MPV 播放器，支持播放进度条预览，视频截图书签等高级功能。
 
+- 接入 CloudDrive2 api，配合自带的 Chrome 扩展可实现任意网站点击磁力链接直接下载到本地。
+
 - 零侵入式设计，运行数据单独存放，充分尊重用户视频目录，不做任何修改。
 
 - 简单直观的 UI 设计，基本不需要任何使用文档，打开就知道怎么用。
@@ -36,7 +38,7 @@
 
 ### 1. 选择安装方式
 
-#### 方式一：命令行一键安装（推荐）
+#### 方式一：命令行一键安装
 
 <dl>
 <dd>
@@ -79,10 +81,10 @@ curl -fsSL https://raw.githubusercontent.com/Solr159/JavBoss/main/scripts/instal
 
 点击下载对应系统的最新版发布包并解压：
 
-- [Windows](https://github.com/Solr159/JavBoss/releases/download/v2.0.2/javboss-v2.0.2-windows-x86_64.zip)
-- [Linux](https://github.com/Solr159/JavBoss/releases/download/v2.0.2/javboss-v2.0.2-linux-x86_64.zip)
-- [macOS-x86_64](https://github.com/Solr159/JavBoss/releases/download/v2.0.2/javboss-v2.0.2-macos-x86_64.zip)（适用于 Intel 芯片的 macOS）
-- [macOS-arm64](https://github.com/Solr159/JavBoss/releases/download/v2.0.2/javboss-v2.0.2-macos-arm64.zip)（适用于 M 芯片的 macOS）
+- [Windows](https://github.com/Solr159/JavBoss/releases/download/v2.1.0/javboss-v2.1.0-windows-x86_64.zip)
+- [Linux](https://github.com/Solr159/JavBoss/releases/download/v2.1.0/javboss-v2.1.0-linux-x86_64.zip)
+- [macOS-x86_64](https://github.com/Solr159/JavBoss/releases/download/v2.1.0/javboss-v2.1.0-macos-x86_64.zip)（适用于 Intel 芯片的 macOS）
+- [macOS-arm64](https://github.com/Solr159/JavBoss/releases/download/v2.1.0/javboss-v2.1.0-macos-arm64.zip)（适用于 M 芯片的 macOS）
 
 也可以前往 [Releases](https://github.com/Solr159/JavBoss/releases) 页面查看所有版本。
 
@@ -107,15 +109,16 @@ services:
   javboss:
     image: ghcr.io/solr159/javboss:latest
     container_name: javboss
-    ports:
-      - "8655:17654"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    network_mode: host
+    command: ["./javboss", "-port", "8655"]
+    environment:
+      JAVBOSS_PROXY_HOST_GATEWAY: "0"
     volumes:
       - ./data:/app/data
-      - /:/host:ro # 默认只读挂载，如果需要使用目录整理、文件重命名、文件删除、保存字幕等功能，将末尾的':ro'移除
+      - /:/host
     restart: unless-stopped
 ```
+**v2.1.0 版本此 yaml 文件有所变化，老用户请即时更新**
 
 启动：
 
@@ -123,7 +126,10 @@ services:
 docker compose up -d
 ```
 
-Docker 部署下默认只能使用浏览器播放器（较为简陋且依赖服务端转码），如果需要使用 MPV，参考 [Client 模式说明](#client-模式说明)。添加目录时直接填写宿主机路径，例如 `/mnt/disk1/videos`，程序会自动映射到容器内可访问路径。
+添加目录时直接填写宿主机路径，例如 `/mnt/disk1/videos`，程序会自动映射到容器内可访问路径。
+
+Docker 部署下默认只能使用浏览器播放器（维护力度较弱只保证基本可用性），可参考[Client 模式](#client-模式)以使用 MPV 播放器获得更好的播放体验。
+
 
 </dd>
 </dl>
@@ -132,7 +138,7 @@ Docker 部署下默认只能使用浏览器播放器（较为简陋且依赖服�
 
 **浏览器访问地址：`http://localhost:8655`，非 docker 方式启动后，程序会自动打开浏览器。</br>**
 **Docker 部署默认支持局域网设备访问，将 `localhost` 改为部署主机的局域网ip。</br>**
-**非 Docker 部署请在设置中手动开启局域网访问，然后重启软件。</br>**
+**非 docker 部署请在设置中手动开启局域网访问，然后重启软件。</br>**
 **默认登录密码为 `admin`，可在全局设置中修改。**
 
 ### 2. 添加本地目录
@@ -155,17 +161,26 @@ Docker 部署下默认只能使用浏览器播放器（较为简陋且依赖服�
 
 一旦目录内容发生任何变化（比如有新视频入库、旧视频被删除、视频移动等），需要再进行一次目录扫描和 JAV 刮削完成内容的更新同步，请根据个人的扫描设置自行把握扫描时机。
 
-对于通过 Docker 部署在 NAS 中长期运行的用户，建议调大扫描间隔或者关闭自动扫描，避免影响硬盘寿命。
+对于通过 docker 部署在 NAS 中长期运行的用户，建议调大扫描间隔或者关闭自动扫描，避免影响硬盘寿命。
 
 **请注意一次扫描并不能保证所有可刮削的视频都被成功刮削，原因是每次扫描过程中每个视频只会尝试一次刮削，可能会因为网络抖动或者网站风控等原因导致部分请求失败，个人实测每次扫描约1%左右的视频会刮削失败，需要再扫描一次。**
 
 ## Chrome 扩展说明
 
-JavBoss 现在还有一个随程序包一起发布的 Chrome 扩展：`JavBoss 助手`，目前扩展支持以下功能：
-  - **手动刮削辅助回填**：点击视频卡片底部刮削按钮，选择手动刮削，点击跳转到某个 JAV 网站，进入某个影片详情页面后，点击页面右下角按钮可自动提取当前影片信息并回填。
-  - **JavDb 辅助跳转**：在 JAV、女优、片商、系列卡片里点击 JavDb 图标都可直接跳转到对应的 JavDb 详情页面，未启用则还是跳转搜索页。
+`JavBoss 助手` 是随程序包一起发布的可选 Chrome 扩展，目前支持以下功能：
 
-扩展不是必须的，有以上需要的可[点击此处](https://github.com/Solr159/JavBoss/releases/download/v2.0.2/javboss-browser-extension-v0.10.3.zip)下载。
+- **手动刮削辅助回填**：手动刮削时可点击跳转外部网站，进入影片详情页后，点击页面右下角的“回填到 JavBoss”，即可自动提取影片信息，返回 JavBoss 检查并保存。
+- **JavDB 辅助跳转**：在各个卡片中点击 JavDB 图标，可直接跳转到对应详情页。此功能默认开启，关闭后跳转到搜索页。
+- **显示已拥有状态**：在外部网站的影片列表和详情页标记“已拥有”，此功能默认开启，可在扩展中关闭。
+- **磁力下载**：开启扩展中的“启用磁力下载”后，在任意网页点击磁力链接，确认即可提交到 JavBoss 下载队列，通过 CloudDrive2 创建云端离线任务并下载到本地。使用前需在 JavBoss 的“下载”→“下载设置”中配置 CloudDrive2 和本地下载目录。
+
+**连接设置：**`显示已拥有状态`和`磁力下载`需要先连接 JavBoss：
+
+1. 在 JavBoss 的“全局设置”→“安全”→“浏览器扩展 API 令牌”中新建令牌并复制。
+2. 点击浏览器工具栏中的“JavBoss 助手”，在“连接设置”中填写 Server 地址和 API 令牌，点击“测试连接”确认可用。
+3. 按需开启功能，设置修改后自动保存。
+
+扩展不是必须的，有以上需要的可[点击此处](https://github.com/Solr159/JavBoss/releases/download/v2.1.0/javboss-browser-extension-v0.14.0.zip)下载。
 
 
 ## 如何升级版本
@@ -187,18 +202,12 @@ docker compose pull
 docker compose up -d
 ```
 
-## 注意事项
 
-- JavBoss 是本地媒体库管理工具，不提供任何资源分发、获取、共享等功能。
-- JAV 元数据、封面资料首次抓取依赖外部站点可访问性，请确保网络环境通畅。
-- 发布包根目录会包含 `config.toml` 文件，程序默认启动端口为 8655，如有需要可修改其中 port 的值更换启动端口。
+## Client 模式
 
+**备注：此模式的目的是让用户在远程访问 JavBoss 时，可以使用本地的 MPV 播放器（比如 JavBoss 通过 docker 部署在 NAS 中，在某个局域网 PC 里访问）。**
 
-## Client 模式说明
-
-**备注：此模式唯一的用处就是使用本机 MPV 播放器播放局域网 JavBoss 中的视频，没有此项需求的用户可忽略。**
-
-Client 模式可连接远程 JavBoss Server，浏览远程媒体库并使用本机 MPV 播放视频，同时支持本地播放器设置及截图自动同步。
+Client 模式可以让本机的 JavBoss 充当远程 JavBoss 的反向代理，浏览远程媒体库并使用本机 MPV 播放视频，同时支持本地播放器设置及截图自动同步。
 
 使用此模式需要在本地安装 JavBoss，然后在程序目录的 `config.toml` 中设置远程 JavBoss Server 地址，之后正常启动 JavBoss 即可：
 
@@ -206,10 +215,7 @@ Client 模式可连接远程 JavBoss Server，浏览远程媒体库并使用本�
 server_url = "http://192.168.1.100:8655"
 ```
 
-也可以通过命令行临时指定远程 Server：
-
-- Windows：`.\javboss.exe --server-url http://192.168.1.100:8655`
-- Linux / macOS：`./javboss --server-url http://192.168.1.100:8655`
+也可以通过加上命令行临时参数 `--server-url http://192.168.1.100:8655` 启动。
 
 ## Q&A
 
@@ -223,18 +229,18 @@ server_url = "http://192.168.1.100:8655"
 
 <br>
 
-- Q: 视频文件夹在移动硬盘里，没插硬盘时启动会丢数据吗？
-- A: 不会。目录不可用时，JavBoss 会保留已入库数据；移动硬盘再次接入后，数据会恢复显示。
-
-<br>
-
-- Q: 某个移动硬盘不够大了，文件夹要移动到新的硬盘里怎么办？
-- A: 直接移动文件夹，然后在“目录管理”里点击编辑更新目录路径，不用担心数据丢失，JavBoss 会处理好这一切。
+- Q: 目录整理或者文件重命名之后重新扫描，会导致视频卡片的标签和播放次数等信息丢失吗？
+- A: 不会，这些信息是绑定的视频文件唯一指纹，只要还是同一个文件就不会丢失。
 
 <br>
 
 - Q: 换电脑时怎么迁移？
 - A: 在新电脑下载对应系统的 `javboss`，然后将旧电脑的`data/`目录复制到新电脑的 `javboss` 目录下即可。（如果视频目录路径也发生了变化，请在目录管理中点击编辑进行调整）
+
+<br>
+
+- Q: 怎么修改启动端口？
+- A: 找到程序目录里的 `config.toml` 文件，修改其中 port 的值更换启动端口。
 
 ## 开发者文档
 

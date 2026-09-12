@@ -410,7 +410,6 @@ async function startBackendDevChild() {
   };
   if (envBool("DOCKER_MODE")) {
     env.JAVBOSS_CONTAINER = env.JAVBOSS_CONTAINER || "1";
-    env.JAVBOSS_DISABLE_DIRECTORY_PICKER = env.JAVBOSS_DISABLE_DIRECTORY_PICKER || "1";
     env.JAVBOSS_DISABLE_DESKTOP_INTEGRATION =
       env.JAVBOSS_DISABLE_DESKTOP_INTEGRATION || "1";
     env.JAVBOSS_DISABLE_MPV = env.JAVBOSS_DISABLE_MPV || "1";
@@ -758,7 +757,7 @@ function mpvUrls(choice) {
     );
   } else if (choice.goos === "linux" && choice.goarch === "amd64") {
     urls.push(
-      "https://github.com/ivan-hc/MPV-appimage/releases/download/continuous/mpv-Media-Player_0.41.0-4-archimage5.0-x86_64.AppImage",
+      "https://github.com/ivan-hc/MPV-appimage/releases/download/continuous/mpv-Media-Player_0.41.0-6-archimage5.0-x86_64.AppImage",
     );
   } else if (choice.goos === "darwin" && choice.goarch === "amd64") {
     urls.push(
@@ -1496,8 +1495,103 @@ async function handleDownload(platformArg) {
   await downloadDependencies(choice);
 }
 
+async function handleDocker(action, args = []) {
+  if (action === "--help" || action === "-h" || args.includes("--help") || args.includes("-h")) {
+    console.log(`用法：scripts/cli.sh docker start [--build-only]
+      scripts/cli.sh docker stop
+start 构建镜像并后台启动容器；--build-only 仅构建镜像。
+容器固定使用 host 网络，直接监听宿主机端口。
+容器使用当前用户的 UID/GID，启动前自动创建数据目录。
+stop 停止容器，保留容器和数据。
+环境变量：
+  JAVBOSS_DOCKER_IMAGE     镜像名称（默认 javboss:local）
+  JAVBOSS_DOCKER_PORT      宿主机端口（默认 5174）
+  JAVBOSS_DOCKER_DATA_DIR  数据目录（默认仓库下 docker-data）
+  JAVBOSS_DOCKER_UID       容器用户 ID（默认当前用户，必须非 0）
+  JAVBOSS_DOCKER_GID       容器组 ID（默认当前用户的主组）`);
+    return;
+  }
+  if (!action) {
+    const answer = await inquirer.prompt([
+      {
+        type: "list",
+        name: "action",
+        message: "选择 Docker 操作",
+        choices: [
+          { name: "start", value: "start" },
+          { name: "stop", value: "stop" },
+        ],
+      },
+    ]);
+    action = answer.action;
+  }
+  if (action !== "start" && action !== "stop") {
+    throw new Error(`不支持的 Docker 操作：${action}，请使用 start 或 stop`);
+  }
+  for (const arg of args) {
+    if (action !== "start" || arg !== "--build-only") throw new Error(`未知参数：${arg}`);
+  }
+  if (!(await commandExists("docker"))) {
+    throw new Error("[docker] 未找到 Docker，请先安装 Docker 和 Docker Compose 插件");
+  }
+  try {
+    await runCommandCapture("docker", ["compose", "version"], { cwd: ROOT_DIR });
+  } catch {
+    throw new Error("[docker] Docker Compose 不可用，请安装 Docker Compose 插件");
+  }
+  try {
+    await runCommandCapture("docker", ["info"], { cwd: ROOT_DIR });
+  } catch {
+    throw new Error("[docker] 无法连接 Docker，请确认 Docker 已启动且当前用户有访问权限");
+  }
+
+  const composeArgs = ["compose", "-f", path.join(ROOT_DIR, "compose.local.yaml")];
+  if (action === "stop") {
+    await runCommand("docker", [...composeArgs, "stop", "javboss"], { cwd: ROOT_DIR });
+    console.log("[docker] 容器已停止，数据已保留");
+    return;
+  }
+  const uid = process.env.JAVBOSS_DOCKER_UID || String(process.getuid?.() ?? 1000);
+  const gid = process.env.JAVBOSS_DOCKER_GID || String(process.getgid?.() ?? 1000);
+  if (!/^\d+$/.test(uid) || Number(uid) < 1 || Number(uid) > 4294967294
+      || !/^\d+$/.test(gid) || Number(gid) > 4294967294) {
+    throw new Error("[docker] 请使用有效的非 root UID 和 GID；不要以 root 用户启动脚本，或设置 JAVBOSS_DOCKER_UID/JAVBOSS_DOCKER_GID");
+  }
+  const dataDir = path.resolve(ROOT_DIR, process.env.JAVBOSS_DOCKER_DATA_DIR || "docker-data");
+  const dockerOptions = {
+    cwd: ROOT_DIR,
+    env: {
+      ...process.env,
+      JAVBOSS_DOCKER_UID: uid,
+      JAVBOSS_DOCKER_GID: gid,
+      JAVBOSS_DOCKER_DATA_DIR: dataDir,
+    },
+  };
+  console.log("[docker] 网络模式：host");
+  console.log(`[docker] 容器用户：${uid}:${gid}`);
+  console.log("[docker] 构建本地镜像");
+  await runCommand("docker", [...composeArgs, "build", "javboss"], dockerOptions);
+  if (args.includes("--build-only")) return;
+
+  await fsp.mkdir(dataDir, { recursive: true });
+  console.log("[docker] 启动容器");
+  await runCommand("docker", [
+    ...composeArgs, "up", "--detach", "--no-build", "--pull", "never",
+    "--wait", "--wait-timeout", "60", "javboss",
+  ], dockerOptions);
+  console.log("[docker] 容器已启动，访问地址：");
+  console.log(`http://localhost:${process.env.JAVBOSS_DOCKER_PORT || "5174"}`);
+  console.log("[docker] 查看日志：docker compose -f compose.local.yaml logs -f");
+  console.log("[docker] 停止容器：scripts/cli.sh docker stop");
+}
+
 async function main() {
-  const [action, arg1, arg2] = process.argv.slice(2);
+  const [action, arg1, ...rest] = process.argv.slice(2);
+  const [arg2] = rest;
+  if (action === "docker") {
+    await handleDocker(arg1, rest);
+    return;
+  }
   if (action === "dev") {
     await handleDev(arg1);
     return;
@@ -1522,6 +1616,7 @@ async function main() {
       message: "请选择操作",
       choices: [
         { name: "dev", value: "dev" },
+        { name: "docker", value: "docker" },
         { name: "release", value: "release" },
         { name: "release-browser-extension", value: "release-browser-extension" },
         { name: "download-dependencies", value: "download-dependencies" },
@@ -1529,6 +1624,10 @@ async function main() {
     },
   ]);
 
+  if (mainAction === "docker") {
+    await handleDocker();
+    return;
+  }
   if (mainAction === "dev") {
     await handleDev();
     return;

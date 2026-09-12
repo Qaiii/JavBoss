@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { normalizeUrlStateFromStore } from '@/utils/urlState'
+import { canOpenAlternatePlayer } from '@/utils/playbackCapabilities'
 import {
   addTagToVideos,
   removeTagFromVideos,
@@ -62,7 +63,6 @@ import SelectionJavTagsModal from '@/components/SelectionJavTagsModal'
 import SelectionTagsModal from '@/components/SelectionTagsModal'
 import TagPickerModal from '@/components/TagPickerModal'
 import Toast from '@/components/Toast'
-import CenterToast from '@/components/CenterToast'
 import SideTabs from '@/components/SideTabs'
 import TopBar from '@/components/TopBar'
 import PlayerModal from '@/components/PlayerModal'
@@ -437,6 +437,7 @@ export default function App() {
   const [javResolvedIdols, setJavResolvedIdols] = useState({})
   const [toastMessage, setToastMessage] = useState('')
   const [toastDuration, setToastDuration] = useState(1800)
+  const [toastId, setToastId] = useState(0)
   const [centerToastMessage, setCenterToastMessage] = useState('')
 
   useEffect(() => {
@@ -466,7 +467,6 @@ export default function App() {
   const remoteAccess = configFlag(config?.runtime_remote_request)
   const clientMode = configFlag(config?.runtime_client)
   const containerMode = configFlag(config?.runtime_container)
-  const hostPathPrefixEnabled = configFlag(config?.host_path_prefix_enabled, containerMode)
   const desktopIntegrationEnabled = configFlag(config?.desktop_integration_enabled, true)
   const directoryPickerEnabled = configFlag(config?.directory_picker_enabled, true)
   const mpvEnabled = configFlag(config?.mpv_enabled, true)
@@ -502,6 +502,7 @@ export default function App() {
   const showToast = useCallback((message, duration = 1800) => {
     setToastMessage(String(message || '').trim())
     setToastDuration(duration)
+    setToastId((id) => id + 1)
   }, [])
   const closeToast = useCallback(() => {
     setToastMessage('')
@@ -512,7 +513,36 @@ export default function App() {
   const closeCenterToast = useCallback(() => {
     setCenterToastMessage('')
   }, [])
+  const ensureMPVPlaylistAvailable = useCallback(() => {
+    if (!remoteAccess || clientMode) return true
+    showCenterToast(
+      zh(
+        '非本机访问时无法使用 MPV 批量播放，请使用 client 模式',
+        'MPV batch playback is unavailable for remote access. Please use client mode.'
+      )
+    )
+    return false
+  }, [remoteAccess, clientMode, showCenterToast])
+  const ensureOpenFileAvailable = useCallback(() => {
+    if (canOpenAlternatePlayer({ containerMode, clientMode, alternatePlayer })) return true
+    showCenterToast(
+      zh(
+        'Docker 模式不支持用默认程序打开文件，请使用浏览器播放。',
+        'Opening files with the default app is unavailable in Docker mode. Use browser playback.'
+      )
+    )
+    return false
+  }, [containerMode, clientMode, alternatePlayer, showCenterToast])
   const ensureRevealAvailable = useCallback(() => {
+    if (containerMode) {
+      showCenterToast(
+        zh(
+          'Docker 模式不支持打开文件所在位置，请在宿主机中访问该目录。',
+          'Revealing file locations is unavailable in Docker mode. Open the directory on the host.'
+        )
+      )
+      return false
+    }
     if (!remoteAccess) return true
     showCenterToast(
       zh(
@@ -521,7 +551,7 @@ export default function App() {
       )
     )
     return false
-  }, [remoteAccess, showCenterToast])
+  }, [containerMode, remoteAccess, showCenterToast])
   const loadTagCategories = useCallback(async () => {
     const categories = await fetchTagCategories()
     setTagCategories(Array.isArray(categories) ? categories : [])
@@ -719,6 +749,7 @@ export default function App() {
 
   const handleOpenAlternatePlayer = useCallback(
     (video) => {
+      if (!ensureOpenFileAvailable()) return
       if (!alternatePlayer) return
       const choices = getVideoLocationChoices(video)
       if (choices.length > 1) {
@@ -727,7 +758,13 @@ export default function App() {
       }
       playVideoWith(choices[0] || video, alternatePlayer)
     },
-    [alternatePlayer, getVideoLocationChoices, openLocationPicker, playVideoWith]
+    [
+      ensureOpenFileAvailable,
+      alternatePlayer,
+      getVideoLocationChoices,
+      openLocationPicker,
+      playVideoWith,
+    ]
   )
 
   const handleRevealVideoFile = useCallback(
@@ -961,6 +998,7 @@ export default function App() {
 
   const playVideosWithMPV = useCallback(
     async (items) => {
+      if (!ensureMPVPlaylistAvailable()) return
       const list = Array.isArray(items) ? items : []
       const targets = list
         .map((video) => {
@@ -992,7 +1030,7 @@ export default function App() {
       )
       return true
     },
-    [showCenterToast, showToast]
+    [ensureMPVPlaylistAvailable, showCenterToast, showToast]
   )
 
   const handleJavPlay = useCallback(
@@ -1033,6 +1071,7 @@ export default function App() {
 
   const handleJavOpenFile = useCallback(
     (video, item) => {
+      if (!ensureOpenFileAvailable()) return
       const videos = item?.videos || (video ? [video] : [])
       if (videos.length > 1) {
         if (alternatePlayer === 'mpv') {
@@ -1051,6 +1090,7 @@ export default function App() {
       handleOpenAlternatePlayer(target)
     },
     [
+      ensureOpenFileAvailable,
       alternatePlayer,
       playVideosWithMPV,
       showCenterToast,
@@ -2723,6 +2763,7 @@ export default function App() {
 
   const handlePlaySelection = useCallback(async () => {
     if (selectionPlaying || !mpvEnabled) return
+    if (!ensureMPVPlaylistAvailable()) return
     const targets = selectedList
       .map((item) => {
         const videoId = Number(item?.video_id || item?.video?.id)
@@ -2760,7 +2801,14 @@ export default function App() {
     } finally {
       setSelectionPlaying(false)
     }
-  }, [mpvEnabled, selectedList, selectionPlaying, showCenterToast, showToast])
+  }, [
+    ensureMPVPlaylistAvailable,
+    mpvEnabled,
+    selectedList,
+    selectionPlaying,
+    showCenterToast,
+    showToast,
+  ])
 
   const handleDeleteSelection = useCallback(async () => {
     if (selectionDeleting) return
@@ -3833,6 +3881,7 @@ export default function App() {
   const javSelection = useJavSelection({
     items: javItems,
     mpvEnabled,
+    ensurePlayAvailable: ensureMPVPlaylistAvailable,
     playVideos: playVideosWithMPV,
     showToast,
     showError: showCenterToast,
@@ -3888,6 +3937,7 @@ export default function App() {
 
   const handlePlayAllVideos = useCallback(async () => {
     if (selectionPlaying || videoBulkActionBusy || !mpvEnabled) return
+    if (!ensureMPVPlaylistAvailable()) return
     setSelectionPlaying(true)
     setVideoBulkActionBusy(true)
     try {
@@ -3900,6 +3950,7 @@ export default function App() {
       setSelectionPlaying(false)
     }
   }, [
+    ensureMPVPlaylistAvailable,
     fetchAllMatchingVideos,
     mpvEnabled,
     playVideosWithMPV,
@@ -4239,7 +4290,8 @@ export default function App() {
               onManageVideoPlayAtTime: playVideoFromTime,
               onManageVideoCoverChanged: handleVideoCoverChanged,
               onManageVideoOpenFile: handleOpenAlternatePlayer,
-              onManageVideoRevealFile: desktopIntegrationEnabled ? handleRevealVideoFile : null,
+              onManageVideoRevealFile:
+                containerMode || desktopIntegrationEnabled ? handleRevealVideoFile : null,
               onManageVideoOpenTagPicker: openTagEditor,
               onManageVideoOpenScreenshots: openJavScreenshots,
               onManageVideoOpenScrapeSettings: handleOpenScrapeSettings,
@@ -4288,8 +4340,10 @@ export default function App() {
             bulkActionBusy={videoBulkActionBusy || selectionPlaying}
             mpvEnabled={mpvEnabled}
             openPlayer={handleOpenPlayer}
-            openAlternatePlayer={alternatePlayer ? handleOpenAlternatePlayer : null}
-            revealFile={desktopIntegrationEnabled ? handleRevealVideoFile : null}
+            openAlternatePlayer={
+              containerMode || alternatePlayer ? handleOpenAlternatePlayer : null
+            }
+            revealFile={containerMode || desktopIntegrationEnabled ? handleRevealVideoFile : null}
             viewLocation={handleViewLocation}
             alternatePlayerLabel={alternatePlayerLabel}
             setTagPickerFor={openTagEditor}
@@ -4305,7 +4359,11 @@ export default function App() {
         )}
       </main>
 
-      <DownloadView open={downloadOpen} onClose={() => setDownloadOpen(false)} />
+      <DownloadView
+        open={downloadOpen}
+        onClose={() => setDownloadOpen(false)}
+        onToast={showToast}
+      />
 
       <JavQueryEditorModal
         open={javQueryEditorOpen}
@@ -4780,6 +4838,7 @@ export default function App() {
         }}
       />
       <GlobalSettingsModal
+        onToast={showToast}
         open={globalSettingsOpen}
         onClose={() => setGlobalSettingsOpen(false)}
         directories={directories}
@@ -4789,6 +4848,7 @@ export default function App() {
         directoryPickerEnabled={directoryPickerEnabled}
         hostPathPrefixEnabled={hostPathPrefixEnabled}
         hostAgentConfigured={configFlag(config?.host_agent_configured)}
+        serverOS={config?.runtime_os}
         mpvEnabled={mpvEnabled}
         onCreateDirectory={async (payload) => {
           const created = await createDirectory(payload)
@@ -4910,12 +4970,14 @@ export default function App() {
         onLogout={logout}
       />
       <Toast
+        key={toastId}
         open={Boolean(toastMessage)}
         message={toastMessage}
         duration={toastDuration}
         onClose={closeToast}
       />
-      <CenterToast
+      <Toast
+        centered
         open={Boolean(centerToastMessage)}
         message={centerToastMessage}
         onClose={closeCenterToast}

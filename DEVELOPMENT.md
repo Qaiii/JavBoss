@@ -40,7 +40,7 @@ npm install
 DOCKER_MODE=1 ./scripts/cli.sh dev backend
 ```
 
-该模式会启用 `JAVBOSS_CONTAINER=1`，禁用 API token、目录选择器、桌面集成和 mpv 播放，并使用 ffmpeg 生成截图。需要本机可通过 `FFMPEG_PATH`、`internal/bin/ffmpeg` 或系统 `PATH` 找到 `ffmpeg`。本地调试默认不会把前端输入的目录自动加上 `/host` 前缀，也不会把 `127.0.0.1` 代理改写为 `host.docker.internal`；如需测试 Docker 宿主机路径映射，可使用 `DOCKER_MODE=1 JAVBOSS_HOST_PATH_PREFIX=1 ./scripts/cli.sh dev backend`，如需测试 Docker 代理网关映射，可额外设置 `JAVBOSS_PROXY_HOST_GATEWAY=1`。
+该模式会启用 `JAVBOSS_CONTAINER=1`，禁用 API token、桌面集成和 mpv 播放，并使用 ffmpeg 生成截图。需要本机可通过 `FFMPEG_PATH`、`internal/bin/ffmpeg` 或系统 `PATH` 找到 `ffmpeg`。本地调试默认不会把前端输入的目录自动加上 `/host` 前缀，也不会把 `127.0.0.1` 代理改写为 `host.docker.internal`；如需测试 Docker 宿主机路径映射，可使用 `DOCKER_MODE=1 JAVBOSS_HOST_PATH_PREFIX=1 ./scripts/cli.sh dev backend`，如需测试 Docker 代理网关映射，可额外设置 `JAVBOSS_PROXY_HOST_GATEWAY=1`。
 
 启动前端：
 
@@ -61,6 +61,24 @@ npm run build
 ```bash
 scripts/cli.sh release linux-x86_64 v0.1.0
 ```
+
+## 通过 CLI 启停 Docker
+
+需要 Node.js/npm、Docker 和 Docker Compose 插件。在仓库根目录执行：
+
+```bash
+# 构建镜像并后台启动容器
+./scripts/cli.sh docker start
+
+# 停止容器，保留容器和数据
+./scripts/cli.sh docker stop
+```
+
+也可运行 `./scripts/cli.sh`，在第一层选择 `docker`，再选择 `start` 或 `stop`。
+
+`start` 使用 `compose.local.yaml` 在 Docker 内构建前后端，默认镜像为 `javboss:local`，访问地址为 `http://localhost:5174`。数据保存在仓库根目录的 `docker-data/`，宿主机根目录只读挂载到 `/host`。重复启动会重新构建镜像并按需更新容器，继续使用该数据目录，不会自动迁移其他目录的数据。
+
+更多参数可通过 `./scripts/cli.sh docker --help` 查看。
 
 ## 项目结构
 
