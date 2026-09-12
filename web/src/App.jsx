@@ -97,7 +97,7 @@ import {
   defaultCardLayout,
 } from '@/utils/cardLayout'
 import { withJavTagDisplayName } from '@/utils/javTag'
-import { displayHostPath } from '@/utils/hostPath'
+import { displayHostPath, hostPathsEnabled } from '@/utils/hostPath'
 import {
   loadSavedJavLibraryScope,
   normalizeJavLibraryScope,
@@ -467,6 +467,7 @@ export default function App() {
   const remoteAccess = configFlag(config?.runtime_remote_request)
   const clientMode = configFlag(config?.runtime_client)
   const containerMode = configFlag(config?.runtime_container)
+  const hostPathPrefixEnabled = hostPathsEnabled(config)
   const desktopIntegrationEnabled = configFlag(config?.desktop_integration_enabled, true)
   const directoryPickerEnabled = configFlag(config?.directory_picker_enabled, true)
   const mpvEnabled = configFlag(config?.mpv_enabled, true)
