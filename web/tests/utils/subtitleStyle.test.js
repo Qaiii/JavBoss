@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
+import fs from 'node:fs'
+
 import {
   DEFAULT_SUBTITLE_STYLE,
+  SUBTITLE_STYLE_BASE_FONT_REM,
   loadSubtitleStyle,
   normalizeSubtitleStyle,
   saveSubtitleStyle,
@@ -10,6 +13,13 @@ import {
   subtitleEdgeCss,
   subtitleStyleCssVars,
 } from '../../src/utils/subtitleStyle.js'
+
+test('defaults subtitle size to 2rem at 100% scale', () => {
+  assert.equal(SUBTITLE_STYLE_BASE_FONT_REM, 2)
+  assert.equal(DEFAULT_SUBTITLE_STYLE.scale, 1)
+  const css = fs.readFileSync(new URL('../../src/index.css', import.meta.url), 'utf8')
+  assert.match(css, /font-size:\s*calc\(2rem \* var\(--jb-sub-scale,\s*1\)\)/)
+})
 
 test('normalizes subtitle style with fallbacks and clamps', () => {
   assert.deepEqual(normalizeSubtitleStyle(null), DEFAULT_SUBTITLE_STYLE)

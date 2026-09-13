@@ -31,7 +31,9 @@ import {
   saveJavSubtitle,
   searchJavSubtitles,
 } from '@/api'
-import { buildVideoFullPath, getVideoDisplayName } from '@/utils/display'
+import { useStore } from '@/store'
+import { buildVideoFullPath, getPlayerDisplayName } from '@/utils/display'
+import { javTitlePrefersChinese } from '@/utils/jav'
 import {
   PLAYER_HOTKEY_ACTIONS,
   formatPlayerHotkeyKey,
@@ -117,6 +119,7 @@ export default function PlayerModal({
   showHotkeyHint = true,
   onPlaybackError,
 }) {
+  const preferChineseTitle = useStore((state) => javTitlePrefersChinese(state.config))
   const playerHostRef = useRef(null)
   const playerRef = useRef(null)
   const shellRef = useRef(null)
@@ -474,7 +477,7 @@ export default function PlayerModal({
         const pipWindow = await window.documentPictureInPicture.requestWindow(size)
         copyStylesToDocument(pipWindow.document)
         applyPipWindowBaseStyles(pipWindow.document, {
-          title: video ? getVideoDisplayName(video) : 'JavBoss',
+          title: video ? getPlayerDisplayName(video, preferChineseTitle) : 'JavBoss',
         })
         documentPipWindowRef.current = pipWindow
         pipWindow.addEventListener(
@@ -518,7 +521,7 @@ export default function PlayerModal({
     setPipKind('inline')
     setIsPiP(true)
     pokeControls()
-  }, [exitBrowserFullscreen, exitPipMode, pokeControls, video, videoSize])
+  }, [exitBrowserFullscreen, exitPipMode, pokeControls, preferChineseTitle, video, videoSize])
   const togglePipRef = useRef(togglePip)
   togglePipRef.current = togglePip
 
@@ -1371,14 +1374,12 @@ export default function PlayerModal({
           configured.action === PLAYER_HOTKEY_ACTIONS.SCREENSHOT)
       ) {
         markHandled()
+        // 快捷键只改进度/音量/截图，不唤出或打断控制条显隐
         if (configured.action === PLAYER_HOTKEY_ACTIONS.SEEK) {
-          pokeControls()
           seekBy(configured.amount)
         } else if (configured.action === PLAYER_HOTKEY_ACTIONS.VOLUME) {
-          pokeControls()
           adjustVolume(configured.amount / 100)
         } else if (configured.action === PLAYER_HOTKEY_ACTIONS.SCREENSHOT) {
-          pokeControls()
           captureScreenshot()
         }
         return
@@ -1407,7 +1408,6 @@ export default function PlayerModal({
           // 焦点在进度条（role="slider"）上时保留其自身的左右键定位，不重复处理
           if (target instanceof Element && target.closest('[role="slider"]')) return
           markHandled()
-          pokeControls()
           if (event.repeat) return // 系统自动连发由长按定时器接管，避免重复触发
           if (key === 'ArrowLeft' || key === 'ArrowRight') {
             const step = (key === 'ArrowLeft' ? -1 : 1) * ARROW_SEEK_STEP_SECONDS
@@ -1567,7 +1567,6 @@ export default function PlayerModal({
     selectedSource,
     playbackInfo,
     playbackKey,
-    pokeControls,
     applySeek,
     handleClose,
     clearFrameCache,
@@ -1597,6 +1596,7 @@ export default function PlayerModal({
       // 忽略捕获失败
     }
     event.preventDefault()
+    event.stopPropagation()
   }
 
   const handleSeekPointerMove = (event) => {
@@ -1834,7 +1834,7 @@ export default function PlayerModal({
 
   if (!video) return null
 
-  const displayName = getVideoDisplayName(video)
+  const displayName = getPlayerDisplayName(video, preferChineseTitle)
   const aspectRatio =
     videoSize && videoSize.height > 0 ? videoSize.width / videoSize.height : 16 / 9
   const displayTime = dragTime ?? pendingSeekTime ?? currentTime
@@ -1970,7 +1970,7 @@ export default function PlayerModal({
               controlsVisible ? 'opacity-100' : 'pointer-events-none opacity-0'
             }`}
           >
-            {/* 进度条 */}
+            {/* 进度条：上方留出点击保护区，避免点在细条附近时落到视频上触发暂停 */}
             <div
               ref={seekBarRef}
               role="slider"
@@ -1979,7 +1979,7 @@ export default function PlayerModal({
               aria-valuemin={0}
               aria-valuemax={Math.round(duration)}
               aria-valuenow={Math.round(displayTime)}
-              className="group/seek relative h-5 w-full cursor-pointer touch-none"
+              className="player-seek group/seek relative cursor-pointer touch-none pt-4 pointer-coarse:pt-6"
               onPointerDown={handleSeekPointerDown}
               onPointerMove={handleSeekPointerMove}
               onPointerUp={handleSeekPointerUp}
@@ -1990,41 +1990,41 @@ export default function PlayerModal({
               }}
               onKeyDown={handleSeekBarKeyDown}
             >
-              {tooltipTime != null && duration > 0 ? (
-                <div
-                  ref={seekTooltipRef}
-                  className="pointer-events-none absolute bottom-8 z-10 -translate-x-1/2 rounded-md bg-black/90 px-2 py-1 text-xs font-medium tabular-nums text-white shadow"
-                  style={{ left: `${tooltipOffsetPercent}%` }}
-                >
-                  {framePreview ? (
-                    <div className="mb-1 overflow-hidden rounded border border-white/20">
-                      <img
-                        src={framePreview}
-                        alt=""
-                        draggable={false}
-                        className="block max-h-[8vh] max-w-[13vw] object-contain"
-                      />
-                    </div>
-                  ) : null}
-                  {formatTime(tooltipTime)}
+              <div className="relative h-5 w-full">
+                {tooltipTime != null && duration > 0 ? (
+                  <div
+                    ref={seekTooltipRef}
+                    className="pointer-events-none absolute bottom-8 z-10 -translate-x-1/2 rounded-md bg-black/90 px-2 py-1 text-xs font-medium tabular-nums text-white shadow"
+                    style={{ left: `${tooltipOffsetPercent}%` }}
+                  >
+                    {framePreview ? (
+                      <div className="mb-1 overflow-hidden rounded border border-white/20">
+                        <img
+                          src={framePreview}
+                          alt=""
+                          draggable={false}
+                          className="block max-h-[8vh] max-w-[13vw] object-contain"
+                        />
+                      </div>
+                    ) : null}
+                    {formatTime(tooltipTime)}
+                  </div>
+                ) : null}
+                <div className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-white/25 transition-all duration-100 group-hover/seek:h-1.5">
+                  <div
+                    className="absolute inset-y-0 left-0 rounded-full bg-white/50"
+                    style={{ width: `${bufferedPercent}%` }}
+                  />
+                  <div
+                    className="absolute inset-y-0 left-0 rounded-full bg-[#f00]"
+                    style={{ width: `${playedPercent}%` }}
+                  />
                 </div>
-              ) : null}
-              <div className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-white/25 transition-all duration-100 group-hover/seek:h-1.5">
                 <div
-                  className="absolute inset-y-0 left-0 rounded-full bg-white/50"
-                  style={{ width: `${bufferedPercent}%` }}
-                />
-                <div
-                  className="absolute inset-y-0 left-0 rounded-full bg-[#f00]"
-                  style={{ width: `${playedPercent}%` }}
+                  className="player-seek-handle pointer-events-none absolute top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow-md"
+                  style={{ left: `${playedPercent}%` }}
                 />
               </div>
-              <div
-                className={`pointer-events-none absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow-md transition-opacity ${
-                  dragTime != null ? 'opacity-100' : 'opacity-0 group-hover/seek:opacity-100'
-                }`}
-                style={{ left: `${playedPercent}%` }}
-              />
             </div>
 
             {/* 按钮行 */}
@@ -2059,8 +2059,8 @@ export default function PlayerModal({
                   <Forward10Icon />
                 </button>
 
-                {/* 音量 */}
-                <div className="group/vol relative flex items-center">
+                {/* 音量：主播放器默认展开滑条，不依赖悬停 */}
+                <div className="relative flex items-center">
                   <button
                     type="button"
                     aria-label={
@@ -2078,11 +2078,7 @@ export default function PlayerModal({
                     )}
                   </button>
                   <div
-                    className={`flex items-center overflow-hidden transition-all duration-200 ${
-                      isPiP
-                        ? 'w-16 opacity-100'
-                        : 'w-0 opacity-0 group-hover/vol:w-24 group-hover/vol:opacity-100 pointer-coarse:w-16 pointer-coarse:opacity-100'
-                    }`}
+                    className={`flex items-center ${isPiP ? 'w-16' : 'w-24 pointer-coarse:w-16'}`}
                   >
                     <input
                       type="range"
@@ -2092,7 +2088,7 @@ export default function PlayerModal({
                       value={muted ? 0 : volume}
                       onChange={(event) => actionsRef.current?.setVolumeLevel(event.target.value)}
                       aria-label={zh('音量', 'Volume')}
-                      className="h-1 w-16 cursor-pointer accent-white pointer-coarse:w-12"
+                      className="player-volume-slider w-16 pointer-coarse:w-12"
                     />
                   </div>
                 </div>
@@ -2131,13 +2127,13 @@ export default function PlayerModal({
                         setSubMenu(null)
                         showControls()
                       }}
-                      className={`flex h-9 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-medium text-white transition-colors hover:bg-white/15 pointer-coarse:h-8 ${
+                      className={`hover:bg-white/15 flex h-9 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-medium text-white transition-colors pointer-coarse:h-8 ${
                         menuOpen === 'episodes' ? 'bg-white/15 text-yellow-300' : ''
                       }`}
                     >
                       <PlaylistPlayIcon style={{ fontSize: 18 }} />
                       {isPiP ? null : <span>{zh('选集', 'Episodes')}</span>}
-                      <span className="rounded-full bg-white/20 px-1.5 text-[10px] font-semibold tabular-nums leading-4">
+                      <span className="bg-white/20 rounded-full px-1.5 text-[10px] font-semibold tabular-nums leading-4">
                         {episodeList.length}
                       </span>
                     </button>
@@ -2175,7 +2171,7 @@ export default function PlayerModal({
                                   onSwitchVideo?.(ep)
                                 }}
                                 title={label}
-                                className={`flex w-full items-center gap-2 px-3.5 py-1.5 text-left text-xs transition-colors hover:bg-white/10 ${
+                                className={`hover:bg-white/10 flex w-full items-center gap-2 px-3.5 py-1.5 text-left text-xs transition-colors ${
                                   active ? 'font-semibold text-white' : 'text-white/80'
                                 }`}
                               >
@@ -2311,13 +2307,13 @@ export default function PlayerModal({
                                 }
                               }}
                               placeholder={zh('番号，如 SSIS-480', 'Movie code, e.g. SSIS-480')}
-                              className="min-w-0 flex-1 rounded bg-white/10 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:outline-none"
+                              className="bg-white/10 min-w-0 flex-1 rounded px-3 py-2 text-sm text-white placeholder:text-white/40 focus:outline-none"
                             />
                             <button
                               type="button"
                               disabled={subSearchBusy}
                               onClick={() => runSubtitleSearch()}
-                              className="rounded bg-white/15 px-2.5 text-white transition-colors hover:bg-white/25 disabled:opacity-50"
+                              className="bg-white/15 hover:bg-white/25 rounded px-2.5 text-white transition-colors disabled:opacity-50"
                             >
                               <SearchIcon style={{ fontSize: 20 }} />
                             </button>
@@ -2350,7 +2346,7 @@ export default function PlayerModal({
                                     event.stopPropagation()
                                     openSubtitleDetail(item)
                                   }}
-                                  className="flex w-full items-center justify-between gap-2 px-4 py-2.5 text-left text-sm transition-colors hover:bg-white/10"
+                                  className="hover:bg-white/10 flex w-full items-center justify-between gap-2 px-4 py-2.5 text-left text-sm transition-colors"
                                 >
                                   <span className="min-w-0 flex-1">
                                     <span className="block font-semibold text-white">
@@ -2403,7 +2399,7 @@ export default function PlayerModal({
                                               label: track.label || track.lang,
                                             })
                                           }
-                                          className="rounded p-1.5 text-white/50 transition-colors hover:bg-white/15 hover:text-white"
+                                          className="hover:bg-white/15 rounded p-1.5 text-white/50 transition-colors hover:text-white"
                                         >
                                           <PreviewIcon style={{ fontSize: 18 }} />
                                         </button>
@@ -2418,7 +2414,7 @@ export default function PlayerModal({
                                               label: track.label || track.lang,
                                             })
                                           }
-                                          className="rounded p-1.5 text-white/50 transition-colors hover:bg-white/15 hover:text-white"
+                                          className="hover:bg-white/15 rounded p-1.5 text-white/50 transition-colors hover:text-white"
                                         >
                                           <DownloadIcon style={{ fontSize: 18 }} />
                                         </button>
@@ -2506,7 +2502,7 @@ export default function PlayerModal({
                               setMenuOpen(null)
                               scheduleHideControls()
                             }}
-                            className={`flex w-full items-center justify-between px-3.5 py-1.5 text-sm transition-colors hover:bg-white/10 ${
+                            className={`hover:bg-white/10 flex w-full items-center justify-between px-3.5 py-1.5 text-sm transition-colors ${
                               active ? 'font-semibold text-white' : 'text-white/80'
                             }`}
                           >
@@ -2591,7 +2587,7 @@ function SubMenuItem({ active, label, onClick, onPreview }) {
           type="button"
           aria-label={zh('预览', 'Preview')}
           onClick={onPreview}
-          className="rounded p-1.5 text-white/50 transition-colors hover:bg-white/15 hover:text-white"
+          className="hover:bg-white/15 rounded p-1.5 text-white/50 transition-colors hover:text-white"
         >
           <PreviewIcon style={{ fontSize: 18 }} />
         </button>

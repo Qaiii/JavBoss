@@ -44,7 +44,7 @@ local user_opts = {
     minmousemove = 0,                      -- minimum mouse movement (in pixels) required to show OSC
     deadzonesize = 0.75,                   -- size of the deadzone (0.0 = whole screen, 1.0 = no deadzone)
     deadzone_hide = "instant",             -- hide behavior when cursor enters deadzone or leaves window: "instant" or "timeout"
-    osc_on_seek = true,                    -- show OSC when seeking
+    osc_on_seek = false,                   -- show OSC when seeking
     osc_on_start = "both",                 -- show OSC on start of every file ("no", "bottom", "top", "both")
     mouse_seek_pause = true,               -- pause video while seeking with mouse move (on button hold)
     force_seek_tooltip = false,            -- force show seekbar tooltip on mouse drag, even if not hovering seekbar

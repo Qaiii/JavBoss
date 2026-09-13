@@ -14,10 +14,13 @@ export function normalizeJavTitleLanguage(value) {
     : 'original'
 }
 
-export function resolveJavDisplayTitle(item, preferChinese, fallback) {
-  const code = item?.code?.trim()
+export function resolveJavMetadataTitle(item, preferChinese = false) {
   const original = String(item?.title || '').trim()
   const chinese = String(item?.title_zh || '').trim()
-  const title = preferChinese ? chinese || original : original || chinese
-  return title || code || fallback
+  return preferChinese ? chinese || original : original || chinese
+}
+
+export function resolveJavDisplayTitle(item, preferChinese, fallback) {
+  const code = item?.code?.trim()
+  return resolveJavMetadataTitle(item, preferChinese) || code || fallback
 }

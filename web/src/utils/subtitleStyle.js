@@ -11,8 +11,10 @@ export const SUBTITLE_STYLE_COLORS = [
 export const SUBTITLE_STYLE_BACKGROUNDS = ['off', 'light', 'medium', 'solid']
 export const SUBTITLE_STYLE_EDGES = ['none', 'outline', 'shadow']
 
+export const SUBTITLE_STYLE_BASE_FONT_REM = 2
+
 export const DEFAULT_SUBTITLE_STYLE = {
-  scale: 1.2,
+  scale: 1,
   color: '#ffffff',
   background: 'medium',
   edge: 'outline',

@@ -1,6 +1,7 @@
 import { zh } from '@/utils/i18n'
 import {
   DEFAULT_SUBTITLE_STYLE,
+  SUBTITLE_STYLE_BASE_FONT_REM,
   SUBTITLE_STYLE_COLORS,
   subtitleBackgroundCss,
   subtitleEdgeCss,
@@ -22,7 +23,7 @@ export default function SubtitleStylePanel({ style, onChange, onReset }) {
     color: style.color,
     backgroundColor: subtitleBackgroundCss(style.background),
     textShadow: subtitleEdgeCss(style.edge),
-    fontSize: `${17 * style.scale}px`,
+    fontSize: `${SUBTITLE_STYLE_BASE_FONT_REM * style.scale}rem`,
     fontWeight: 600,
     lineHeight: 1.35,
     padding: '0.08em 0.32em',

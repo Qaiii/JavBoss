@@ -1105,7 +1105,7 @@ body.has-page-scroll .sticky-pagination {
 }
 
 .player-shell .vjs-text-track-cue {
-  font-size: calc(1em * var(--jb-sub-scale, 1.2)) !important;
+  font-size: calc(2rem * var(--jb-sub-scale, 1)) !important;
 }
 
 .player-shell .vjs-text-track-cue > *,
@@ -1124,6 +1124,47 @@ body.has-page-scroll .sticky-pagination {
   color: var(--jb-sub-color, #ffffff);
   background-color: var(--jb-sub-bg, rgba(0, 0, 0, 0.6));
   text-shadow: var(--jb-sub-shadow, none);
+  font-size: calc(2rem * var(--jb-sub-scale, 1));
+}
+
+.player-volume-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 16px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.player-volume-slider::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.player-volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  margin-top: -6px;
+  border: 0;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.45);
+}
+
+.player-volume-slider::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.player-volume-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border: 0;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.45);
 }
 
 /* 自定义控制条随 .player-shell 进入浏览器全屏 */

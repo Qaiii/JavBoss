@@ -1,4 +1,5 @@
-import { zh } from '@/utils/i18n'
+import { zh } from './i18n.js'
+import { resolveJavMetadataTitle } from './javTitle.js'
 
 export const getVideoDisplayName = (video) => {
   if (!video) return ''
@@ -13,6 +14,26 @@ export const getVideoDisplayName = (video) => {
     return video.path
   }
   return video.id != null ? zh(`视频 #${video.id}`, `Video #${video.id}`) : ''
+}
+
+function videoJav(video) {
+  return video?.jav || video?.locations?.[0]?.jav || null
+}
+
+function stripFilenameExtension(name) {
+  const text = String(name || '')
+  const index = text.lastIndexOf('.')
+  if (index <= 0) return text
+  return text.slice(0, index)
+}
+
+export function getPlayerDisplayName(video, preferChinese = false) {
+  const filename = getVideoDisplayName(video)
+  const title = resolveJavMetadataTitle(videoJav(video), preferChinese)
+  if (!title) return filename
+  if (!filename) return title
+  if (filename === title || stripFilenameExtension(filename) === title) return filename
+  return `${filename} · ${title}`
 }
 
 export const buildVideoFullPath = (video) => {

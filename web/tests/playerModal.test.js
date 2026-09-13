@@ -30,6 +30,45 @@ test('browser player prefers native HEVC and falls back to HLS on decode error',
   assert.match(player, /kind === 'hls'/)
 })
 
+test('player title bar uses filename plus jav title', () => {
+  assert.match(player, /getPlayerDisplayName\(video, preferChineseTitle\)/)
+  assert.doesNotMatch(player, /getVideoDisplayName\(/)
+})
+
+test('seek bar keeps a click guard above the visual track', () => {
+  assert.match(
+    player,
+    /player-seek group\/seek relative cursor-pointer touch-none pt-4 pointer-coarse:pt-6/
+  )
+  assert.match(player, /<div className="relative h-5 w-full">/)
+})
+
+test('player seek and volume handles stay circular and visible', () => {
+  const css = fs.readFileSync(new URL('../src/index.css', import.meta.url), 'utf8')
+  assert.match(player, /player-seek-handle[\s\S]*rounded-full/)
+  assert.match(player, /player-volume-slider/)
+  assert.doesNotMatch(player, /group-hover\/seek:opacity-100/)
+  assert.match(css, /\.player-volume-slider::-webkit-slider-thumb\s*\{[^}]*border-radius:\s*50%/)
+})
+
+test('player volume slider is visible without hovering', () => {
+  assert.match(player, /w-24 pointer-coarse:w-16/)
+  assert.doesNotMatch(player, /group-hover\/vol/)
+  assert.doesNotMatch(player, /group\/vol/)
+})
+
+test('player hotkeys do not show or hide the control bar', () => {
+  const configured = player.match(
+    /if \(\s*configured &&[\s\S]*?configured\.action === PLAYER_HOTKEY_ACTIONS\.SCREENSHOT[\s\S]*?return/
+  )
+  assert.ok(configured, 'expected configured hotkey handler')
+  assert.doesNotMatch(configured[0], /pokeControls/)
+
+  const arrows = player.match(/case 'ArrowLeft':[\s\S]*?break/)
+  assert.ok(arrows, 'expected arrow-key handler')
+  assert.doesNotMatch(arrows[0], /pokeControls/)
+})
+
 test('hover show/hide listens on the player card so the title bar does not flicker', () => {
   assert.match(player, /const card = pipCardRef\.current/)
   assert.match(player, /card\.addEventListener\('mousemove', handleMouseMove\)/)
