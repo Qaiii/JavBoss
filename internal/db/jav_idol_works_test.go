@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -541,6 +542,78 @@ func TestSearchJavMergesUnimportedIdolWorks(t *testing.T) {
 	}
 	if len(recentPage) != 1 || recentPage[0].Code != "LIB-HIGH" {
 		t.Fatalf("recent first page = %v, want [LIB-HIGH]", codesOf(recentPage))
+	}
+}
+
+func TestSearchJavPaginatesUnimportedWorks(t *testing.T) {
+	gdb := openTestDB(t)
+	ctx := context.Background()
+	now := time.Now().UTC()
+
+	dir := models.Directory{Path: "/tmp/unimported-page"}
+	if err := gdb.Create(&dir).Error; err != nil {
+		t.Fatalf("create directory: %v", err)
+	}
+	idol := models.JavIdol{Name: "Page Idol"}
+	if err := gdb.Create(&idol).Error; err != nil {
+		t.Fatalf("create idol: %v", err)
+	}
+	library := models.Jav{Code: "LIB-001", Title: "Library", CreatedAt: now, FetchedAt: now}
+	if err := gdb.Create(&library).Error; err != nil {
+		t.Fatalf("create library jav: %v", err)
+	}
+	if err := gdb.Create(&models.JavIdolMap{JavID: library.ID, JavIdolID: idol.ID}).Error; err != nil {
+		t.Fatalf("create idol map: %v", err)
+	}
+	video := models.Video{
+		DirectoryID: dir.ID, Path: "lib-001.mp4", Filename: "lib-001.mp4",
+		Fingerprint: "fp-lib-001", JavID: int64Ptr(library.ID), ModifiedAt: now,
+	}
+	if err := gdb.Create(&video).Error; err != nil {
+		t.Fatalf("create video: %v", err)
+	}
+	createVideoLocationsForVideos(t, gdb, video)
+
+	works := make([]models.JavIdolWork, 0, 40)
+	for i := 1; i <= 40; i++ {
+		works = append(works, models.JavIdolWork{
+			JavIdolID: idol.ID,
+			Code:      fmt.Sprintf("EXT-%03d", i),
+			Title:     fmt.Sprintf("Unimported %d", i),
+		})
+	}
+	if err := ReplaceJavIdolWorks(ctx, idol.ID, works); err != nil {
+		t.Fatalf("replace works: %v", err)
+	}
+
+	first, total, err := SearchJavWithPrefixFilters(ctx, nil, nil, "", "", "code", 10, 0, nil, nil, JavSearchFilters{StudioID: -1, UnimportedOnly: true}, nil, nil)
+	if err != nil {
+		t.Fatalf("unimported first page: %v", err)
+	}
+	if len(first) != 10 || first[0].Code != "EXT-001" || first[9].Code != "EXT-010" {
+		t.Fatalf("unimported first page = %v, want EXT-001..EXT-010", codesOf(first))
+	}
+	if total <= int64(len(first)) {
+		t.Fatalf("unimported first-page total=%d, want more than %d so waterfall continues", total, len(first))
+	}
+
+	second, _, err := SearchJavWithPrefixFilters(ctx, nil, nil, "", "", "code", 10, 10, nil, nil, JavSearchFilters{StudioID: -1, UnimportedOnly: true}, nil, nil)
+	if err != nil {
+		t.Fatalf("unimported second page: %v", err)
+	}
+	if len(second) != 10 || second[0].Code != "EXT-011" || second[9].Code != "EXT-020" {
+		t.Fatalf("unimported second page = %v, want EXT-011..EXT-020", codesOf(second))
+	}
+
+	recent, recentTotal, err := SearchJavWithPrefixFilters(ctx, nil, nil, "", "", "recent", 1, 0, nil, nil, JavSearchFilters{StudioID: -1, IncludeExternal: true}, nil, nil)
+	if err != nil {
+		t.Fatalf("all recent first page: %v", err)
+	}
+	if len(recent) != 1 || recent[0].Code != "LIB-001" {
+		t.Fatalf("all recent first page = %v, want [LIB-001]", codesOf(recent))
+	}
+	if recentTotal <= 1 {
+		t.Fatalf("all recent first-page total=%d, want library plus unimported", recentTotal)
 	}
 }
 

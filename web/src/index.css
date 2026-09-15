@@ -1290,13 +1290,25 @@ body.has-page-scroll .sticky-pagination {
   object-fit: contain;
 }
 
-/* 浏览器播放器字幕样式（由播放器「字幕 → 样式」写入 CSS 变量） */
+/* 浏览器播放器字幕样式（由播放器「字幕 → 样式」写入 CSS 变量）
+   位置按播放器高度：0% 顶部，100% 底部，默认 92%。
+   top% 相对容器，translateY% 相对字幕自身，合起来让 0/100 时字幕贴顶/贴底。 */
 .player-shell .vjs-text-track-display {
-  padding-bottom: var(--jb-sub-offset, 12%) !important;
+  inset: 0 !important;
+  padding: 0 !important;
+}
+
+.player-shell .vjs-text-track-display > div {
+  position: absolute !important;
+  inset: 0 !important;
+  margin: 0 !important;
 }
 
 .player-shell .vjs-text-track-cue {
+  top: var(--jb-sub-offset, 92%) !important;
+  bottom: auto !important;
   font-size: calc(2rem * var(--jb-sub-scale, 1)) !important;
+  transform: translateY(calc(-1 * var(--jb-sub-offset, 92%))) !important;
 }
 
 .player-shell .vjs-text-track-cue > *,

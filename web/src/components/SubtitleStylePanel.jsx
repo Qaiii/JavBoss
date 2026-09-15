@@ -32,8 +32,17 @@ export default function SubtitleStylePanel({ style, onChange, onReset }) {
 
   return (
     <div className="max-h-96 space-y-3 overflow-y-auto px-3 py-3">
-      <div className="flex min-h-16 items-center justify-center rounded-lg bg-gradient-to-b from-zinc-700 to-zinc-900 px-3 py-4">
-        <span style={previewStyle}>{zh('字幕样式预览', 'Subtitle style preview')}</span>
+      <div className="relative h-28 overflow-hidden rounded-lg bg-gradient-to-b from-zinc-700 to-zinc-900">
+        <span
+          className="absolute left-1/2 whitespace-nowrap"
+          style={{
+            ...previewStyle,
+            top: `${style.offset}%`,
+            transform: `translate(-50%, ${-style.offset}%)`,
+          }}
+        >
+          {zh('字幕样式预览', 'Subtitle style preview')}
+        </span>
       </div>
 
       <label className="block">
@@ -118,18 +127,12 @@ export default function SubtitleStylePanel({ style, onChange, onReset }) {
       <label className="block">
         <div className="mb-1.5 flex items-center justify-between text-xs text-white/70">
           <span>{zh('位置', 'Position')}</span>
-          <span className="text-white/50">
-            {style.offset <= 8
-              ? zh('偏低', 'Lower')
-              : style.offset >= 20
-                ? zh('偏高', 'Higher')
-                : zh('居中偏低', 'Lower-middle')}
-          </span>
+          <span className="tabular-nums text-white/50">{Math.round(style.offset)}%</span>
         </div>
         <input
           type="range"
-          min={4}
-          max={28}
+          min={0}
+          max={100}
           step={1}
           value={style.offset}
           aria-label={zh('字幕垂直位置', 'Subtitle vertical position')}

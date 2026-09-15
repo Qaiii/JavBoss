@@ -1,4 +1,5 @@
 export const SUBTITLE_STYLE_STORAGE_KEY = 'javboss.player.subtitleStyle'
+export const SUBTITLE_STYLE_VERSION = 2
 
 export const SUBTITLE_STYLE_COLORS = [
   { id: 'white', value: '#ffffff' },
@@ -18,7 +19,8 @@ export const DEFAULT_SUBTITLE_STYLE = {
   color: '#ffffff',
   background: 'medium',
   edge: 'outline',
-  offset: 12,
+  offset: 92,
+  v: SUBTITLE_STYLE_VERSION,
 }
 
 const BACKGROUND_CSS = {
@@ -63,7 +65,8 @@ export function normalizeSubtitleStyle(raw) {
     color: normalizeColor(source.color),
     background,
     edge,
-    offset: clamp(source.offset, 4, 28, DEFAULT_SUBTITLE_STYLE.offset),
+    offset: Math.round(clamp(source.offset, 0, 100, DEFAULT_SUBTITLE_STYLE.offset)),
+    v: SUBTITLE_STYLE_VERSION,
   }
 }
 
@@ -72,7 +75,14 @@ export function loadSubtitleStyle() {
   try {
     const raw = window.localStorage.getItem(SUBTITLE_STYLE_STORAGE_KEY)
     if (!raw) return { ...DEFAULT_SUBTITLE_STYLE }
-    return normalizeSubtitleStyle(JSON.parse(raw))
+    const parsed = JSON.parse(raw)
+    if (parsed && typeof parsed === 'object' && parsed.v !== SUBTITLE_STYLE_VERSION) {
+      return normalizeSubtitleStyle({
+        ...parsed,
+        offset: DEFAULT_SUBTITLE_STYLE.offset,
+      })
+    }
+    return normalizeSubtitleStyle(parsed)
   } catch {
     return { ...DEFAULT_SUBTITLE_STYLE }
   }

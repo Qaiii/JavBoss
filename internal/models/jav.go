@@ -404,7 +404,7 @@ type JavIdolWork struct {
 	ID          int64     `json:"id" gorm:"primaryKey"`
 	JavIdolID   int64     `json:"jav_idol_id" gorm:"not null;uniqueIndex:idx_jav_idol_work_jav_idol_id_code,priority:1"`
 	JavIdol     JavIdol   `json:"-" gorm:"foreignKey:JavIdolID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
-	Code        string    `json:"code" gorm:"not null;uniqueIndex:idx_jav_idol_work_jav_idol_id_code,priority:2"`
+	Code        string    `json:"code" gorm:"not null;uniqueIndex:idx_jav_idol_work_jav_idol_id_code,priority:2;index:idx_jav_idol_work_code"`
 	Title       string    `json:"title" gorm:"type:text"`
 	CoverURL    string    `json:"cover_url" gorm:"type:text"`
 	ReleaseUnix int64     `json:"release_unix" gorm:"not null;default:0"`
