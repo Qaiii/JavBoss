@@ -93,20 +93,20 @@ function ManualListEditor({
 }) {
   return (
     <div
-      className={`min-h-24 rounded border px-2 py-2 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 ${
-        disabled ? 'bg-gray-50' : 'bg-white'
+      className={`min-h-24 rounded border px-2 py-2 focus-within:border-app-gold focus-within:ring-1 focus-within:ring-app-gold ${
+        disabled ? 'bg-app-surface-2' : 'bg-app-surface'
       }`}
     >
       <div className="flex flex-wrap items-center gap-2">
         {values.map((value) => (
           <span
             key={value}
-            className="inline-flex min-w-0 items-center gap-1 rounded-full bg-gray-100 px-2 py-1 text-sm text-gray-800"
+            className="inline-flex min-w-0 items-center gap-1 rounded-full bg-app-surface-2 px-2 py-1 text-sm text-app-text"
           >
             <span className="max-w-48 truncate">{value}</span>
             <button
               type="button"
-              className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-gray-500 hover:bg-gray-200 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-app-muted hover:bg-app-hover hover:text-app-text disabled:cursor-not-allowed disabled:opacity-50"
               onClick={() => onRemove(value)}
               disabled={disabled}
               aria-label={zh(`移除 ${value}`, `Remove ${value}`)}
@@ -559,7 +559,7 @@ export default function VideoScrapeSettingsModal({
       ariaLabel={zh('刮削设置', 'Scrape Settings')}
       className="px-4"
       closeDisabled={saving}
-      contentClassName="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-lg bg-white shadow-xl"
+      contentClassName="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-2xl bg-app-surface shadow-xl"
       onClose={onClose}
     >
       <div className="shrink-0 p-3 pb-0">
@@ -571,14 +571,14 @@ export default function VideoScrapeSettingsModal({
             type="button"
             onClick={onClose}
             disabled={saving}
-            className="rounded px-2 py-1 text-gray-500 hover:bg-gray-100 disabled:opacity-50"
+            className="rounded px-2 py-1 text-app-muted hover:bg-app-surface-2 disabled:opacity-50"
             aria-label={zh('关闭设置', 'Close settings')}
           >
             ✕
           </button>
         </div>
         {displayName ? (
-          <div className="mb-3 truncate text-xs text-gray-500" title={displayName}>
+          <div className="mb-3 truncate text-xs text-app-muted" title={displayName}>
             {displayName}
           </div>
         ) : null}
@@ -587,10 +587,10 @@ export default function VideoScrapeSettingsModal({
         <div className="space-y-2">
           <section
             className={`overflow-hidden rounded-lg border ${
-              mode === 'auto' ? 'border-blue-500 bg-blue-50/30' : 'border-gray-200'
+              mode === 'auto' ? 'bg-app-gold-soft/30 border-app-gold' : 'border-app-border'
             }`}
           >
-            <label className="flex cursor-pointer items-center gap-2 px-3 py-2.5 text-sm font-semibold text-gray-800">
+            <label className="flex cursor-pointer items-center gap-2 px-3 py-2.5 text-sm font-semibold text-app-text">
               <input
                 type="radio"
                 name="video-scrape-mode"
@@ -600,7 +600,7 @@ export default function VideoScrapeSettingsModal({
                 disabled={saving}
               />
               <span className="shrink-0">{zh('自动刮削', 'Automatic Scrape')}</span>
-              <span className="min-w-0 text-xs font-normal text-gray-500">
+              <span className="min-w-0 text-xs font-normal text-app-muted">
                 {zh(
                   '根据文件名或指定番号在扫描过程中自动获取影片信息',
                   'Automatically fetch metadata during scans by filename or a specified code'
@@ -608,8 +608,8 @@ export default function VideoScrapeSettingsModal({
               </span>
             </label>
             {mode === 'auto' ? (
-              <div className="space-y-2 border-t border-blue-100 px-3 py-3">
-                <div className="flex items-center gap-2 rounded border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
+              <div className="border-app-gold/40 space-y-2 border-t px-3 py-3">
+                <div className="flex items-center gap-2 rounded border border-app-border bg-app-surface px-3 py-2 text-sm text-app-text">
                   <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 font-medium">
                     <input
                       type="radio"
@@ -625,7 +625,7 @@ export default function VideoScrapeSettingsModal({
                     type="button"
                     onClick={testPossibleCodes}
                     disabled={saving || possibleCodesLoading}
-                    className="inline-flex shrink-0 items-center gap-1 rounded border px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                    className="inline-flex shrink-0 items-center gap-1 rounded border px-2 py-1 text-xs font-medium text-app-text hover:bg-app-surface-2 disabled:opacity-50"
                     title={zh('提取番号测试', 'Test code extraction')}
                   >
                     <SearchIcon fontSize="inherit" />
@@ -636,7 +636,7 @@ export default function VideoScrapeSettingsModal({
                     </span>
                   </button>
                 </div>
-                <div className="rounded border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
+                <div className="rounded border border-app-border bg-app-surface px-3 py-2 text-sm text-app-text">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                     <label className="flex flex-1 cursor-pointer items-center gap-2 font-medium">
                       <input
@@ -659,10 +659,10 @@ export default function VideoScrapeSettingsModal({
                       pattern={CODE_INPUT_PATTERN}
                       aria-label={zh('指定番号', 'Specified code')}
                       aria-invalid={autoSource === AUTO_SOURCE_CODE && codeInvalid}
-                      className={`w-full rounded border px-3 py-1.5 text-sm uppercase focus:outline-none focus:ring-1 disabled:bg-gray-50 sm:w-44 ${
+                      className={`w-full rounded border px-3 py-1.5 text-sm uppercase focus:outline-none focus:ring-1 disabled:bg-app-surface-2 sm:w-44 ${
                         autoSource === AUTO_SOURCE_CODE && codeInvalid
                           ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
-                          : 'focus:border-blue-500 focus:ring-blue-500'
+                          : 'focus:border-app-gold focus:ring-app-gold'
                       }`}
                     />
                   </div>
@@ -681,10 +681,10 @@ export default function VideoScrapeSettingsModal({
 
           <section
             className={`overflow-hidden rounded-lg border ${
-              mode === 'manual' ? 'border-blue-500 bg-blue-50/30' : 'border-gray-200'
+              mode === 'manual' ? 'bg-app-gold-soft/30 border-app-gold' : 'border-app-border'
             }`}
           >
-            <label className="flex cursor-pointer items-center gap-2 px-3 py-2.5 text-sm font-semibold text-gray-800">
+            <label className="flex cursor-pointer items-center gap-2 px-3 py-2.5 text-sm font-semibold text-app-text">
               <input
                 type="radio"
                 name="video-scrape-mode"
@@ -694,7 +694,7 @@ export default function VideoScrapeSettingsModal({
                 disabled={saving}
               />
               <span className="shrink-0">{zh('手动刮削', 'Manual Scrape')}</span>
-              <span className="min-w-0 text-xs font-normal text-gray-500">
+              <span className="min-w-0 text-xs font-normal text-app-muted">
                 {zh(
                   '自行编辑影片信息，可使用浏览器扩展辅助回填。',
                   'Edit metadata manually; you can use the browser extension to fill it.'
@@ -702,9 +702,9 @@ export default function VideoScrapeSettingsModal({
               </span>
             </label>
             {mode === 'manual' ? (
-              <div className="grid gap-3 border-t border-blue-100 px-3 py-3 md:grid-cols-2">
+              <div className="border-app-gold/40 grid gap-3 border-t px-3 py-3 md:grid-cols-2">
                 <div className="md:col-span-2">
-                  <label className="mb-1 block text-xs font-medium text-gray-500">
+                  <label className="mb-1 block text-xs font-medium text-app-muted">
                     {zh('番号', 'Code')}
                   </label>
                   <input
@@ -715,10 +715,10 @@ export default function VideoScrapeSettingsModal({
                     placeholder="IPX-001"
                     pattern={CODE_INPUT_PATTERN}
                     aria-invalid={codeInvalid}
-                    className={`w-full rounded border px-3 py-1.5 text-sm uppercase focus:outline-none focus:ring-1 disabled:bg-gray-50 ${
+                    className={`w-full rounded border px-3 py-1.5 text-sm uppercase focus:outline-none focus:ring-1 disabled:bg-app-surface-2 ${
                       codeInvalid
                         ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
-                        : 'focus:border-blue-500 focus:ring-blue-500'
+                        : 'focus:border-app-gold focus:ring-app-gold'
                     }`}
                   />
                   <div className="mt-2">
@@ -734,7 +734,7 @@ export default function VideoScrapeSettingsModal({
                           type="button"
                           onClick={() => void linkExistingJav()}
                           disabled={!codeValid || saving || linkLoading || !onLinkExistingJav}
-                          className="rounded border border-blue-300 bg-white px-3 py-1 text-xs font-medium text-blue-700 hover:border-blue-500 hover:bg-blue-50 disabled:opacity-50"
+                          className="rounded border border-app-gold bg-app-surface px-3 py-1 text-xs font-medium text-app-gold hover:border-app-gold hover:bg-app-gold-soft disabled:opacity-50"
                         >
                           {linkLoading
                             ? zh('关联中…', 'Linking...')
@@ -756,11 +756,11 @@ export default function VideoScrapeSettingsModal({
                       )}
                     </div>
                   ) : null}
-                  <div className="mt-3 rounded border border-dashed border-blue-200 bg-blue-50/60 p-3">
-                    <div className="text-xs font-medium text-gray-700">
+                  <div className="border-app-gold/40 bg-app-gold-soft/60 mt-3 rounded border border-dashed p-3">
+                    <div className="text-xs font-medium text-app-text">
                       {zh('浏览器扩展辅助刮削', 'Browser extension-assisted scrape')}
                     </div>
-                    <div className="mt-1 text-[11px] leading-4 text-gray-500">
+                    <div className="mt-1 text-[11px] leading-4 text-app-muted">
                       {zh(
                         '安装并启用“JavBoss 助手”扩展后，点击下方按钮打开对应网站，在影片详情页右下角点击“回填到 JavBoss”即可自动填充影片信息',
                         'Install and enable the “JavBoss 助手” extension, click a button below to open the corresponding site, then click “Fill JavBoss” in the lower-right corner of a movie detail page to fill its metadata automatically.'
@@ -778,7 +778,7 @@ export default function VideoScrapeSettingsModal({
                               browserScrapeOpening ||
                               (providerConfig.requiresCode && !codeValid)
                             }
-                            className="rounded border border-blue-300 bg-white px-3 py-1 text-xs font-medium text-blue-700 hover:border-blue-500 hover:bg-blue-50 disabled:opacity-50"
+                            className="rounded border border-app-gold bg-app-surface px-3 py-1 text-xs font-medium text-app-gold hover:border-app-gold hover:bg-app-gold-soft disabled:opacity-50"
                           >
                             {browserScrapeOpening &&
                             browserScrapeProviderRef.current === providerConfig.name
@@ -791,7 +791,7 @@ export default function VideoScrapeSettingsModal({
                     {browserScrapeStatus ? (
                       <div
                         className={`mt-2 text-xs leading-5 ${
-                          browserScrapeExtensionReady ? 'text-blue-700' : 'text-amber-700'
+                          browserScrapeExtensionReady ? 'text-app-gold' : 'text-amber-200'
                         }`}
                       >
                         {browserScrapeStatus}
@@ -799,7 +799,7 @@ export default function VideoScrapeSettingsModal({
                     ) : null}
                     {browserScrapeSourceURL ? (
                       <div
-                        className="mt-1 truncate text-xs text-gray-400"
+                        className="mt-1 truncate text-xs text-app-muted"
                         title={browserScrapeSourceURL}
                       >
                         {browserScrapeSourceURL}
@@ -808,7 +808,7 @@ export default function VideoScrapeSettingsModal({
                   </div>
                 </div>
                 <div className="md:col-span-2">
-                  <label className="mb-1 block text-xs font-medium text-gray-500">
+                  <label className="mb-1 block text-xs font-medium text-app-muted">
                     {zh('标题 *', 'Title *')}
                   </label>
                   <input
@@ -817,11 +817,11 @@ export default function VideoScrapeSettingsModal({
                     onChange={(event) => updateManual({ title: event.target.value })}
                     disabled={saving}
                     required
-                    className="w-full rounded border px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-50"
+                    className="w-full rounded border px-3 py-1.5 text-sm focus:border-app-gold focus:outline-none focus:ring-1 focus:ring-app-gold disabled:bg-app-surface-2"
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-500">
+                  <label className="mb-1 block text-xs font-medium text-app-muted">
                     {zh('片商', 'Studio')}
                   </label>
                   <input
@@ -830,11 +830,11 @@ export default function VideoScrapeSettingsModal({
                     onChange={(event) => updateManual({ studio: event.target.value })}
                     disabled={saving}
                     placeholder={zh('优先填写英文名称', 'English name preferred')}
-                    className="w-full rounded border px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-50"
+                    className="w-full rounded border px-3 py-1.5 text-sm focus:border-app-gold focus:outline-none focus:ring-1 focus:ring-app-gold disabled:bg-app-surface-2"
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-500">
+                  <label className="mb-1 block text-xs font-medium text-app-muted">
                     {zh('系列', 'Series')}
                   </label>
                   <input
@@ -842,11 +842,11 @@ export default function VideoScrapeSettingsModal({
                     value={manualInfo.series}
                     onChange={(event) => updateManual({ series: event.target.value })}
                     disabled={saving}
-                    className="w-full rounded border px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-50"
+                    className="w-full rounded border px-3 py-1.5 text-sm focus:border-app-gold focus:outline-none focus:ring-1 focus:ring-app-gold disabled:bg-app-surface-2"
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-500">
+                  <label className="mb-1 block text-xs font-medium text-app-muted">
                     {zh('发行日期 *', 'Release Date *')}
                   </label>
                   <input
@@ -855,11 +855,11 @@ export default function VideoScrapeSettingsModal({
                     onChange={(event) => updateManual({ release_date: event.target.value })}
                     disabled={saving}
                     required
-                    className="w-full rounded border px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-50"
+                    className="w-full rounded border px-3 py-1.5 text-sm focus:border-app-gold focus:outline-none focus:ring-1 focus:ring-app-gold disabled:bg-app-surface-2"
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-500">
+                  <label className="mb-1 block text-xs font-medium text-app-muted">
                     {zh('时长（分钟）*', 'Duration (min) *')}
                   </label>
                   <input
@@ -870,11 +870,11 @@ export default function VideoScrapeSettingsModal({
                     onChange={(event) => updateManual({ duration_min: event.target.value })}
                     disabled={saving}
                     required
-                    className="w-full rounded border px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-50"
+                    className="w-full rounded border px-3 py-1.5 text-sm focus:border-app-gold focus:outline-none focus:ring-1 focus:ring-app-gold disabled:bg-app-surface-2"
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-500">
+                  <label className="mb-1 block text-xs font-medium text-app-muted">
                     {zh('标签', 'Tags')}
                   </label>
                   <ManualListEditor
@@ -888,7 +888,7 @@ export default function VideoScrapeSettingsModal({
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-500">
+                  <label className="mb-1 block text-xs font-medium text-app-muted">
                     {zh('女优', 'Actors')}
                   </label>
                   <ManualListEditor
@@ -905,7 +905,7 @@ export default function VideoScrapeSettingsModal({
                   />
                 </div>
                 <div className="md:col-span-2">
-                  <label className="mb-1 block text-xs font-medium text-gray-500">
+                  <label className="mb-1 block text-xs font-medium text-app-muted">
                     {zh('封面链接', 'Cover URL')}
                   </label>
                   <input
@@ -913,11 +913,11 @@ export default function VideoScrapeSettingsModal({
                     value={manualInfo.cover_url}
                     onChange={(event) => updateManual({ cover_url: event.target.value })}
                     disabled={saving}
-                    className="w-full rounded border px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-50"
+                    className="w-full rounded border px-3 py-1.5 text-sm focus:border-app-gold focus:outline-none focus:ring-1 focus:ring-app-gold disabled:bg-app-surface-2"
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-500">
+                  <label className="mb-1 block text-xs font-medium text-app-muted">
                     {zh('有码状态 *', 'Censor State *')}
                   </label>
                   <select
@@ -929,10 +929,10 @@ export default function VideoScrapeSettingsModal({
                     disabled={saving}
                     required
                     aria-invalid={manualCensorError}
-                    className={`w-full rounded border px-3 py-1.5 text-sm focus:outline-none focus:ring-1 disabled:bg-gray-50 ${
+                    className={`w-full rounded border px-3 py-1.5 text-sm focus:outline-none focus:ring-1 disabled:bg-app-surface-2 ${
                       manualCensorError
                         ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
-                        : 'focus:border-blue-500 focus:ring-blue-500'
+                        : 'focus:border-app-gold focus:ring-app-gold'
                     }`}
                   >
                     <option value="" disabled>
@@ -952,8 +952,8 @@ export default function VideoScrapeSettingsModal({
           </section>
 
           <label
-            className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-semibold text-gray-800 ${
-              mode === 'skip' ? 'border-blue-500 bg-blue-50/30' : 'border-gray-200'
+            className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-semibold text-app-text ${
+              mode === 'skip' ? 'bg-app-gold-soft/30 border-app-gold' : 'border-app-border'
             }`}
           >
             <input
@@ -965,7 +965,7 @@ export default function VideoScrapeSettingsModal({
               disabled={saving}
             />
             <span className="shrink-0">{zh('不刮削', 'Do Not Scrape')}</span>
-            <span className="min-w-0 text-xs font-normal text-gray-500">
+            <span className="min-w-0 text-xs font-normal text-app-muted">
               {zh(
                 '扫描过程中跳过此视频，不获取影片信息',
                 'Skip this video during scans without fetching metadata'
@@ -980,7 +980,7 @@ export default function VideoScrapeSettingsModal({
             type="button"
             onClick={onClose}
             disabled={saving}
-            className="rounded border px-3 py-1 text-sm hover:bg-gray-50 disabled:opacity-50"
+            className="rounded border px-3 py-1 text-sm hover:bg-app-surface-2 disabled:opacity-50"
           >
             {zh('取消', 'Cancel')}
           </button>
@@ -988,7 +988,7 @@ export default function VideoScrapeSettingsModal({
             type="button"
             onClick={submit}
             disabled={!canSave}
-            className="ml-2 rounded bg-blue-600 px-3 py-1 text-sm text-white hover:bg-blue-700 disabled:bg-gray-300"
+            className="ml-2 rounded bg-app-gold px-3 py-1 text-sm text-white hover:bg-app-gold-hover disabled:bg-app-hover"
           >
             {saving
               ? zh('保存中…', 'Saving...')
@@ -1002,7 +1002,7 @@ export default function VideoScrapeSettingsModal({
         <AppModal
           ariaLabel={zh('提取番号测试', 'Code Extraction Test')}
           className="px-4"
-          contentClassName="w-full max-w-md rounded-lg bg-white p-4 shadow-xl"
+          contentClassName="w-full max-w-md rounded-2xl bg-app-surface p-4 shadow-xl"
           onClose={() => setPossibleCodesOpen(false)}
           zIndex={1400}
         >
@@ -1013,13 +1013,13 @@ export default function VideoScrapeSettingsModal({
             <button
               type="button"
               onClick={() => setPossibleCodesOpen(false)}
-              className="rounded px-2 py-1 text-gray-500 hover:bg-gray-100"
+              className="rounded px-2 py-1 text-app-muted hover:bg-app-surface-2"
               aria-label={zh('关闭', 'Close')}
             >
               ✕
             </button>
           </div>
-          <p className="mb-3 text-sm leading-6 text-gray-600">
+          <p className="mb-3 text-sm leading-6 text-app-muted">
             {zh(
               '自动刮削会依次尝试以下番号进行刮削。如果一直未刮削或者刮削错误，可以修改文件名或修改刮削设置为：不刮削/指定番号刮削。',
               'Automatic scraping will try the following codes in order. If scraping keeps failing or matches the wrong item, rename the file or change the scrape setting to: Do not scrape / Force scrape code.'
@@ -1027,23 +1027,23 @@ export default function VideoScrapeSettingsModal({
           </p>
           {possibleCodesResult?.filename ? (
             <div
-              className="mb-3 truncate rounded bg-gray-50 px-2 py-1 text-xs text-gray-500"
+              className="mb-3 truncate rounded bg-app-surface-2 px-2 py-1 text-xs text-app-muted"
               title={possibleCodesResult.filename}
             >
               {possibleCodesResult.filename}
             </div>
           ) : null}
           {possibleCodesLoading ? (
-            <div className="rounded border border-dashed px-3 py-6 text-center text-sm text-gray-500">
+            <div className="rounded border border-dashed px-3 py-6 text-center text-sm text-app-muted">
               {zh('正在提取…', 'Extracting...')}
             </div>
           ) : possibleCodesError ? (
-            <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            <div className="rounded border border-red-200 bg-red-950/40 px-3 py-2 text-sm text-red-700">
               {possibleCodesError}
             </div>
           ) : Array.isArray(possibleCodesResult?.possible_codes) &&
             possibleCodesResult.possible_codes.length > 0 ? (
-            <ol className="max-h-64 list-decimal space-y-1 overflow-y-auto rounded border bg-gray-50 px-8 py-3 text-sm text-gray-800">
+            <ol className="max-h-64 list-decimal space-y-1 overflow-y-auto rounded border bg-app-surface-2 px-8 py-3 text-sm text-app-text">
               {possibleCodesResult.possible_codes.map((item) => (
                 <li key={item} className="font-mono">
                   {item}
@@ -1051,7 +1051,7 @@ export default function VideoScrapeSettingsModal({
               ))}
             </ol>
           ) : (
-            <div className="rounded border border-dashed px-3 py-6 text-center text-sm text-gray-500">
+            <div className="rounded border border-dashed px-3 py-6 text-center text-sm text-app-muted">
               {zh('没有提取到番号', 'No codes extracted')}
             </div>
           )}
@@ -1059,7 +1059,7 @@ export default function VideoScrapeSettingsModal({
             <button
               type="button"
               onClick={() => setPossibleCodesOpen(false)}
-              className="rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700"
+              className="rounded bg-app-gold px-3 py-1.5 text-sm text-white hover:bg-app-gold-hover"
             >
               {zh('知道了', 'OK')}
             </button>

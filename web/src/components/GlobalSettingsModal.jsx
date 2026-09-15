@@ -517,10 +517,10 @@ export default function GlobalSettingsModal({
       <div className="space-y-4">
         {browserPlaybackOnly ? (
           <div>
-            <h4 className="text-sm font-semibold text-zinc-800">
+            <h4 className="text-sm font-semibold text-app-text">
               {zh('默认播放器', 'Default Player')}
             </h4>
-            <p className="mt-1 text-sm text-zinc-500">
+            <p className="mt-1 text-sm text-app-muted">
               {zh(
                 '浏览器默认只能播放 MP4 格式视频，如果需要播放任意格式视频需前往“工具”中确认 FFmpeg 已安装。',
                 'Browsers can only play MP4 videos by default. To play videos in any format, go to Tools and make sure FFmpeg is installed.'
@@ -530,7 +530,7 @@ export default function GlobalSettingsModal({
         ) : (
           <>
             <div className="flex flex-wrap items-center gap-3">
-              <h4 className="text-sm font-semibold text-zinc-800">
+              <h4 className="text-sm font-semibold text-app-text">
                 {zh('默认播放器', 'Default Player')}
               </h4>
               <span className="relative inline-block">
@@ -545,7 +545,7 @@ export default function GlobalSettingsModal({
                     )
                     setDefaultPlayerError('')
                   }}
-                  className="w-auto appearance-none rounded-xl border border-zinc-200 bg-white py-1.5 pl-3 pr-7 text-sm text-zinc-800 outline-none focus:border-zinc-200 focus:outline-none focus:ring-0 focus-visible:outline-none"
+                  className="w-auto appearance-none rounded-xl border border-app-border bg-app-surface py-1.5 pl-3 pr-7 text-sm text-app-text outline-none focus:border-app-border focus:outline-none focus:ring-0 focus-visible:outline-none"
                 >
                   {mpvEnabled ? <option value="mpv">MPV</option> : null}
                   <option value="browser">{zh('浏览器', 'Browser')}</option>
@@ -555,12 +555,12 @@ export default function GlobalSettingsModal({
                 </select>
                 <span
                   aria-hidden="true"
-                  className="pointer-events-none absolute right-4 top-1/2 h-1.5 w-1.5 -translate-y-1/2 rotate-45 border-b border-r border-zinc-500"
+                  className="pointer-events-none absolute right-4 top-1/2 h-1.5 w-1.5 -translate-y-1/2 rotate-45 border-b border-r border-app-muted"
                 />
               </span>
             </div>
             {defaultPlayerInput === 'browser' ? (
-              <p className="mt-1 text-sm text-zinc-500">
+              <p className="mt-1 text-sm text-app-muted">
                 {zh(
                   '浏览器默认只能播放 MP4 格式视频，如果需要播放任意格式视频需前往“工具”中确认 FFmpeg 已安装。',
                   'Browsers can only play MP4 videos by default. To play videos in any format, go to Tools and make sure FFmpeg is installed.'
@@ -568,7 +568,7 @@ export default function GlobalSettingsModal({
               </p>
             ) : null}
             {containerMode && hostAgentConfigured ? (
-              <p className="mt-1 text-sm text-zinc-500">
+              <p className="mt-1 text-sm text-app-muted">
                 {zh(
                   '选择“系统”将通过宿主机代理在部署主机上调用系统播放器打开视频。',
                   'Choosing “System” opens the video with the host machine’s default player via the host agent.'
@@ -586,7 +586,7 @@ export default function GlobalSettingsModal({
               type="button"
               onClick={handleSaveDefaultPlayer}
               disabled={savingDefaultPlayer || defaultPlayerUnchanged}
-              className="rounded-xl bg-blue-600 px-3 py-1.5 text-sm text-white disabled:opacity-60"
+              className="rounded-xl bg-app-gold px-3 py-1.5 text-sm text-white disabled:opacity-60"
             >
               {savingDefaultPlayer ? zh('保存中…', 'Saving...') : zh('保存', 'Save')}
             </button>
@@ -597,14 +597,14 @@ export default function GlobalSettingsModal({
   }
 
   const renderProxyPanel = () => (
-    <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+    <section className="rounded-2xl border border-app-border bg-app-surface p-5 shadow-sm">
       <div className="flex flex-col gap-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h4 className="text-sm font-semibold text-zinc-800">
+            <h4 className="text-sm font-semibold text-app-text">
               {zh('代理地址', 'Proxy Address')}
             </h4>
-            <p className="mt-1 text-sm text-zinc-500">
+            <p className="mt-1 text-sm text-app-muted">
               {proxyPort
                 ? zh(
                     `当前使用 ${currentProxyHost}:${proxyPort}`,
@@ -620,7 +620,7 @@ export default function GlobalSettingsModal({
                 setProxyEditing(true)
                 setProxyError('')
               }}
-              className="rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50"
+              className="rounded-xl border border-app-border bg-app-surface px-3 py-1.5 text-sm text-app-text hover:bg-app-surface-2"
             >
               {zh('编辑', 'Edit')}
             </button>
@@ -628,8 +628,8 @@ export default function GlobalSettingsModal({
         </div>
 
         {proxyEditing ? (
-          <div className="space-y-4 rounded-2xl bg-zinc-50 p-4">
-            <label className="flex items-center gap-2 text-sm text-zinc-700">
+          <div className="space-y-4 rounded-2xl bg-app-surface-2 p-4">
+            <label className="flex items-center gap-2 text-sm text-app-text">
               <input
                 type="checkbox"
                 checked={proxyEnabledInput}
@@ -645,18 +645,18 @@ export default function GlobalSettingsModal({
             {proxyEnabledInput && (
               <div className="grid max-w-2xl gap-3 sm:grid-cols-[minmax(0,1fr)_160px]">
                 <div>
-                  <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-zinc-500">
+                  <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-app-muted">
                     {zh('代理IP', 'Proxy IP')}
                   </label>
                   <input
                     value={proxyHostInput}
                     onChange={(e) => setProxyHostInput(e.target.value)}
                     placeholder={DEFAULT_PROXY_HOST}
-                    className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm"
+                    className="w-full rounded-xl border border-app-border bg-app-surface px-3 py-2 text-sm"
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-zinc-500">
+                  <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-app-muted">
                     {zh('端口号', 'Port')}
                   </label>
                   <input
@@ -664,7 +664,7 @@ export default function GlobalSettingsModal({
                     onChange={(e) => setProxyInput(e.target.value)}
                     placeholder={zh('输入 1-65535', 'Enter 1-65535')}
                     inputMode="numeric"
-                    className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm"
+                    className="w-full rounded-xl border border-app-border bg-app-surface px-3 py-2 text-sm"
                   />
                 </div>
               </div>
@@ -682,7 +682,7 @@ export default function GlobalSettingsModal({
                   setProxyError('')
                   setProxyEditing(false)
                 }}
-                className="rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50"
+                className="rounded-xl border border-app-border bg-app-surface px-3 py-1.5 text-sm text-app-text hover:bg-app-surface-2"
               >
                 {zh('取消', 'Cancel')}
               </button>
@@ -690,7 +690,7 @@ export default function GlobalSettingsModal({
                 type="button"
                 onClick={handleSaveProxy}
                 disabled={savingProxy || proxyUnchanged || proxyHostMissing || proxyInputMissing}
-                className="rounded-xl bg-blue-600 px-3 py-1.5 text-sm text-white disabled:opacity-60"
+                className="rounded-xl bg-app-gold px-3 py-1.5 text-sm text-white disabled:opacity-60"
               >
                 {savingProxy ? zh('保存中…', 'Saving...') : zh('保存', 'Save')}
               </button>
@@ -718,13 +718,13 @@ export default function GlobalSettingsModal({
     }
 
     return (
-      <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+      <section className="rounded-2xl border border-app-border bg-app-surface p-5 shadow-sm">
         <div className="space-y-4">
           <div>
-            <h4 className="text-sm font-semibold text-zinc-800">
+            <h4 className="text-sm font-semibold text-app-text">
               {zh('局域网访问', 'Local Network Access')}
             </h4>
-            <p className="mt-1 text-sm text-zinc-500">
+            <p className="mt-1 text-sm text-app-muted">
               {zh(
                 '开启后，局域网设备可以通过本机 IP 地址访问 JavBoss。修改将在下次启动时生效。',
                 'When enabled, devices on your local network can access JavBoss through this computer’s IP address. Changes take effect after the next restart.'
@@ -732,7 +732,7 @@ export default function GlobalSettingsModal({
             </p>
           </div>
 
-          <label className="flex items-center gap-3 text-sm font-medium text-zinc-800">
+          <label className="flex items-center gap-3 text-sm font-medium text-app-text">
             <input
               type="checkbox"
               checked={allowLANAccessInput}
@@ -754,7 +754,7 @@ export default function GlobalSettingsModal({
               type="button"
               onClick={handleSave}
               disabled={savingAllowLANAccess || unchanged}
-              className="rounded-xl bg-blue-600 px-3 py-1.5 text-sm text-white disabled:opacity-60"
+              className="rounded-xl bg-app-gold px-3 py-1.5 text-sm text-white disabled:opacity-60"
             >
               {savingAllowLANAccess ? zh('保存中…', 'Saving...') : zh('保存', 'Save')}
             </button>
@@ -777,10 +777,10 @@ export default function GlobalSettingsModal({
 
     return (
       <div className="space-y-5">
-        <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+        <section className="rounded-2xl border border-app-border bg-app-surface p-5 shadow-sm">
           <div className="space-y-4">
             <div className="flex flex-wrap items-center gap-3">
-              <h4 className="text-sm font-semibold text-zinc-800">
+              <h4 className="text-sm font-semibold text-app-text">
                 {zh('初始页面', 'Initial Page')}
               </h4>
               <span className="relative inline-block">
@@ -790,18 +790,18 @@ export default function GlobalSettingsModal({
                     setInitialViewModeInput(event.target.value === 'jav' ? 'jav' : 'video')
                     setInitialViewModeError('')
                   }}
-                  className="w-auto appearance-none rounded-xl border border-zinc-200 bg-white py-1.5 pl-3 pr-7 text-sm text-zinc-800 outline-none focus:border-zinc-200 focus:outline-none focus:ring-0 focus-visible:outline-none"
+                  className="w-auto appearance-none rounded-xl border border-app-border bg-app-surface py-1.5 pl-3 pr-7 text-sm text-app-text outline-none focus:border-app-border focus:outline-none focus:ring-0 focus-visible:outline-none"
                 >
                   <option value="video">{zh('视频模式', 'Video Mode')}</option>
                   <option value="jav">{zh('JAV模式', 'JAV Mode')}</option>
                 </select>
                 <span
                   aria-hidden="true"
-                  className="pointer-events-none absolute right-4 top-1/2 h-1.5 w-1.5 -translate-y-1/2 rotate-45 border-b border-r border-zinc-500"
+                  className="pointer-events-none absolute right-4 top-1/2 h-1.5 w-1.5 -translate-y-1/2 rotate-45 border-b border-r border-app-muted"
                 />
               </span>
             </div>
-            <p className="text-sm text-zinc-500">
+            <p className="text-sm text-app-muted">
               {zh(
                 '打开新页面，默认进入所选模式。',
                 'When opening a new page, use the selected mode by default.'
@@ -817,7 +817,7 @@ export default function GlobalSettingsModal({
                 type="button"
                 onClick={handleSaveInitialViewMode}
                 disabled={savingInitialViewMode || initialViewModeUnchanged}
-                className="rounded-xl bg-blue-600 px-3 py-1.5 text-sm text-white disabled:opacity-60"
+                className="rounded-xl bg-app-gold px-3 py-1.5 text-sm text-white disabled:opacity-60"
               >
                 {savingInitialViewMode ? zh('保存中…', 'Saving...') : zh('保存', 'Save')}
               </button>
@@ -847,8 +847,8 @@ export default function GlobalSettingsModal({
             onClick={() => setPlayerTab('basic')}
             className={`rounded-xl px-3 py-1.5 text-sm ${
               currentPlayerTab === 'basic'
-                ? 'bg-zinc-900 text-white'
-                : 'border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50'
+                ? 'bg-app-gold text-[#1a1208]'
+                : 'border border-app-border bg-app-surface text-app-text hover:bg-app-surface-2'
             }`}
           >
             {zh('基础设置', 'Basic Settings')}
@@ -858,8 +858,8 @@ export default function GlobalSettingsModal({
             onClick={() => setPlayerTab('browser')}
             className={`rounded-xl px-3 py-1.5 text-sm ${
               currentPlayerTab === 'browser'
-                ? 'bg-zinc-900 text-white'
-                : 'border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50'
+                ? 'bg-app-gold text-[#1a1208]'
+                : 'border border-app-border bg-app-surface text-app-text hover:bg-app-surface-2'
             }`}
           >
             {zh('浏览器播放器', 'Browser Player')}
@@ -870,8 +870,8 @@ export default function GlobalSettingsModal({
               onClick={() => setPlayerTab('mpv')}
               className={`rounded-xl px-3 py-1.5 text-sm ${
                 currentPlayerTab === 'mpv'
-                  ? 'bg-zinc-900 text-white'
-                  : 'border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50'
+                  ? 'bg-app-gold text-[#1a1208]'
+                  : 'border border-app-border bg-app-surface text-app-text hover:bg-app-surface-2'
               }`}
             >
               {zh('MPV播放器', 'MPV Player')}
@@ -882,20 +882,20 @@ export default function GlobalSettingsModal({
             onClick={() => setPlayerTab('hotkeys')}
             className={`rounded-xl px-3 py-1.5 text-sm ${
               currentPlayerTab === 'hotkeys'
-                ? 'bg-zinc-900 text-white'
-                : 'border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50'
+                ? 'bg-app-gold text-[#1a1208]'
+                : 'border border-app-border bg-app-surface text-app-text hover:bg-app-surface-2'
             }`}
           >
             {zh('快捷键', 'Shortcuts')}
           </button>
         </div>
-        <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+        <section className="rounded-2xl border border-app-border bg-app-surface p-5 shadow-sm">
           {currentPlayerTab === 'basic' ? (
             renderDefaultPlayerSettings()
           ) : currentPlayerTab === 'browser' ? (
             <div>
               <section className="space-y-3">
-                <label className="flex items-center gap-3 text-sm font-semibold text-zinc-800">
+                <label className="flex items-center gap-3 text-sm font-semibold text-app-text">
                   <input
                     type="checkbox"
                     checked={browserPlayerShowHotkeyHintInput}
@@ -908,7 +908,7 @@ export default function GlobalSettingsModal({
                   />
                   <span>{zh('启动时显示快捷键配置', 'Show Shortcuts on Startup')}</span>
                 </label>
-                <p className="text-xs text-zinc-500">
+                <p className="text-xs text-app-muted">
                   {zh(
                     '在浏览器播放器打开视频时显示当前快捷键说明。',
                     'Show the current shortcut guide when the browser player opens a video.'
@@ -932,7 +932,7 @@ export default function GlobalSettingsModal({
                     setBrowserPlayerSuccess('')
                   }}
                   disabled={savingBrowserPlayer}
-                  className="rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50 disabled:opacity-60"
+                  className="rounded-xl border border-app-border bg-app-surface px-3 py-1.5 text-sm text-app-text hover:bg-app-surface-2 disabled:opacity-60"
                 >
                   {zh('恢复默认', 'Restore Defaults')}
                 </button>
@@ -956,7 +956,7 @@ export default function GlobalSettingsModal({
                     }
                   }}
                   disabled={savingBrowserPlayer}
-                  className="rounded-xl bg-blue-600 px-3 py-1.5 text-sm text-white disabled:opacity-60"
+                  className="rounded-xl bg-app-gold px-3 py-1.5 text-sm text-white disabled:opacity-60"
                 >
                   {savingBrowserPlayer ? zh('保存中…', 'Saving...') : zh('保存', 'Save')}
                 </button>
@@ -966,12 +966,12 @@ export default function GlobalSettingsModal({
             <div>
               <div className="space-y-6">
                 <section className="space-y-3">
-                  <h4 className="text-sm font-semibold text-zinc-800">
+                  <h4 className="text-sm font-semibold text-app-text">
                     {zh('初始窗口大小', 'Initial Window Size')}
                   </h4>
                   <div className="flex flex-col gap-3">
                     <div className="flex flex-wrap gap-4">
-                      <label className="flex items-center gap-2 text-xs font-medium text-zinc-500">
+                      <label className="flex items-center gap-2 text-xs font-medium text-app-muted">
                         <span className="shrink-0">{zh('宽度', 'Width')}</span>
                         <div className="flex items-center gap-2">
                           <input
@@ -982,13 +982,13 @@ export default function GlobalSettingsModal({
                               setPlayerBasicSuccess('')
                             }}
                             inputMode="numeric"
-                            className="w-28 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800"
+                            className="w-28 rounded-xl border border-app-border bg-app-surface px-3 py-2 text-sm text-app-text"
                           />
-                          <span className="text-sm text-zinc-500">%</span>
+                          <span className="text-sm text-app-muted">%</span>
                         </div>
                       </label>
 
-                      <label className="flex items-center gap-2 text-xs font-medium text-zinc-500">
+                      <label className="flex items-center gap-2 text-xs font-medium text-app-muted">
                         <span className="shrink-0">{zh('高度', 'Height')}</span>
                         <div className="flex items-center gap-2">
                           <input
@@ -999,14 +999,14 @@ export default function GlobalSettingsModal({
                               setPlayerBasicSuccess('')
                             }}
                             inputMode="numeric"
-                            className="w-28 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800"
+                            className="w-28 rounded-xl border border-app-border bg-app-surface px-3 py-2 text-sm text-app-text"
                           />
-                          <span className="text-sm text-zinc-500">%</span>
+                          <span className="text-sm text-app-muted">%</span>
                         </div>
                       </label>
                     </div>
 
-                    <p className="text-xs text-zinc-500">
+                    <p className="text-xs text-app-muted">
                       {zh(
                         '设置 mpv 启动时的宽高占据屏幕宽高的比例。',
                         'Set the percentage of screen width and height used by the mpv window on startup.'
@@ -1015,9 +1015,9 @@ export default function GlobalSettingsModal({
                   </div>
                 </section>
 
-                <section className="space-y-3 border-t border-zinc-200 pt-5">
+                <section className="space-y-3 border-t border-app-border pt-5">
                   <div className="flex flex-wrap items-center gap-3">
-                    <h4 className="text-sm font-semibold text-zinc-800">
+                    <h4 className="text-sm font-semibold text-app-text">
                       {zh('初始音量', 'Initial Volume')}
                     </h4>
                     <div className="flex items-center gap-2">
@@ -1029,12 +1029,12 @@ export default function GlobalSettingsModal({
                           setPlayerBasicSuccess('')
                         }}
                         inputMode="numeric"
-                        className="w-28 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800"
+                        className="w-28 rounded-xl border border-app-border bg-app-surface px-3 py-2 text-sm text-app-text"
                       />
-                      <span className="text-sm text-zinc-500">%</span>
+                      <span className="text-sm text-app-muted">%</span>
                     </div>
                   </div>
-                  <p className="text-xs text-zinc-500">
+                  <p className="text-xs text-app-muted">
                     {zh(
                       '控制 mpv 启动时的默认音量，范围 0-130。',
                       'Controls the default mpv startup volume, range 0-130.'
@@ -1042,8 +1042,8 @@ export default function GlobalSettingsModal({
                   </p>
                 </section>
 
-                <section className="space-y-3 border-t border-zinc-200 pt-5">
-                  <label className="flex items-center gap-3 text-sm font-semibold text-zinc-800">
+                <section className="space-y-3 border-t border-app-border pt-5">
+                  <label className="flex items-center gap-3 text-sm font-semibold text-app-text">
                     <input
                       type="checkbox"
                       checked={playerOntopInput}
@@ -1056,7 +1056,7 @@ export default function GlobalSettingsModal({
                     />
                     <span>{zh('播放器强行置顶', 'Keep Player On Top')}</span>
                   </label>
-                  <p className="text-xs text-zinc-500">
+                  <p className="text-xs text-app-muted">
                     {zh(
                       '开启后，mpv 播放器窗口会保持置顶。',
                       'When enabled, the mpv player window stays on top.'
@@ -1064,8 +1064,8 @@ export default function GlobalSettingsModal({
                   </p>
                 </section>
 
-                <section className="space-y-3 border-t border-zinc-200 pt-5">
-                  <label className="flex items-center gap-3 text-sm font-semibold text-zinc-800">
+                <section className="space-y-3 border-t border-app-border pt-5">
+                  <label className="flex items-center gap-3 text-sm font-semibold text-app-text">
                     <input
                       type="checkbox"
                       checked={playerReuseWindowInput}
@@ -1083,7 +1083,7 @@ export default function GlobalSettingsModal({
                       )}
                     </span>
                   </label>
-                  <p className="text-xs text-zinc-500">
+                  <p className="text-xs text-app-muted">
                     {zh(
                       '关闭后，每次播放都会启动新的 mpv 播放器窗口。',
                       'When disabled, each playback starts a new mpv player window.'
@@ -1091,8 +1091,8 @@ export default function GlobalSettingsModal({
                   </p>
                 </section>
 
-                <section className="space-y-3 border-t border-zinc-200 pt-5">
-                  <label className="flex items-center gap-3 text-sm font-semibold text-zinc-800">
+                <section className="space-y-3 border-t border-app-border pt-5">
+                  <label className="flex items-center gap-3 text-sm font-semibold text-app-text">
                     <input
                       type="checkbox"
                       checked={playerResumePlaybackInput}
@@ -1105,7 +1105,7 @@ export default function GlobalSettingsModal({
                     />
                     <span>{zh('从上次结束位置播放', 'Resume From Last Position')}</span>
                   </label>
-                  <p className="text-xs text-zinc-500">
+                  <p className="text-xs text-app-muted">
                     {zh(
                       'mpv 会记住每个视频的播放位置，下次播放同一文件时自动恢复。',
                       'mpv remembers each video position and resumes the same file automatically.'
@@ -1113,8 +1113,8 @@ export default function GlobalSettingsModal({
                   </p>
                 </section>
 
-                <section className="space-y-3 border-t border-zinc-200 pt-5">
-                  <label className="flex items-center gap-3 text-sm font-semibold text-zinc-800">
+                <section className="space-y-3 border-t border-app-border pt-5">
+                  <label className="flex items-center gap-3 text-sm font-semibold text-app-text">
                     <input
                       type="checkbox"
                       checked={playerShowHotkeyHintInput}
@@ -1127,7 +1127,7 @@ export default function GlobalSettingsModal({
                     />
                     <span>{zh('启动时显示快捷键配置', 'Show Shortcuts on Startup')}</span>
                   </label>
-                  <p className="text-xs text-zinc-500">
+                  <p className="text-xs text-app-muted">
                     {zh(
                       '在 mpv 打开视频时显示当前快捷键说明。',
                       'Show the current shortcut guide when mpv opens a video.'
@@ -1148,7 +1148,7 @@ export default function GlobalSettingsModal({
                   type="button"
                   onClick={resetPlayerBasicInputs}
                   disabled={savingPlayerBasic}
-                  className="rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50 disabled:opacity-60"
+                  className="rounded-xl border border-app-border bg-app-surface px-3 py-1.5 text-sm text-app-text hover:bg-app-surface-2 disabled:opacity-60"
                 >
                   {zh('恢复默认', 'Restore Defaults')}
                 </button>
@@ -1200,7 +1200,7 @@ export default function GlobalSettingsModal({
                     }
                   }}
                   disabled={savingPlayerBasic}
-                  className="rounded-xl bg-blue-600 px-3 py-1.5 text-sm text-white disabled:opacity-60"
+                  className="rounded-xl bg-app-gold px-3 py-1.5 text-sm text-white disabled:opacity-60"
                 >
                   {savingPlayerBasic ? zh('保存中…', 'Saving...') : zh('保存', 'Save')}
                 </button>
@@ -1209,8 +1209,8 @@ export default function GlobalSettingsModal({
           ) : (
             <>
               <div className="mb-4">
-                <h4 className="text-sm font-semibold text-zinc-800">{zh('快捷键', 'Shortcuts')}</h4>
-                <p className="mt-1 text-xs text-zinc-500">
+                <h4 className="text-sm font-semibold text-app-text">{zh('快捷键', 'Shortcuts')}</h4>
+                <p className="mt-1 text-xs text-app-muted">
                   {zh(
                     '正数表示增加，负数表示减少。`Space` 和 `Escape` 仍固定用于播放/暂停和关闭播放器。',
                     'Positive numbers increase, negative numbers decrease. `Space` and `Escape` remain reserved for play/pause and close.'
@@ -1233,14 +1233,14 @@ export default function GlobalSettingsModal({
 
   const renderDirectoriesPanel = () => (
     <div className="space-y-2">
-      <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-600">
+      <div className="flex items-center gap-1.5 text-xs font-semibold text-app-muted">
         <InfoOutlinedIcon fontSize="inherit" className="text-[15px]" aria-hidden="true" />
         {zh(
           '添加本地视频目录让 JavBoss 接管，所有内容将自动为您呈现。',
           'No directories yet. Added folders will be scanned automatically.'
         )}
       </div>
-      <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+      <section className="rounded-2xl border border-app-border bg-app-surface p-5 shadow-sm">
         <DirectoryManager
           open={open}
           directories={directories}
@@ -1271,13 +1271,13 @@ export default function GlobalSettingsModal({
 
     return (
       <div className="space-y-5">
-        <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+        <section className="rounded-2xl border border-app-border bg-app-surface p-5 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <h4 className="text-sm font-semibold text-zinc-900">
+              <h4 className="text-sm font-semibold text-app-text">
                 {zh('待抓取队列', 'Pending queues')}
               </h4>
-              <p className="mt-2 max-w-2xl text-sm text-zinc-500">
+              <p className="mt-2 max-w-2xl text-sm text-app-muted">
                 {zh(
                   '后台正在排队处理的封面、元数据和女优作品数量。请求会按站点间隔慢慢发出，避免触发反爬。',
                   'Cover, metadata, and idol-work jobs waiting in the background. Requests are spaced per site to avoid anti-bot blocks.'
@@ -1286,7 +1286,7 @@ export default function GlobalSettingsModal({
             </div>
             <span
               className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                pendingTotal > 0 ? 'bg-blue-50 text-blue-700' : 'bg-zinc-100 text-zinc-600'
+                pendingTotal > 0 ? 'bg-app-gold-soft text-app-gold' : 'bg-app-bg text-app-muted'
               }`}
             >
               {zh(`合计 ${pendingTotal}`, `Total ${pendingTotal}`)}
@@ -1297,11 +1297,11 @@ export default function GlobalSettingsModal({
               {queues.map((queue) => (
                 <li
                   key={queue.id}
-                  className="flex items-center justify-between rounded-xl border border-zinc-100 bg-zinc-50 px-3 py-2 text-sm text-zinc-700"
+                  className="flex items-center justify-between rounded-xl border border-app-border bg-app-surface-2 px-3 py-2 text-sm text-app-text"
                 >
                   <span>{zh(queue.name[0], queue.name[1])}</span>
                   <span
-                    className={`font-medium ${queue.pending > 0 ? 'text-blue-700' : 'text-zinc-900'}`}
+                    className={`font-medium ${queue.pending > 0 ? 'text-app-gold' : 'text-app-text'}`}
                   >
                     {queue.pending}
                   </span>
@@ -1309,15 +1309,17 @@ export default function GlobalSettingsModal({
               ))}
             </ul>
           ) : (
-            <p className="mt-4 text-sm text-zinc-500">{zh('正在读取队列…', 'Loading queues...')}</p>
+            <p className="mt-4 text-sm text-app-muted">
+              {zh('正在读取队列…', 'Loading queues...')}
+            </p>
           )}
         </section>
 
-        <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
-          <h4 className="text-sm font-semibold text-zinc-900">
+        <section className="rounded-2xl border border-app-border bg-app-surface p-5 shadow-sm">
+          <h4 className="text-sm font-semibold text-app-text">
             {zh('抓取手段', 'Scrape sources')}
           </h4>
-          <p className="mt-2 max-w-2xl text-sm text-zinc-500">
+          <p className="mt-2 max-w-2xl text-sm text-app-muted">
             {zh(
               '每个站点请求的 URL 和取出的字段。同一站点连续请求之间会等待下面的间隔。',
               'URLs each site is called with, and the fields taken from the response. Consecutive requests to the same site wait for the interval below.'
@@ -1332,13 +1334,13 @@ export default function GlobalSettingsModal({
                 return (
                   <li
                     key={source.id}
-                    className="rounded-xl border border-zinc-100 bg-zinc-50 px-4 py-3"
+                    className="rounded-xl border border-app-border bg-app-surface-2 px-4 py-3"
                   >
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="text-sm font-semibold text-zinc-900">
+                      <div className="text-sm font-semibold text-app-text">
                         {zh(name[0], name[1])}
                       </div>
-                      <span className="rounded-full bg-white px-2 py-0.5 text-xs font-medium text-zinc-600">
+                      <span className="rounded-full bg-app-surface px-2 py-0.5 text-xs font-medium text-app-muted">
                         {zh(
                           `间隔 ${formatInterval(source.interval_ms)}`,
                           `Every ${formatInterval(source.interval_ms)}`
@@ -1349,7 +1351,7 @@ export default function GlobalSettingsModal({
                       {urls.map((url) => (
                         <li
                           key={url}
-                          className="break-all font-mono text-[11px] leading-5 text-zinc-500"
+                          className="break-all font-mono text-[11px] leading-5 text-app-muted"
                         >
                           {url}
                         </li>
@@ -1360,7 +1362,7 @@ export default function GlobalSettingsModal({
                         {data.map((field) => (
                           <span
                             key={field.key}
-                            className="rounded-full bg-white px-2 py-0.5 text-[11px] text-zinc-600"
+                            className="rounded-full bg-app-surface px-2 py-0.5 text-[11px] text-app-muted"
                           >
                             {zh(field.label[0], field.label[1])}
                           </span>
@@ -1372,7 +1374,7 @@ export default function GlobalSettingsModal({
               })}
             </ul>
           ) : (
-            <p className="mt-4 text-sm text-zinc-500">
+            <p className="mt-4 text-sm text-app-muted">
               {zh('正在读取抓取来源…', 'Loading scrape sources...')}
             </p>
           )}
@@ -1449,19 +1451,19 @@ export default function GlobalSettingsModal({
 
     return (
       <div className="space-y-5">
-        <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+        <section className="rounded-2xl border border-app-border bg-app-surface p-5 shadow-sm">
           <div className="flex flex-col gap-5">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <h4 className="text-sm font-semibold text-zinc-900">FFmpeg</h4>
+                  <h4 className="text-sm font-semibold text-app-text">FFmpeg</h4>
                   {installed ? (
                     <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
                       {ffmpegInstalledLabel}
                     </span>
                   ) : null}
                 </div>
-                <p className="mt-2 max-w-2xl text-sm text-zinc-500">
+                <p className="mt-2 max-w-2xl text-sm text-app-muted">
                   {zh(
                     '浏览器无法直接播放某些视频编码时，JavBoss 使用 FFmpeg 转码后播放。',
                     'When a browser cannot play a video codec directly, JavBoss uses FFmpeg to transcode it for playback.'
@@ -1475,7 +1477,7 @@ export default function GlobalSettingsModal({
                 disabled={
                   toolsLoading || startingFFmpegDownload || downloading || installed || !supported
                 }
-                className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+                className="rounded-xl bg-app-gold px-4 py-2 text-sm font-medium text-white hover:bg-app-gold-hover disabled:opacity-60"
               >
                 {toolsLoading
                   ? zh('检查中…', 'Checking...')
@@ -1492,7 +1494,7 @@ export default function GlobalSettingsModal({
             </div>
 
             {upgradeAvailable && !downloading ? (
-              <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+              <div className="border-app-gold/40 rounded-xl border bg-app-gold-soft px-4 py-3 text-sm text-app-gold">
                 {zh(
                   '检测到 FFmpeg 有新版本，可以立即更新。',
                   'A new FFmpeg version is available. You can update now.'
@@ -1502,13 +1504,13 @@ export default function GlobalSettingsModal({
 
             {downloading ? (
               <div>
-                <div className="h-2 overflow-hidden rounded-full bg-zinc-100">
+                <div className="h-2 overflow-hidden rounded-full bg-app-bg">
                   <div
-                    className="h-full rounded-full bg-blue-600 transition-[width] duration-300"
+                    className="h-full rounded-full bg-app-gold transition-[width] duration-300"
                     style={{ width: `${Math.max(1, Math.min(100, progress))}%` }}
                   />
                 </div>
-                <p className="mt-2 text-xs text-zinc-500">
+                <p className="mt-2 text-xs text-app-muted">
                   {zh(
                     '正在下载并校验 FFmpeg，请不要关闭 JavBoss。',
                     'Downloading and validating FFmpeg. Keep JavBoss running.'
@@ -1527,14 +1529,14 @@ export default function GlobalSettingsModal({
           </div>
         </section>
 
-        <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+        <section className="rounded-2xl border border-app-border bg-app-surface p-5 shadow-sm">
           <div className="flex flex-col gap-5">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
-                <h4 className="text-sm font-semibold text-zinc-900">
+                <h4 className="text-sm font-semibold text-app-text">
                   {zh('检查 JAV 抓取情况', 'Check JAV scrape completeness')}
                 </h4>
-                <p className="mt-2 max-w-2xl text-sm text-zinc-500">
+                <p className="mt-2 max-w-2xl text-sm text-app-muted">
                   {zh(
                     '检查入库和未入库作品的封面图、标题、标签、系列、发行商、来源等字段。发现缺失或错误的会加入队列重新抓取。',
                     'Checks covers, titles, tags, series, studios, sources, and other fields on library and unimported works. Incomplete items are queued for another scrape.'
@@ -1545,7 +1547,7 @@ export default function GlobalSettingsModal({
                 type="button"
                 onClick={handleJavScrapeCheck}
                 disabled={javScrapeCheckLoading}
-                className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+                className="rounded-xl bg-app-gold px-4 py-2 text-sm font-medium text-white hover:bg-app-gold-hover disabled:opacity-60"
               >
                 {javScrapeCheckLoading ? zh('检查中…', 'Checking...') : zh('开始检查', 'Run check')}
               </button>
@@ -1553,14 +1555,14 @@ export default function GlobalSettingsModal({
 
             {javScrapeCheck?.checked_at ? (
               <div className="space-y-3">
-                <div className="text-sm text-zinc-700">
+                <div className="text-sm text-app-text">
                   {zh(
                     `共 ${Number(javScrapeCheck.total) || 0} 部（入库 ${Number(javScrapeCheck.library_total) || 0} / 未入库 ${Number(javScrapeCheck.unimported_total) || 0}），缺失 ${Number(javScrapeCheck.incomplete) || 0} 部，已加入队列 ${Number(javScrapeCheck.queued) || 0} 部。`,
                     `${Number(javScrapeCheck.total) || 0} titles (${Number(javScrapeCheck.library_total) || 0} in library / ${Number(javScrapeCheck.unimported_total) || 0} unimported), ${Number(javScrapeCheck.incomplete) || 0} incomplete, ${Number(javScrapeCheck.queued) || 0} queued.`
                   )}
                 </div>
                 {javScrapeCheckHasPending(javScrapeCheck) ? (
-                  <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+                  <div className="border-app-gold/40 rounded-xl border bg-app-gold-soft px-4 py-3 text-sm text-app-gold">
                     {zh(
                       `正在重新抓取：封面队列 ${Number(javScrapeCheck.cover_pending) || 0}，元数据队列 ${Number(javScrapeCheck.metadata_pending) || 0}。`,
                       `Re-scraping in progress: ${Number(javScrapeCheck.cover_pending) || 0} covers, ${Number(javScrapeCheck.metadata_pending) || 0} metadata jobs.`
@@ -1572,10 +1574,10 @@ export default function GlobalSettingsModal({
                     {javScrapeFieldCounts.map((field) => (
                       <li
                         key={field.key}
-                        className="flex items-center justify-between rounded-xl border border-zinc-100 bg-zinc-50 px-3 py-2 text-sm text-zinc-700"
+                        className="flex items-center justify-between rounded-xl border border-app-border bg-app-surface-2 px-3 py-2 text-sm text-app-text"
                       >
                         <span>{zh(field.label[0], field.label[1])}</span>
-                        <span className="font-medium text-zinc-900">{field.count}</span>
+                        <span className="font-medium text-app-text">{field.count}</span>
                       </li>
                     ))}
                   </ul>
@@ -1586,7 +1588,7 @@ export default function GlobalSettingsModal({
                 ) : null}
               </div>
             ) : (
-              <p className="text-sm text-zinc-500">
+              <p className="text-sm text-app-muted">
                 {zh(
                   '还没有检查过。点击按钮开始检查当前资料库。',
                   'No check has been run yet. Click the button to scan the library.'
@@ -1599,14 +1601,14 @@ export default function GlobalSettingsModal({
           </div>
         </section>
 
-        <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+        <section className="rounded-2xl border border-app-border bg-app-surface p-5 shadow-sm">
           <div className="flex flex-col gap-5">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
-                <h4 className="text-sm font-semibold text-zinc-900">
+                <h4 className="text-sm font-semibold text-app-text">
                   {zh('清理抓取垃圾数据', 'Clean unused scraped data')}
                 </h4>
-                <p className="mt-2 max-w-2xl text-sm text-zinc-500">
+                <p className="mt-2 max-w-2xl text-sm text-app-muted">
                   {zh(
                     '删除没有被任何视频引用的抓取元数据、未使用的标签/演员/发行商/系列，以及封面目录里已无对应番号的封面文件。不会删除任何视频文件。',
                     'Removes scraped metadata that no video still uses, unused tags/actresses/studios/series, and cover files whose codes are gone. Video files are never deleted.'
@@ -1620,7 +1622,7 @@ export default function GlobalSettingsModal({
                   scrapedDataCleanupLoading ||
                   (scrapedDataCleanup != null && scrapedDataCleanupTotal(scrapedDataCleanup) === 0)
                 }
-                className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+                className="rounded-xl bg-app-gold px-4 py-2 text-sm font-medium text-white hover:bg-app-gold-hover disabled:opacity-60"
               >
                 {scrapedDataCleanupLoading
                   ? zh('清理中…', 'Cleaning...')
@@ -1632,7 +1634,7 @@ export default function GlobalSettingsModal({
               <div className="space-y-3">
                 {scrapedDataCleanupTotal(scrapedDataCleanup) > 0 ? (
                   <>
-                    <div className="text-sm text-zinc-700">
+                    <div className="text-sm text-app-text">
                       {zh(
                         `发现 ${scrapedDataCleanupTotal(scrapedDataCleanup)} 项可清理的抓取数据。`,
                         `Found ${scrapedDataCleanupTotal(scrapedDataCleanup)} unused scraped items.`
@@ -1642,10 +1644,10 @@ export default function GlobalSettingsModal({
                       {scrapedDataCleanupCounts(scrapedDataCleanup).map((field) => (
                         <li
                           key={field.key}
-                          className="flex items-center justify-between rounded-xl border border-zinc-100 bg-zinc-50 px-3 py-2 text-sm text-zinc-700"
+                          className="flex items-center justify-between rounded-xl border border-app-border bg-app-surface-2 px-3 py-2 text-sm text-app-text"
                         >
                           <span>{zh(field.label[0], field.label[1])}</span>
-                          <span className="font-medium text-zinc-900">{field.count}</span>
+                          <span className="font-medium text-app-text">{field.count}</span>
                         </li>
                       ))}
                     </ul>
@@ -1662,7 +1664,7 @@ export default function GlobalSettingsModal({
                 )}
               </div>
             ) : (
-              <p className="text-sm text-zinc-500">
+              <p className="text-sm text-app-muted">
                 {zh(
                   '打开此页时会自动扫描可清理的抓取数据。',
                   'This page scans for unused scraped data when you open it.'
@@ -1738,14 +1740,14 @@ export default function GlobalSettingsModal({
           <button
             type="button"
             onClick={openPasswordDialog}
-            className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+            className="rounded-xl border border-app-border bg-app-surface px-4 py-2 text-sm font-medium text-app-text hover:bg-app-surface-2"
           >
             {zh('修改密码', 'Change password')}
           </button>
           <button
             type="button"
             onClick={() => onLogout?.()}
-            className="rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
+            className="rounded-xl border border-red-200 bg-app-surface px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-950/40"
           >
             {zh('退出登录', 'Sign out')}
           </button>
@@ -1756,21 +1758,21 @@ export default function GlobalSettingsModal({
             ariaLabelledby="change-password-title"
             className="px-4"
             closeDisabled={savingPassword}
-            contentClassName="w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-6 shadow-2xl"
+            contentClassName="w-full max-w-md rounded-2xl border border-app-border bg-app-surface p-6 shadow-2xl"
             contentComponent="form"
             contentProps={{ onSubmit: handleChangePassword }}
             onClose={closePasswordDialog}
             zIndex={1400}
           >
             <div className="mb-5 flex items-center justify-between gap-4">
-              <h3 id="change-password-title" className="text-lg font-semibold text-zinc-900">
+              <h3 id="change-password-title" className="text-lg font-semibold text-app-text">
                 {zh('修改密码', 'Change password')}
               </h3>
               <button
                 type="button"
                 onClick={closePasswordDialog}
                 disabled={savingPassword}
-                className="rounded-lg px-2 py-1 text-zinc-500 hover:bg-zinc-100 disabled:opacity-50"
+                className="rounded-lg px-2 py-1 text-app-muted hover:bg-app-bg disabled:opacity-50"
                 aria-label={zh('关闭', 'Close')}
               >
                 ✕
@@ -1807,7 +1809,7 @@ export default function GlobalSettingsModal({
                 <div key={field.id}>
                   <label
                     htmlFor={field.id}
-                    className="mb-1.5 block text-sm font-medium text-zinc-700"
+                    className="mb-1.5 block text-sm font-medium text-app-text"
                   >
                     {field.label}
                   </label>
@@ -1821,7 +1823,7 @@ export default function GlobalSettingsModal({
                         field.setter(event.target.value)
                         setPasswordError('')
                       }}
-                      className="w-full rounded-xl border border-zinc-200 bg-white py-2 pl-3 pr-16 text-sm text-zinc-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                      className="focus:ring-app-gold/25 w-full rounded-xl border border-app-border bg-app-surface py-2 pl-3 pr-16 text-sm text-app-text outline-none focus:border-app-gold focus:ring-2"
                     />
                     <button
                       type="button"
@@ -1831,7 +1833,7 @@ export default function GlobalSettingsModal({
                           [field.visibilityKey]: !current[field.visibilityKey],
                         }))
                       }
-                      className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center justify-center rounded-md p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700"
+                      className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center justify-center rounded-md p-1 text-app-muted hover:bg-app-bg hover:text-app-text"
                       aria-label={
                         visiblePasswords[field.visibilityKey]
                           ? zh(`隐藏${field.label}`, `Hide ${field.label.toLowerCase()}`)
@@ -1858,14 +1860,14 @@ export default function GlobalSettingsModal({
                 type="button"
                 onClick={closePasswordDialog}
                 disabled={savingPassword}
-                className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+                className="rounded-xl border border-app-border bg-app-surface px-4 py-2 text-sm text-app-text hover:bg-app-surface-2 disabled:opacity-50"
               >
                 {zh('取消', 'Cancel')}
               </button>
               <button
                 type="submit"
                 disabled={savingPassword || !currentPassword || !newPassword || !confirmPassword}
-                className="rounded-xl bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-60"
+                className="rounded-xl bg-app-gold px-4 py-2 text-sm text-white hover:bg-app-gold-hover disabled:opacity-60"
               >
                 {savingPassword ? zh('保存中…', 'Saving...') : zh('确认修改', 'Change password')}
               </button>
@@ -1881,26 +1883,26 @@ export default function GlobalSettingsModal({
       <AppModal
         ariaLabelledby="global-settings-title"
         className="px-4"
-        contentClassName="flex h-[min(86vh,820px)] w-full max-w-6xl flex-col overflow-hidden rounded-[28px] border border-zinc-200 bg-[#f5f5f7] shadow-2xl"
+        contentClassName="flex h-[min(86vh,820px)] w-full max-w-6xl flex-col overflow-hidden rounded-[28px] border border-app-border bg-app-bg shadow-2xl"
         onClose={onClose}
       >
-        <div className="flex items-center justify-between border-b border-zinc-200 bg-white/70 px-6 py-4 backdrop-blur">
+        <div className="bg-app-surface/70 flex items-center justify-between border-b border-app-border px-6 py-4 backdrop-blur">
           <div>
-            <h2 id="global-settings-title" className="text-lg font-semibold text-zinc-900">
+            <h2 id="global-settings-title" className="text-lg font-semibold text-app-text">
               {zh('全局设置', 'Global Settings')}
             </h2>
-            <p className="mt-1 text-sm text-zinc-500">{zh(activeTitle.zh, activeTitle.en)}</p>
+            <p className="mt-1 text-sm text-app-muted">{zh(activeTitle.zh, activeTitle.en)}</p>
           </div>
           <button
             onClick={onClose}
-            className="rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-50"
+            className="rounded-xl border border-app-border bg-app-surface px-3 py-1.5 text-sm text-app-muted hover:bg-app-surface-2"
           >
             {zh('关闭', 'Close')}
           </button>
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-          <aside className="border-b border-zinc-200 bg-white/60 p-3 backdrop-blur md:w-[280px] md:border-b-0 md:border-r">
+          <aside className="bg-app-surface/60 border-b border-app-border p-3 backdrop-blur md:w-[280px] md:border-b-0 md:border-r">
             <div className="flex gap-2 overflow-x-auto md:flex-col">
               {visibleSections.map((section) => {
                 const selected = currentSection === section.id
@@ -1918,18 +1920,18 @@ export default function GlobalSettingsModal({
                     onClick={() => setActiveSection(section.id)}
                     className={`min-w-[220px] rounded-2xl border px-4 py-3 text-left transition md:min-w-0 ${
                       selected
-                        ? 'border-zinc-200 bg-white shadow-sm'
-                        : 'border-transparent bg-transparent hover:border-zinc-200 hover:bg-white/80'
+                        ? 'border-app-gold bg-app-gold-soft shadow-sm'
+                        : 'border-transparent bg-transparent hover:border-app-border hover:bg-app-hover'
                     }`}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <div className="text-sm font-semibold text-zinc-900">
+                        <div className="text-sm font-semibold text-app-text">
                           {zh(section.title.zh, section.title.en)}
                         </div>
                       </div>
                       {badgeText ? (
-                        <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-600">
+                        <span className="rounded-full bg-app-bg px-2 py-0.5 text-xs font-medium text-app-muted">
                           {badgeText}
                         </span>
                       ) : null}

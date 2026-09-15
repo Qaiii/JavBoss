@@ -1389,9 +1389,6 @@ export default function App() {
   }, [])
 
   const {
-    browserNavigation,
-    handleBrowserBack,
-    handleBrowserForward,
     pathname,
     pendingScrollRestoreRef,
     saveScrollBeforeUrlStateChange,
@@ -4087,12 +4084,8 @@ export default function App() {
             tempSort: '',
           })
         }
-        canGoBack={browserNavigation.canGoBack}
-        canGoForward={browserNavigation.canGoForward}
         isJavMode={isJavMode}
         javPrefix={javPrefix}
-        onBrowserBack={handleBrowserBack}
-        onBrowserForward={handleBrowserForward}
         onOpenDownload={() => setDownloadOpen(true)}
         onOpenGlobalSettings={() => setGlobalSettingsOpen(true)}
         onOpenJavSettings={openJavSettings}
@@ -4216,7 +4209,7 @@ export default function App() {
         {activeError && (
           <div
             role="alert"
-            className="mb-4 rounded border border-red-200 bg-red-50 p-3 text-red-700"
+            className="mb-4 rounded border border-red-200 bg-red-950/40 p-3 text-red-700"
           >
             {String(activeError)}
           </div>

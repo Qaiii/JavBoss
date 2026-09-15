@@ -85,10 +85,10 @@ export default function WebHotkeySettings({ hotkeys, onSave }) {
   }
 
   return (
-    <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+    <section className="rounded-2xl border border-app-border bg-app-surface p-5 shadow-sm">
       <div>
-        <h4 className="text-sm font-semibold text-zinc-900">{zh('网页快捷键', 'Web Shortcuts')}</h4>
-        <p className="mt-1 text-sm text-zinc-500">
+        <h4 className="text-sm font-semibold text-app-text">{zh('网页快捷键', 'Web Shortcuts')}</h4>
+        <p className="mt-1 text-sm text-app-muted">
           {zh(
             '点击按键框后直接按下新按键，支持 Shift 组合键。',
             'Select a key field and press the new key. Shift combinations are supported.'
@@ -96,14 +96,14 @@ export default function WebHotkeySettings({ hotkeys, onSave }) {
         </p>
       </div>
 
-      <div className="mt-4 divide-y divide-zinc-100">
+      <div className="mt-4 divide-y divide-app-border">
         {WEB_HOTKEY_ACTIONS.map(({ action }) => {
           const item = items.find((entry) => entry.action === action)
           const label = ACTION_LABELS[action]
           const capturing = capturingAction === action
           return (
             <div key={action} className="flex items-center justify-between gap-3 py-2">
-              <span className="text-sm text-zinc-700">{zh(label.zh, label.en)}</span>
+              <span className="text-sm text-app-text">{zh(label.zh, label.en)}</span>
               <input
                 id={`web-hotkey-${action}`}
                 readOnly
@@ -127,10 +127,10 @@ export default function WebHotkeySettings({ hotkeys, onSave }) {
                     event.currentTarget.blur()
                   }
                 }}
-                className={`w-32 cursor-pointer rounded-lg border bg-white px-2.5 py-1.5 text-center text-sm font-medium outline-none ${
+                className={`w-32 cursor-pointer rounded-lg border bg-app-surface px-2.5 py-1.5 text-center text-sm font-medium outline-none ${
                   capturing
-                    ? 'border-blue-500 ring-2 ring-blue-100'
-                    : 'border-zinc-200 text-zinc-800'
+                    ? 'ring-app-gold/25 border-app-gold ring-2'
+                    : 'border-app-border text-app-text'
                 }`}
                 aria-label={zh(`修改${label.zh}快捷键`, `Change ${label.en} shortcut`)}
               />
@@ -152,7 +152,7 @@ export default function WebHotkeySettings({ hotkeys, onSave }) {
             setSuccess('')
           }}
           disabled={saving || webHotkeysEqual(items, defaultWebHotkeys())}
-          className="rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50 disabled:opacity-60"
+          className="rounded-xl border border-app-border bg-app-surface px-3 py-1.5 text-sm text-app-text hover:bg-app-surface-2 disabled:opacity-60"
         >
           {zh('恢复默认', 'Restore Defaults')}
         </button>
@@ -160,7 +160,7 @@ export default function WebHotkeySettings({ hotkeys, onSave }) {
           type="button"
           onClick={handleSave}
           disabled={saving || webHotkeysEqual(items, savedHotkeys)}
-          className="rounded-xl bg-blue-600 px-3 py-1.5 text-sm text-white disabled:opacity-60"
+          className="rounded-xl bg-app-gold px-3 py-1.5 text-sm text-white disabled:opacity-60"
         >
           {saving ? zh('保存中…', 'Saving...') : zh('保存', 'Save')}
         </button>

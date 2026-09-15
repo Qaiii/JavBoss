@@ -1,15 +1,19 @@
 import { useEffect, useState } from 'react'
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded'
-import ArrowForwardRoundedIcon from '@mui/icons-material/ArrowForwardRounded'
+import CollectionsBookmarkIcon from '@mui/icons-material/CollectionsBookmark'
 import CollectionsBookmarkOutlinedIcon from '@mui/icons-material/CollectionsBookmarkOutlined'
 import DisplaySettingsOutlinedIcon from '@mui/icons-material/DisplaySettingsOutlined'
 import DownloadOutlinedIcon from '@mui/icons-material/DownloadOutlined'
 import LocalOfferOutlinedIcon from '@mui/icons-material/LocalOfferOutlined'
+import MovieCreationIcon from '@mui/icons-material/MovieCreation'
 import MovieCreationOutlinedIcon from '@mui/icons-material/MovieCreationOutlined'
 import NumbersRoundedIcon from '@mui/icons-material/NumbersRounded'
+import PeopleAltIcon from '@mui/icons-material/PeopleAlt'
 import PeopleAltOutlinedIcon from '@mui/icons-material/PeopleAltOutlined'
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined'
+import VideocamIcon from '@mui/icons-material/Videocam'
 import VideocamOutlinedIcon from '@mui/icons-material/VideocamOutlined'
+import VideoLibraryIcon from '@mui/icons-material/VideoLibrary'
 import VideoLibraryOutlinedIcon from '@mui/icons-material/VideoLibraryOutlined'
 import { fetchJavPrefixes } from '@/api'
 import JavPrefixModal from '@/components/JavPrefixModal'
@@ -17,23 +21,51 @@ import { getErrorMessage } from '@/utils/errors'
 import { zh } from '@/utils/i18n'
 
 const tabs = [
-  { id: 'video', label: zh('视频', 'Video'), icon: VideoLibraryOutlinedIcon },
-  { id: 'list', label: 'JAV', icon: MovieCreationOutlinedIcon },
-  { id: 'idol', label: zh('女优', 'Idols'), icon: PeopleAltOutlinedIcon },
-  { id: 'studio', label: zh('片商', 'Studios'), icon: VideocamOutlinedIcon },
-  { id: 'series', label: zh('系列', 'Series'), icon: CollectionsBookmarkOutlinedIcon },
+  {
+    id: 'video',
+    label: zh('视频', 'Video'),
+    icon: VideoLibraryOutlinedIcon,
+    activeIcon: VideoLibraryIcon,
+  },
+  {
+    id: 'list',
+    label: 'JAV',
+    icon: MovieCreationOutlinedIcon,
+    activeIcon: MovieCreationIcon,
+  },
+  {
+    id: 'idol',
+    label: zh('女优', 'Idols'),
+    icon: PeopleAltOutlinedIcon,
+    activeIcon: PeopleAltIcon,
+  },
+  {
+    id: 'studio',
+    label: zh('片商', 'Studios'),
+    icon: VideocamOutlinedIcon,
+    activeIcon: VideocamIcon,
+  },
+  {
+    id: 'series',
+    label: zh('系列', 'Series'),
+    icon: CollectionsBookmarkOutlinedIcon,
+    activeIcon: CollectionsBookmarkIcon,
+  },
 ]
 
-function RailButton({
+function DockButton({
   active = false,
   badge = '',
   badgeTone = '',
   className = '',
+  compact = false,
   disabled = false,
   icon: Icon,
+  activeIcon: ActiveIcon,
   label,
   onClick,
 }) {
+  const ResolvedIcon = active && ActiveIcon ? ActiveIcon : Icon
   return (
     <button
       type="button"
@@ -41,9 +73,11 @@ function RailButton({
       onClick={onClick}
       aria-label={badge ? `${label} (${badge})` : label}
       aria-current={active ? 'page' : undefined}
-      className={`side-tabs__button ${active ? 'side-tabs__button--active' : ''} ${className}`}
+      className={`side-tabs__button ${compact ? 'side-tabs__button--compact' : ''} ${
+        active ? 'side-tabs__button--active' : ''
+      } ${className}`}
     >
-      <Icon className="side-tabs__icon" fontSize="small" />
+      <ResolvedIcon className="side-tabs__icon" fontSize="small" />
       <span className="side-tabs__label">{label}</span>
       {badge ? (
         <span className={`side-tabs__badge side-tabs__badge--${badgeTone}`}>{badge}</span>
@@ -54,13 +88,9 @@ function RailButton({
 
 export default function SideTabs({
   activeTab,
-  canGoBack,
-  canGoForward,
   isJavMode,
   javPrefix = '',
   buildJavPrefixUrl,
-  onBrowserBack,
-  onBrowserForward,
   onOpenDownload,
   onOpenGlobalSettings,
   onOpenJavSettings,
@@ -97,65 +127,48 @@ export default function SideTabs({
   }, [prefixModalOpen])
 
   return (
-    <aside className="side-tabs" aria-label={zh('主导航', 'Primary navigation')}>
-      <div className="side-tabs__history" aria-label={zh('浏览历史', 'Navigation history')}>
-        <button
-          type="button"
-          onClick={onBrowserBack}
-          disabled={!canGoBack}
-          aria-label={zh('后退', 'Back')}
-        >
-          <ArrowBackRoundedIcon fontSize="small" />
-        </button>
-        <button
-          type="button"
-          onClick={onBrowserForward}
-          disabled={!canGoForward}
-          aria-label={zh('前进', 'Forward')}
-        >
-          <ArrowForwardRoundedIcon fontSize="small" />
-        </button>
-      </div>
-
-      <nav className="side-tabs__nav">
+    <aside className="side-tabs app-dock" aria-label={zh('主导航', 'Primary navigation')}>
+      <nav className="app-dock__bar app-dock-glass side-tabs__nav">
         {tabs.map((tab) => (
-          <RailButton
+          <DockButton
             key={tab.id}
             active={activeTab === tab.id}
             icon={tab.icon}
+            activeIcon={tab.activeIcon}
             label={tab.label}
             onClick={() => onSelectTab?.(tab.id)}
           />
         ))}
-        <div className="side-tabs__nav-tools">
-          <RailButton
-            badge={isJavMode ? 'JAV' : zh('视频', 'Video')}
-            badgeTone={isJavMode ? 'jav' : 'video'}
-            icon={LocalOfferOutlinedIcon}
-            label={zh('标签', 'Tags')}
-            onClick={isJavMode ? onOpenJavTagModal : onOpenTagModal}
-          />
-          <RailButton
-            icon={NumbersRoundedIcon}
-            label={zh('番号', 'JAV codes')}
-            onClick={() => setPrefixModalOpen(true)}
-          />
-          <RailButton
-            icon={DisplaySettingsOutlinedIcon}
-            label={zh('显示', 'Display')}
-            onClick={isJavMode ? onOpenJavSettings : onOpenVideoSettings}
-          />
-        </div>
       </nav>
 
-      <div className="side-tabs__tools">
-        <RailButton
-          className="w-full"
+      <div className="app-dock__cluster app-dock-glass side-tabs__tools">
+        <DockButton
+          compact
+          badge={isJavMode ? 'JAV' : zh('视频', 'Video')}
+          badgeTone={isJavMode ? 'jav' : 'video'}
+          icon={LocalOfferOutlinedIcon}
+          label={zh('标签', 'Tags')}
+          onClick={isJavMode ? onOpenJavTagModal : onOpenTagModal}
+        />
+        <DockButton
+          compact
+          icon={NumbersRoundedIcon}
+          label={zh('番号', 'JAV codes')}
+          onClick={() => setPrefixModalOpen(true)}
+        />
+        <DockButton
+          compact
+          icon={DisplaySettingsOutlinedIcon}
+          label={zh('显示', 'Display')}
+          onClick={isJavMode ? onOpenJavSettings : onOpenVideoSettings}
+        />
+        <DockButton
+          compact
           icon={DownloadOutlinedIcon}
           label={zh('下载', 'Downloads')}
           onClick={onOpenDownload}
         />
-        <div className="relative w-full">
+        <div className="relative">
           {showDirectorySetupHint ? (
             <div className="directory-setup-hint side-tabs__directory-setup-hint" role="status">
               <ArrowBackRoundedIcon
@@ -171,8 +184,8 @@ export default function SideTabs({
               </span>
             </div>
           ) : null}
-          <RailButton
-            className="w-full"
+          <DockButton
+            compact
             icon={SettingsOutlinedIcon}
             label={zh('设置', 'Settings')}
             onClick={onOpenGlobalSettings}

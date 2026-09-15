@@ -761,7 +761,7 @@ export default function TopBar({
 
     return (
       <div key={nodePath}>
-        <div className="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-gray-50">
+        <div className="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-app-surface-2">
           <TriStateCheckbox
             checked={checked}
             indeterminate={indeterminate}
@@ -769,15 +769,15 @@ export default function TopBar({
             onChange={(event) =>
               setSubdirectoryEnabled(directoryId, nodePath, event.target.checked)
             }
-            className="h-4 w-4 shrink-0 rounded border-gray-300 text-blue-600 disabled:opacity-40"
+            className="h-4 w-4 shrink-0 rounded border-app-border text-app-gold disabled:opacity-40"
             aria-label={zh(
               `显示子目录 ${node.name} 的内容`,
               `Show contents of subdirectory ${node.name}`
             )}
           />
-          <span className="min-w-0 flex-1 truncate text-gray-700">{node.name}</span>
+          <span className="min-w-0 flex-1 truncate text-app-text">{node.name}</span>
           <span
-            className="shrink-0 text-xs tabular-nums text-gray-400"
+            className="shrink-0 text-xs tabular-nums text-app-muted"
             title={zh(
               `目录内文件数 ${node.video_count}`,
               `Files in directory: ${node.video_count}`
@@ -799,7 +799,7 @@ export default function TopBar({
                   : zh(`展开子目录 ${node.name}`, `Expand subdirectories of ${node.name}`)
               }
               aria-expanded={expanded}
-              className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-app-muted hover:bg-app-surface-2 hover:text-app-text"
             >
               <KeyboardArrowRightRoundedIcon
                 fontSize="small"
@@ -809,7 +809,7 @@ export default function TopBar({
           ) : null}
         </div>
         {expanded && children.length > 0 ? (
-          <div className="border-l border-gray-100 pb-1 pl-4">
+          <div className="border-l border-app-border pb-1 pl-4">
             {children.map((child) =>
               renderDirectoryBranch(
                 directoryId,
@@ -918,8 +918,8 @@ export default function TopBar({
 
           <div className="filter-topbar__actions">
             {hasSelection ? (
-              <div className="inline-flex items-center gap-1 rounded-full border border-sky-100 bg-sky-50 px-1.5 py-1">
-                <span className="whitespace-nowrap px-1.5 text-xs font-medium text-sky-700">
+              <div className="border-app-purple/40 inline-flex items-center gap-1 rounded-full border bg-app-purple-soft px-1.5 py-1">
+                <span className="whitespace-nowrap px-1.5 text-xs font-medium text-app-gold">
                   {zh(`已选 ${activeSelectedCount} 项`, `${activeSelectedCount} selected`)}
                 </span>
                 <Button
@@ -1002,25 +1002,25 @@ function FavoriteGroupMenu({
     <div
       role="dialog"
       aria-label={title || zh('女优收藏夹', 'Idol favorites')}
-      className="absolute top-full z-50 mt-2.5 flex max-h-[70vh] w-[34rem] max-w-[calc(100vw-2rem)] flex-col overflow-visible rounded border border-gray-200 bg-white text-left shadow-xl"
+      className="absolute top-full z-50 mt-2.5 flex max-h-[70vh] w-[34rem] max-w-[calc(100vw-2rem)] flex-col overflow-visible rounded border border-app-border bg-app-surface text-left shadow-xl"
       style={{ right: `${-FAVORITE_MENU_RIGHT_SHIFT}px` }}
     >
       <span
-        className="absolute top-0 h-0 w-0 -translate-y-full border-x-[10px] border-b-[10px] border-x-transparent border-b-gray-200"
+        className="absolute top-0 h-0 w-0 -translate-y-full border-x-[10px] border-b-[10px] border-x-transparent border-b-app-border"
         style={{ right: `${16 + FAVORITE_MENU_RIGHT_SHIFT}px` }}
         aria-hidden="true"
       />
       <span
-        className="absolute top-px h-0 w-0 -translate-y-full border-x-[9px] border-b-[9px] border-x-transparent border-b-gray-50"
+        className="absolute top-px h-0 w-0 -translate-y-full border-x-[9px] border-b-[9px] border-x-transparent border-b-app-surface"
         style={{ right: `${17 + FAVORITE_MENU_RIGHT_SHIFT}px` }}
         aria-hidden="true"
       />
-      <div className="flex items-center justify-between gap-2 border-b bg-gray-50 px-3 py-2">
+      <div className="flex items-center justify-between gap-2 border-b bg-app-surface-2 px-3 py-2">
         <div className="min-w-0">
-          <div className="text-xs font-semibold text-gray-700">
+          <div className="text-xs font-semibold text-app-text">
             {title || zh('女优收藏夹', 'Idol favorites')}
           </div>
-          <div className="truncate text-xs text-gray-500">
+          <div className="truncate text-xs text-app-muted">
             {loading
               ? zh('加载中…', 'Loading...')
               : zh(`${list.length} 个收藏夹`, `${list.length} favorites`)}
@@ -1037,9 +1037,9 @@ function FavoriteGroupMenu({
           <SettingsOutlinedIcon sx={{ fontSize: 18 }} />
         </IconButton>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50/80 p-2">
+      <div className="bg-app-surface-2/80 min-h-0 flex-1 overflow-y-auto p-2">
         {error ? (
-          <div className="mb-2 rounded border border-red-200 bg-red-50 px-2 py-1.5 text-xs text-red-700">
+          <div className="mb-2 rounded border border-red-200 bg-red-950/40 px-2 py-1.5 text-xs text-red-700">
             {String(error)}
           </div>
         ) : null}
@@ -1069,7 +1069,7 @@ function FavoriteGroupMenu({
           })}
         </div>
         {!loading && !error && list.length === 0 ? (
-          <div className="px-3 py-4 text-center text-sm text-gray-500">
+          <div className="px-3 py-4 text-center text-sm text-app-muted">
             {zh('暂无收藏夹', 'No favorites')}
           </div>
         ) : null}
@@ -1081,8 +1081,8 @@ function FavoriteGroupMenu({
 function FavoriteGroupTile({ active, href, group = null, label, count, onClick, onEdit }) {
   return (
     <div
-      className={`group relative block aspect-square overflow-hidden rounded-lg border focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
-        active ? 'border-blue-300 shadow-md' : 'border-amber-200/80 shadow-sm'
+      className={`group relative block aspect-square overflow-hidden rounded-lg border focus:outline-none focus-visible:ring-2 focus-visible:ring-app-gold ${
+        active ? 'border-app-gold shadow-md' : 'border-app-border shadow-sm'
       }`}
     >
       <a
@@ -1097,22 +1097,22 @@ function FavoriteGroupTile({ active, href, group = null, label, count, onClick, 
         <span
           className={`absolute left-2 top-1.5 h-3 w-10 rounded-t-md border border-b-0 ${
             active
-              ? 'border-blue-300 bg-gradient-to-b from-blue-200 to-blue-300'
-              : 'border-amber-200 bg-gradient-to-b from-amber-100 to-amber-200'
+              ? 'border-app-gold bg-gradient-to-b from-app-gold-hover to-app-gold'
+              : 'border-app-border bg-gradient-to-b from-app-hover to-app-surface-2'
           }`}
           aria-hidden="true"
         />
         <span
-          className={`absolute inset-x-1.5 bottom-1.5 top-3.5 rounded-md border shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_6px_10px_rgba(15,23,42,0.11)] ${
+          className={`absolute inset-x-1.5 bottom-1.5 top-3.5 rounded-md border shadow-[inset_0_1px_0_rgba(244,239,230,0.08),0_8px_16px_rgba(8,4,16,0.35)] ${
             active
-              ? 'border-blue-300 bg-gradient-to-br from-blue-100 via-blue-200 to-blue-300'
-              : 'border-amber-200 bg-gradient-to-br from-amber-50 via-amber-100 to-amber-200'
+              ? 'from-app-gold/30 border-app-gold bg-gradient-to-br via-app-purple-soft to-app-surface-2'
+              : 'border-app-border bg-gradient-to-br from-app-surface-2 via-app-surface to-app-bg'
           }`}
           aria-hidden="true"
         />
         <span
           className={`absolute inset-x-2 bottom-0.5 h-1.5 rounded-b-md ${
-            active ? 'bg-blue-400/40' : 'bg-amber-300/45'
+            active ? 'bg-app-gold/50' : 'bg-app-purple/35'
           }`}
           aria-hidden="true"
         />
@@ -1120,11 +1120,11 @@ function FavoriteGroupTile({ active, href, group = null, label, count, onClick, 
           <span className="flex items-start gap-1">
             <FolderRoundedIcon
               sx={{ fontSize: 14 }}
-              className={active ? 'shrink-0 text-blue-700' : 'shrink-0 text-amber-700'}
+              className={active ? 'shrink-0 text-app-gold' : 'shrink-0 text-app-muted'}
             />
             <span
               className={`min-w-0 flex-1 truncate text-[11px] font-semibold leading-4 ${
-                active ? 'text-blue-950' : 'text-amber-950'
+                active ? 'text-app-gold' : 'text-app-text'
               }`}
             >
               {label}
@@ -1136,8 +1136,8 @@ function FavoriteGroupTile({ active, href, group = null, label, count, onClick, 
         <span
           className={`absolute right-1.5 top-1.5 rounded-full border px-1.5 text-[10px] leading-4 shadow-sm ${
             active
-              ? 'border-blue-200 bg-white/80 text-blue-700'
-              : 'border-amber-200 bg-white/80 text-amber-800'
+              ? 'border-app-gold/40 bg-app-surface/80 text-app-gold'
+              : 'bg-app-surface/80 border-amber-700/40 text-amber-200'
           }`}
         >
           {count}
@@ -1151,10 +1151,10 @@ function FavoriteGroupTile({ active, href, group = null, label, count, onClick, 
             event.stopPropagation()
             onEdit?.()
           }}
-          className={`absolute bottom-1.5 right-1.5 inline-flex h-5 w-5 items-center justify-center rounded border bg-white/85 shadow-sm backdrop-blur-sm transition-colors ${
+          className={`bg-app-surface/85 absolute bottom-1.5 right-1.5 inline-flex h-5 w-5 items-center justify-center rounded border shadow-sm backdrop-blur-sm transition-colors ${
             active
-              ? 'border-blue-200 text-blue-700 hover:bg-blue-50'
-              : 'border-amber-200 text-amber-800 hover:bg-amber-50'
+              ? 'border-app-gold/40 text-app-gold hover:bg-app-gold-soft'
+              : 'border-amber-700/40 text-amber-200 hover:bg-amber-950/40'
           }`}
           aria-label={zh(`编辑收藏夹 ${label}`, `Edit favorite ${label}`)}
         >

@@ -194,7 +194,7 @@ export default function DownloaderSettingsView() {
 
   if (loading) {
     return (
-      <div className="rounded-xl border border-dashed border-gray-200 bg-white p-8 text-center text-sm text-gray-400">
+      <div className="rounded-xl border border-dashed border-app-border bg-app-surface p-8 text-center text-sm text-app-muted">
         {zh('加载设置…', 'Loading settings...')}
       </div>
     )
@@ -211,25 +211,25 @@ export default function DownloaderSettingsView() {
       : cloudDrive2Status === 'unavailable'
         ? {
             label: zh('不可用', 'Unavailable'),
-            className: 'bg-red-50 text-red-700 ring-red-200',
-            dotClassName: 'bg-red-500',
+            className: 'bg-red-950/40 text-red-200 ring-red-200',
+            dotClassName: 'bg-red-400',
           }
         : cloudDrive2Status === 'unchecked'
           ? {
               label: zh('待检测', 'Not checked'),
-              className: 'bg-slate-50 text-slate-600 ring-slate-200',
-              dotClassName: 'bg-slate-400',
+              className: 'bg-app-surface-2 text-app-muted ring-app-border',
+              dotClassName: 'bg-app-muted',
             }
           : {
               label: zh('检测中', 'Checking'),
-              className: 'bg-slate-50 text-slate-600 ring-slate-200',
-              dotClassName: 'animate-pulse bg-slate-400',
+              className: 'bg-app-surface-2 text-app-muted ring-app-border',
+              dotClassName: 'animate-pulse bg-app-muted',
             }
 
   return (
     <div className="space-y-3">
       {error ? (
-        <div role="alert" className="rounded-lg bg-red-50 px-3 py-1.5 text-xs text-red-700">
+        <div role="alert" className="rounded-lg bg-red-950/40 px-3 py-1.5 text-xs text-red-700">
           {error}
         </div>
       ) : null}
@@ -240,10 +240,10 @@ export default function DownloaderSettingsView() {
       ) : null}
 
       <div className="grid gap-3 lg:grid-cols-2">
-        <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+        <section className="rounded-xl border border-app-border bg-app-surface p-4 shadow-sm">
           <div>
-            <h2 className="text-lg font-bold text-gray-900">{zh('基础设置', 'Basic settings')}</h2>
-            <p className="mt-0.5 text-xs text-gray-500">
+            <h2 className="text-lg font-bold text-app-text">{zh('基础设置', 'Basic settings')}</h2>
+            <p className="mt-0.5 text-xs text-app-muted">
               {zh(
                 '配置本地保存位置、并发数和文件过滤。',
                 'Configure local storage, concurrency, and file filtering.'
@@ -252,8 +252,8 @@ export default function DownloaderSettingsView() {
           </div>
 
           <form onSubmit={handleBehaviorSave} className="mt-3">
-            <div className="flex flex-col gap-2 border-b border-gray-100 py-3 first:pt-0 sm:flex-row sm:items-center sm:justify-between">
-              <label htmlFor="download-directory" className="text-xs font-medium text-gray-700">
+            <div className="flex flex-col gap-2 border-b border-app-border py-3 first:pt-0 sm:flex-row sm:items-center sm:justify-between">
+              <label htmlFor="download-directory" className="text-xs font-medium text-app-text">
                 {zh('本地下载目录', 'Local download directory')}
               </label>
               <div className="flex w-full gap-2 sm:w-3/4">
@@ -267,7 +267,7 @@ export default function DownloaderSettingsView() {
                   }
                   onChange={(event) => updateForm('downloadDirectory', event.target.value)}
                   placeholder={zh('请选择或输入本地目录', 'Choose or enter a local directory')}
-                  className="h-9 min-w-0 flex-1 rounded-lg border border-gray-300 px-3 text-xs outline-none focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-500"
+                  className="h-9 min-w-0 flex-1 rounded-lg border border-app-border px-3 text-xs outline-none focus:border-app-gold disabled:bg-app-surface-2 disabled:text-app-muted"
                 />
                 <button
                   type="button"
@@ -275,14 +275,14 @@ export default function DownloaderSettingsView() {
                   onClick={() => setPickerOpen(true)}
                   aria-label={zh('选择目录', 'Choose directory')}
                   title={zh('选择目录', 'Choose directory')}
-                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-app-border bg-app-surface text-app-muted hover:bg-app-surface-2 disabled:opacity-50"
                 >
                   <FolderOpenOutlinedIcon fontSize="small" />
                 </button>
               </div>
             </div>
-            <div className="flex flex-col gap-2 border-b border-gray-100 py-3 sm:flex-row sm:items-center sm:justify-between">
-              <label htmlFor="local-concurrency" className="text-xs font-medium text-gray-700">
+            <div className="flex flex-col gap-2 border-b border-app-border py-3 sm:flex-row sm:items-center sm:justify-between">
+              <label htmlFor="local-concurrency" className="text-xs font-medium text-app-text">
                 {zh('本地下载并发数', 'Concurrent local downloads')}
               </label>
               <select
@@ -290,7 +290,7 @@ export default function DownloaderSettingsView() {
                 disabled={!behaviorEditing || busy}
                 value={form.localConcurrency}
                 onChange={(event) => updateForm('localConcurrency', Number(event.target.value))}
-                className="h-9 w-full rounded-lg border border-gray-300 bg-white px-3 text-xs outline-none focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-500 sm:w-24"
+                className="h-9 w-full rounded-lg border border-app-border bg-app-surface px-3 text-xs outline-none focus:border-app-gold disabled:bg-app-surface-2 disabled:text-app-muted sm:w-24"
               >
                 {[1, 2, 3].map((value) => (
                   <option key={value} value={value}>
@@ -301,10 +301,10 @@ export default function DownloaderSettingsView() {
             </div>
             <div className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <label htmlFor="minimum-video-size" className="text-xs font-medium text-gray-700">
+                <label htmlFor="minimum-video-size" className="text-xs font-medium text-app-text">
                   {zh('视频最小下载体积', 'Minimum video download size')}
                 </label>
-                <p className="mt-1 text-xs text-gray-400">
+                <p className="mt-1 text-xs text-app-muted">
                   {zh(
                     '小于此体积的视频下载时会被忽略',
                     'Videos smaller than this size are skipped during download.'
@@ -320,20 +320,20 @@ export default function DownloaderSettingsView() {
                   max="102400"
                   value={form.minVideoSizeMB}
                   onChange={(event) => updateForm('minVideoSizeMB', Number(event.target.value))}
-                  className="h-9 w-full rounded-lg border border-gray-300 py-2 pl-3 pr-10 text-xs outline-none focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-500"
+                  className="h-9 w-full rounded-lg border border-app-border py-2 pl-3 pr-10 text-xs outline-none focus:border-app-gold disabled:bg-app-surface-2 disabled:text-app-muted"
                 />
-                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-app-muted">
                   MB
                 </span>
               </div>
             </div>
-            <div className="flex justify-end gap-2 border-t border-gray-100 pt-3">
+            <div className="flex justify-end gap-2 border-t border-app-border pt-3">
               {!behaviorEditing && (
                 <button
                   type="button"
                   disabled={busy}
                   onClick={startBehaviorEditing}
-                  className="h-8 rounded-lg bg-blue-600 px-3 text-xs font-semibold text-white disabled:opacity-50"
+                  className="h-8 rounded-lg bg-app-gold px-3 text-xs font-semibold text-white disabled:opacity-50"
                 >
                   {zh('编辑', 'Edit')}
                 </button>
@@ -344,14 +344,14 @@ export default function DownloaderSettingsView() {
                     type="button"
                     disabled={busy}
                     onClick={exitBehaviorEditing}
-                    className="h-8 rounded-lg border border-gray-200 bg-white px-3 text-xs font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                    className="h-8 rounded-lg border border-app-border bg-app-surface px-3 text-xs font-semibold text-app-muted hover:bg-app-surface-2 disabled:opacity-50"
                   >
                     {zh('退出编辑', 'Exit editing')}
                   </button>
                   <button
                     type="submit"
                     disabled={busy}
-                    className="h-8 rounded-lg bg-blue-600 px-3 text-xs font-semibold text-white disabled:opacity-50"
+                    className="h-8 rounded-lg bg-app-gold px-3 text-xs font-semibold text-white disabled:opacity-50"
                   >
                     {action === 'behavior-save'
                       ? zh('保存中…', 'Saving...')
@@ -363,13 +363,13 @@ export default function DownloaderSettingsView() {
           </form>
         </section>
 
-        <section className="flex flex-col rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+        <section className="flex flex-col rounded-xl border border-app-border bg-app-surface p-4 shadow-sm">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h2 className="text-lg font-bold text-gray-900">
+              <h2 className="text-lg font-bold text-app-text">
                 {zh('CloudDrive2 设置', 'CloudDrive2 settings')}
               </h2>
-              <p className="mt-0.5 text-xs text-gray-500">
+              <p className="mt-0.5 text-xs text-app-muted">
                 {zh(
                   '配置 CloudDrive2 连接和云端离线目录。',
                   'Configure the CloudDrive2 connection and remote offline folder.'
@@ -403,7 +403,7 @@ export default function DownloaderSettingsView() {
                 }
                 aria-label={zh('检测可用性', 'Check availability')}
                 title={zh('检测可用性', 'Check availability')}
-                className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-gray-200 bg-white text-[14px] text-gray-500 transition hover:bg-gray-50 hover:text-gray-800 disabled:opacity-50"
+                className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-app-border bg-app-surface text-[14px] text-app-muted transition hover:bg-app-surface-2 hover:text-app-text disabled:opacity-50"
               >
                 <RefreshRoundedIcon
                   fontSize="inherit"
@@ -415,7 +415,7 @@ export default function DownloaderSettingsView() {
           {cloudDrive2Status === 'unavailable' && cloudDrive2StatusError ? (
             <div
               role="alert"
-              className="mt-2 break-words rounded-md bg-red-50 px-2.5 py-1.5 text-[11px] text-red-700"
+              className="mt-2 break-words rounded-md bg-red-950/40 px-2.5 py-1.5 text-[11px] text-red-700"
             >
               <span className="font-semibold">{zh('不可用原因：', 'Unavailable reason: ')}</span>
               {cloudDrive2StatusError}
@@ -423,27 +423,27 @@ export default function DownloaderSettingsView() {
           ) : null}
           <form onSubmit={handleConnectionSave} className="mt-3 flex flex-1 flex-col">
             <div className="grid gap-3 lg:grid-cols-2">
-              <label className="text-xs font-medium text-gray-600">
+              <label className="text-xs font-medium text-app-muted">
                 {zh('CloudDrive2 地址', 'CloudDrive2 address')}
                 <input
                   value={form.address}
                   disabled={!connectionEditing || busy}
                   onChange={(event) => updateForm('address', event.target.value)}
                   placeholder={defaultForm.address}
-                  className="mt-1 h-9 w-full rounded-lg border border-gray-300 px-3 text-xs outline-none focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-500"
+                  className="mt-1 h-9 w-full rounded-lg border border-app-border px-3 text-xs outline-none focus:border-app-gold disabled:bg-app-surface-2 disabled:text-app-muted"
                 />
               </label>
-              <label className="text-xs font-medium text-gray-600">
+              <label className="text-xs font-medium text-app-muted">
                 {zh('云端离线目录', 'Remote offline folder')}
                 <input
                   value={form.remoteFolder}
                   disabled={!connectionEditing || busy}
                   onChange={(event) => updateForm('remoteFolder', event.target.value)}
                   placeholder="/115open/..."
-                  className="mt-1 h-9 w-full rounded-lg border border-gray-300 px-3 text-xs outline-none focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-500"
+                  className="mt-1 h-9 w-full rounded-lg border border-app-border px-3 text-xs outline-none focus:border-app-gold disabled:bg-app-surface-2 disabled:text-app-muted"
                 />
               </label>
-              <div className="text-xs font-medium text-gray-600 lg:col-span-2">
+              <div className="text-xs font-medium text-app-muted lg:col-span-2">
                 <div className="flex items-center gap-1">
                   <label htmlFor="clouddrive2-api-token">API Token</label>
                   <Tooltip
@@ -457,7 +457,7 @@ export default function DownloaderSettingsView() {
                     <button
                       type="button"
                       aria-label={zh('API 令牌所需权限', 'Required API token permissions')}
-                      className="inline-flex rounded-full text-gray-400 hover:text-gray-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
+                      className="inline-flex rounded-full text-app-muted hover:text-app-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-app-gold"
                     >
                       <HelpOutlineRoundedIcon sx={{ fontSize: 14 }} />
                     </button>
@@ -471,13 +471,13 @@ export default function DownloaderSettingsView() {
                     value={form.apiToken}
                     onChange={(event) => updateForm('apiToken', event.target.value)}
                     autoComplete="new-password"
-                    className="h-9 w-full rounded-lg border border-gray-300 py-2 pl-3 pr-11 text-xs outline-none focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-500"
+                    className="h-9 w-full rounded-lg border border-app-border py-2 pl-3 pr-11 text-xs outline-none focus:border-app-gold disabled:bg-app-surface-2 disabled:text-app-muted"
                   />
                   <button
                     type="button"
                     disabled={busy}
                     onClick={() => setTokenVisible((visible) => !visible)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-gray-400 hover:bg-gray-100 disabled:opacity-50"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-app-muted hover:bg-app-surface-2 disabled:opacity-50"
                     aria-label={
                       tokenVisible ? zh('隐藏 Token', 'Hide token') : zh('显示 Token', 'Show token')
                     }
@@ -491,13 +491,13 @@ export default function DownloaderSettingsView() {
                 </div>
               </div>
             </div>
-            <div className="mt-auto flex justify-end gap-2 border-t border-gray-100 pt-3">
+            <div className="mt-auto flex justify-end gap-2 border-t border-app-border pt-3">
               {!connectionEditing && (
                 <button
                   type="button"
                   disabled={busy}
                   onClick={startConnectionEditing}
-                  className="h-8 rounded-lg bg-blue-600 px-3 text-xs font-semibold text-white disabled:opacity-50"
+                  className="h-8 rounded-lg bg-app-gold px-3 text-xs font-semibold text-white disabled:opacity-50"
                 >
                   {zh('编辑', 'Edit')}
                 </button>
@@ -508,14 +508,14 @@ export default function DownloaderSettingsView() {
                     type="button"
                     disabled={busy}
                     onClick={exitConnectionEditing}
-                    className="h-8 rounded-lg border border-gray-200 bg-white px-3 text-xs font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                    className="h-8 rounded-lg border border-app-border bg-app-surface px-3 text-xs font-semibold text-app-muted hover:bg-app-surface-2 disabled:opacity-50"
                   >
                     {zh('退出编辑', 'Exit editing')}
                   </button>
                   <button
                     type="submit"
                     disabled={busy}
-                    className="h-8 rounded-lg bg-blue-600 px-3 text-xs font-semibold text-white disabled:opacity-50"
+                    className="h-8 rounded-lg bg-app-gold px-3 text-xs font-semibold text-white disabled:opacity-50"
                   >
                     {action === 'connection-save'
                       ? zh('保存中…', 'Saving...')

@@ -24,7 +24,7 @@ export default function SelectionTagsModal({
     <AppModal
       ariaLabel={title}
       className="px-4"
-      contentClassName="w-full max-w-xs rounded-lg bg-white p-4 shadow-xl"
+      contentClassName="w-full max-w-xs rounded-2xl bg-app-surface p-4 shadow-xl"
       onClose={onClose}
       zIndex={1600}
     >
@@ -32,7 +32,7 @@ export default function SelectionTagsModal({
         <h2 className="text-base font-semibold">{title}</h2>
         <button
           onClick={onClose}
-          className="rounded px-2 py-1 text-gray-500 hover:bg-gray-100"
+          className="rounded px-2 py-1 text-app-muted hover:bg-app-surface-2"
           aria-label={zh('关闭标签选择', 'Close Tag Picker')}
         >
           ✕
@@ -40,21 +40,21 @@ export default function SelectionTagsModal({
       </div>
       <div className="max-h-64 space-y-1 overflow-y-auto rounded border p-2">
         {list.length === 0 ? (
-          <div className="px-2 py-1 text-sm text-gray-500">{zh('暂无标签', 'No tags')}</div>
+          <div className="px-2 py-1 text-sm text-app-muted">{zh('暂无标签', 'No tags')}</div>
         ) : (
           list.map((tag) => {
             const checked = selected.includes(String(tag.id))
             return (
               <label
                 key={tag.id}
-                className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 hover:bg-gray-50"
+                className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 hover:bg-app-surface-2"
               >
                 <input
                   type="checkbox"
                   checked={checked}
                   onChange={(e) => onToggleChoice?.(tag.id, e.target.checked)}
                 />
-                <span className="text-sm text-gray-800">{tag.name}</span>
+                <span className="text-sm text-app-text">{tag.name}</span>
               </label>
             )
           })

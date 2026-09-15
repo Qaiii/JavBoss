@@ -13,8 +13,8 @@ const sliderClass =
 function chipClass(active) {
   return `rounded px-2 py-1 text-xs transition-colors ${
     active
-      ? 'bg-white/20 font-semibold text-white'
-      : 'bg-white/5 text-white/70 hover:bg-white/10 hover:text-white'
+      ? 'bg-app-surface/20 font-semibold text-white'
+      : 'bg-app-surface/5 text-white/70 hover:bg-app-hover/10 hover:text-white'
   }`
 }
 
@@ -148,7 +148,7 @@ export default function SubtitleStylePanel({ style, onChange, onReset }) {
           style.edge === DEFAULT_SUBTITLE_STYLE.edge &&
           style.offset === DEFAULT_SUBTITLE_STYLE.offset
         }
-        className="w-full rounded bg-white/10 px-3 py-1.5 text-xs text-white/80 transition-colors hover:bg-white/15 hover:text-white disabled:opacity-40"
+        className="bg-app-surface/10 hover:bg-app-hover/15 w-full rounded px-3 py-1.5 text-xs text-white/80 transition-colors hover:text-white disabled:opacity-40"
       >
         {zh('恢复默认', 'Reset to default')}
       </button>

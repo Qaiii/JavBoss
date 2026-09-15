@@ -307,7 +307,7 @@ export default function JavGrid({
 
   if (!hasItems) {
     return (
-      <div className="mt-4 flex min-h-[200px] items-center justify-center rounded border border-dashed border-gray-200 text-gray-500">
+      <div className="mt-4 flex min-h-[200px] items-center justify-center rounded border border-dashed border-app-border text-app-muted">
         {zh('暂无 JAV 数据', 'No JAV data')}
       </div>
     )
@@ -601,7 +601,7 @@ function JavEditDropdown({
       <div className="block text-[13px] font-semibold text-black">{label}</div>
       <button
         type="button"
-        className="mt-2 flex w-full items-center justify-between rounded-md border border-gray-300 bg-white px-3 py-2 text-left text-sm text-gray-900 outline-none hover:border-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500"
+        className="hover:border-app-gold/40 focus:ring-app-gold/25 mt-2 flex w-full items-center justify-between rounded-md border border-app-border bg-app-surface px-3 py-2 text-left text-sm text-app-text outline-none focus:border-app-gold focus:ring-2 disabled:cursor-not-allowed disabled:bg-app-surface-2 disabled:text-app-muted"
         onClick={() => onOpenChange?.(!open)}
         disabled={disabled}
         aria-haspopup="listbox"
@@ -616,19 +616,19 @@ function JavEditDropdown({
         />
       </button>
       {open ? (
-        <div className="absolute left-0 right-0 z-20 mt-1 rounded-md border border-gray-200 bg-white p-2 shadow-xl">
+        <div className="absolute left-0 right-0 z-20 mt-1 rounded-md border border-app-border bg-app-surface p-2 shadow-xl">
           <input
             type="search"
             value={search}
             onChange={(event) => onSearchChange?.(event.target.value)}
             placeholder={searchPlaceholder}
-            className="mb-2 w-full rounded border border-gray-300 px-2 py-1.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            className="focus:ring-app-gold/25 mb-2 w-full rounded border border-app-border px-2 py-1.5 text-sm outline-none focus:border-app-gold focus:ring-2"
           />
           <div className="max-h-52 overflow-y-auto" role="listbox">
             <button
               type="button"
-              className={`block w-full rounded px-2 py-1.5 text-left text-sm hover:bg-gray-50 ${
-                selectedId ? 'text-gray-700' : 'bg-blue-50 text-blue-700'
+              className={`block w-full rounded px-2 py-1.5 text-left text-sm hover:bg-app-surface-2 ${
+                selectedId ? 'text-app-text' : 'bg-app-gold-soft text-app-gold'
               }`}
               onClick={() => {
                 onSelect?.('')
@@ -643,8 +643,8 @@ function JavEditDropdown({
                 <button
                   key={option.id}
                   type="button"
-                  className={`block w-full rounded px-2 py-1.5 text-left text-sm hover:bg-gray-50 ${
-                    active ? 'bg-blue-50 text-blue-700' : 'text-gray-800'
+                  className={`block w-full rounded px-2 py-1.5 text-left text-sm hover:bg-app-surface-2 ${
+                    active ? 'bg-app-gold-soft text-app-gold' : 'text-app-text'
                   }`}
                   onClick={() => {
                     onSelect?.(String(option.id))
@@ -658,7 +658,7 @@ function JavEditDropdown({
               )
             })}
             {options.length === 0 ? (
-              <div className="px-2 py-1.5 text-sm text-gray-500">
+              <div className="px-2 py-1.5 text-sm text-app-muted">
                 {zh('没有匹配结果', 'No matches')}
               </div>
             ) : null}
@@ -672,14 +672,14 @@ function JavEditDropdown({
 function SelectedChip({ label, onRemove, disabled, compact = false }) {
   return (
     <span
-      className={`inline-flex min-w-0 items-center rounded-full bg-gray-100 text-gray-800 ${
+      className={`inline-flex min-w-0 items-center rounded-full bg-app-surface-2 text-app-text ${
         compact ? 'gap-0.5 px-1.5 py-0.5 text-xs' : 'gap-1 px-2 py-1 text-sm'
       }`}
     >
       <span className="truncate">{label}</span>
       <button
         type="button"
-        className={`inline-flex shrink-0 items-center justify-center rounded-full text-gray-500 hover:bg-gray-200 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-50 ${
+        className={`inline-flex shrink-0 items-center justify-center rounded-full text-app-muted hover:bg-app-hover hover:text-app-text disabled:cursor-not-allowed disabled:opacity-50 ${
           compact ? 'h-3.5 w-3.5' : 'h-4 w-4'
         }`}
         onClick={onRemove}
@@ -803,20 +803,20 @@ function JavCustomTagModal({ open, item, onClose, onSaved }) {
       ariaLabel={zh('编辑自定义标签', 'Edit custom tags')}
       className="p-4"
       closeDisabled={saving || creating}
-      contentClassName="flex max-h-[80vh] w-full max-w-lg flex-col rounded-lg bg-white shadow-2xl"
+      contentClassName="flex max-h-[80vh] w-full max-w-lg flex-col rounded-2xl bg-app-surface shadow-2xl"
       onClose={onClose}
       zIndex={1600}
     >
       <div className="flex items-start justify-between gap-3 p-5 pb-3">
         <div className="min-w-0">
-          <div className="text-base font-semibold text-gray-900">
+          <div className="text-base font-semibold text-app-text">
             {zh('编辑自定义标签', 'Edit custom tags')}
           </div>
-          {code ? <div className="mt-1 truncate text-xs text-gray-500">{code}</div> : null}
+          {code ? <div className="mt-1 truncate text-xs text-app-muted">{code}</div> : null}
         </div>
         <button
           type="button"
-          className="rounded px-2 py-1 text-xl leading-none text-gray-500 hover:bg-gray-100 hover:text-gray-900"
+          className="rounded px-2 py-1 text-xl leading-none text-app-muted hover:bg-app-surface-2 hover:text-app-text"
           onClick={onClose}
           disabled={saving || creating}
           aria-label={zh('关闭', 'Close')}
@@ -851,13 +851,13 @@ function JavCustomTagModal({ open, item, onClose, onSaved }) {
               void addCustomTag()
             }}
             placeholder={zh('搜索或输入新的自定义标签', 'Search or enter a new custom tag')}
-            className="min-w-0 flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            className="focus:ring-app-gold/25 min-w-0 flex-1 rounded-md border border-app-border px-3 py-2 text-sm outline-none focus:border-app-gold focus:ring-2"
             disabled={saving || creating}
           />
           {search.trim() ? (
             <button
               type="button"
-              className="shrink-0 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-700 hover:bg-blue-100 disabled:cursor-wait disabled:opacity-60"
+              className="border-app-gold/40 shrink-0 rounded-md border bg-app-gold-soft px-3 py-2 text-sm text-app-gold hover:bg-app-gold-soft disabled:cursor-wait disabled:opacity-60"
               onClick={() => void addCustomTag()}
               disabled={saving || creating}
             >
@@ -869,7 +869,7 @@ function JavCustomTagModal({ open, item, onClose, onSaved }) {
             </button>
           ) : null}
         </div>
-        <div className="max-h-64 overflow-y-auto rounded-md border border-gray-200 p-1">
+        <div className="max-h-64 overflow-y-auto rounded-md border border-app-border p-1">
           {visibleTagOptions.length > 0 ? (
             visibleTagOptions.map((tag) => {
               const checked = selectedTagIds.includes(String(tag.id))
@@ -877,8 +877,8 @@ function JavCustomTagModal({ open, item, onClose, onSaved }) {
                 <button
                   key={tag.id}
                   type="button"
-                  className={`flex w-full items-center gap-2 rounded px-2 py-2 text-left text-sm hover:bg-gray-50 ${
-                    checked ? 'bg-blue-50 text-blue-800' : 'text-gray-800'
+                  className={`flex w-full items-center gap-2 rounded px-2 py-2 text-left text-sm hover:bg-app-surface-2 ${
+                    checked ? 'bg-app-gold-soft text-app-gold' : 'text-app-text'
                   }`}
                   onClick={() => toggleTag(tag.id)}
                   disabled={saving || creating}
@@ -888,21 +888,21 @@ function JavCustomTagModal({ open, item, onClose, onSaved }) {
                     aria-hidden="true"
                     className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border text-[11px] ${
                       checked
-                        ? 'border-blue-600 bg-blue-600 text-white'
-                        : 'border-gray-300 bg-white text-transparent'
+                        ? 'border-app-gold bg-app-gold text-[#1a1208]'
+                        : 'border-app-border bg-app-surface text-transparent'
                     }`}
                   >
                     ✓
                   </span>
                   <span className="min-w-0 flex-1 truncate">{tag.name}</span>
-                  <span className="shrink-0 text-xs tabular-nums text-gray-400">
+                  <span className="shrink-0 text-xs tabular-nums text-app-muted">
                     {Math.max(0, Number(tag?.count) || 0)}
                   </span>
                 </button>
               )
             })
           ) : (
-            <div className="px-2 py-4 text-center text-sm text-gray-500">
+            <div className="px-2 py-4 text-center text-sm text-app-muted">
               {search.trim()
                 ? zh('没有匹配标签，可直接创建', 'No matching tags; create it directly')
                 : zh('暂无自定义标签', 'No custom tags')}
@@ -911,10 +911,10 @@ function JavCustomTagModal({ open, item, onClose, onSaved }) {
         </div>
         {error ? <div className="text-sm text-red-600">{error}</div> : null}
       </div>
-      <div className="flex justify-end gap-2 border-t border-gray-200 p-5">
+      <div className="flex justify-end gap-2 border-t border-app-border p-5">
         <button
           type="button"
-          className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+          className="rounded-md border border-app-border px-4 py-2 text-sm text-app-text hover:bg-app-surface-2 disabled:cursor-not-allowed disabled:opacity-60"
           onClick={onClose}
           disabled={saving || creating}
         >
@@ -923,7 +923,7 @@ function JavCustomTagModal({ open, item, onClose, onSaved }) {
         <button
           type="button"
           className={`rounded-md px-4 py-2 text-sm font-medium text-white ${
-            saving ? 'cursor-wait bg-blue-400' : 'bg-blue-600 hover:bg-blue-700'
+            saving ? 'cursor-wait bg-app-gold' : 'bg-app-gold hover:bg-app-gold-hover'
           }`}
           onClick={() => void handleSave()}
           disabled={saving || creating}
@@ -1348,20 +1348,20 @@ function JavEditModal({ open, item, preferChineseName = false, onClose, onSaved 
       ariaLabel={zh('编辑 JAV 信息', 'Edit JAV info')}
       className="p-4"
       closeDisabled={saving || creatingOption}
-      contentClassName="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-lg bg-white shadow-2xl"
+      contentClassName="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-2xl bg-app-surface shadow-2xl"
       onClose={onClose}
       zIndex={1600}
     >
       <div className="mb-4 flex items-center gap-2 px-5 pt-5">
         <div className="shrink-0">
-          <div className="text-base font-semibold text-gray-900">{zh('编辑 JAV', 'Edit JAV')}</div>
+          <div className="text-base font-semibold text-app-text">{zh('编辑 JAV', 'Edit JAV')}</div>
         </div>
         {code ? (
-          <div className="max-w-[50%] truncate text-xs font-medium text-gray-700">{code}</div>
+          <div className="max-w-[50%] truncate text-xs font-medium text-app-text">{code}</div>
         ) : null}
         <button
           type="button"
-          className="ml-auto rounded px-2 py-1 text-xl leading-none text-gray-500 hover:bg-gray-100 hover:text-gray-900"
+          className="ml-auto rounded px-2 py-1 text-xl leading-none text-app-muted hover:bg-app-surface-2 hover:text-app-text"
           onClick={onClose}
           disabled={saving || creatingOption}
           aria-label={zh('关闭', 'Close')}
@@ -1385,7 +1385,7 @@ function JavEditModal({ open, item, preferChineseName = false, onClose, onSaved 
               setTitle(event.target.value)
               if (error) setError('')
             }}
-            className="mt-2 w-full resize-y rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            className="focus:ring-app-gold/25 mt-2 w-full resize-y rounded-md border border-app-border px-3 py-2 text-sm text-app-text outline-none focus:border-app-gold focus:ring-2"
             disabled={saving}
           />
         </div>
@@ -1405,10 +1405,10 @@ function JavEditModal({ open, item, preferChineseName = false, onClose, onSaved 
               if (error) setError('')
             }}
             placeholder="https://..."
-            className="mt-2 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            className="focus:ring-app-gold/25 mt-2 w-full rounded-md border border-app-border px-3 py-2 text-sm text-app-text outline-none focus:border-app-gold focus:ring-2"
             disabled={saving}
           />
-          <div className="mt-1 text-xs text-gray-500">
+          <div className="mt-1 text-xs text-app-muted">
             {zh(
               '当封面缺失或显示错误时，可手动输入封面图片链接；保存后会自动下载到本地并完成更新。',
               'If the cover is missing or incorrect, enter an image URL; saving downloads it locally and updates the cover.'
@@ -1422,7 +1422,7 @@ function JavEditModal({ open, item, preferChineseName = false, onClose, onSaved 
               type="date"
               value={releaseDate}
               onChange={(event) => setReleaseDate(event.target.value)}
-              className="mt-2 w-full rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              className="focus:ring-app-gold/25 mt-2 w-full rounded-md border border-app-border px-3 py-2 text-sm font-medium text-app-text outline-none focus:border-app-gold focus:ring-2"
               disabled={saving}
             />
           </label>
@@ -1434,7 +1434,7 @@ function JavEditModal({ open, item, preferChineseName = false, onClose, onSaved 
               step="1"
               value={durationMin}
               onChange={(event) => setDurationMin(event.target.value)}
-              className="mt-2 w-full rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              className="focus:ring-app-gold/25 mt-2 w-full rounded-md border border-app-border px-3 py-2 text-sm font-medium text-app-text outline-none focus:border-app-gold focus:ring-2"
               disabled={saving}
             />
           </label>
@@ -1481,7 +1481,7 @@ function JavEditModal({ open, item, preferChineseName = false, onClose, onSaved 
             ))}
             <button
               type="button"
-              className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-app-border text-app-text hover:bg-app-surface-2 disabled:cursor-not-allowed disabled:opacity-60"
               onClick={() => {
                 setIdolPickerOpen((current) => !current)
                 setScrapedTagPickerOpen(false)
@@ -1497,7 +1497,7 @@ function JavEditModal({ open, item, preferChineseName = false, onClose, onSaved 
             </button>
           </div>
           {idolPickerOpen ? (
-            <div className="mt-2 rounded-md border border-gray-200 p-2">
+            <div className="mt-2 rounded-md border border-app-border p-2">
               <div className="mb-2 flex items-center gap-2">
                 <input
                   type="text"
@@ -1509,12 +1509,12 @@ function JavEditModal({ open, item, preferChineseName = false, onClose, onSaved 
                     void addIdol()
                   }}
                   placeholder={zh('搜索或输入女优名称', 'Search or enter an idol name')}
-                  className="min-w-0 flex-1 rounded border border-gray-300 px-2 py-1.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  className="focus:ring-app-gold/25 min-w-0 flex-1 rounded border border-app-border px-2 py-1.5 text-sm outline-none focus:border-app-gold focus:ring-2"
                   disabled={saving || creatingIdol || optionsLoading}
                 />
                 <button
                   type="button"
-                  className="inline-flex shrink-0 items-center gap-1 rounded-md border border-gray-300 px-2 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
+                  className="inline-flex shrink-0 items-center gap-1 rounded-md border border-app-border px-2 py-1.5 text-xs text-app-text hover:bg-app-surface-2"
                   onClick={() => {
                     setIdolSearch('')
                     setIdolPickerOpen(false)
@@ -1528,7 +1528,7 @@ function JavEditModal({ open, item, preferChineseName = false, onClose, onSaved 
                 {!optionsLoading && idolSearch.trim() && !matchingIdolOption ? (
                   <button
                     type="button"
-                    className="mb-1 flex w-full items-center gap-1 rounded bg-blue-50 px-2 py-1.5 text-left text-sm text-blue-700 hover:bg-blue-100"
+                    className="mb-1 flex w-full items-center gap-1 rounded bg-app-gold-soft px-2 py-1.5 text-left text-sm text-app-gold hover:bg-app-gold-soft"
                     onClick={() => void addIdol()}
                     disabled={saving || creatingIdol}
                   >
@@ -1539,11 +1539,11 @@ function JavEditModal({ open, item, preferChineseName = false, onClose, onSaved 
                   </button>
                 ) : null}
                 {optionsLoading ? (
-                  <div className="px-2 py-1 text-sm text-gray-500">
+                  <div className="px-2 py-1 text-sm text-app-muted">
                     {zh('加载中...', 'Loading...')}
                   </div>
                 ) : availableIdolOptions.length === 0 && !idolSearch.trim() ? (
-                  <div className="px-2 py-1 text-sm text-gray-500">
+                  <div className="px-2 py-1 text-sm text-app-muted">
                     {zh('暂无可添加女优', 'No idols to add')}
                   </div>
                 ) : (
@@ -1553,17 +1553,17 @@ function JavEditModal({ open, item, preferChineseName = false, onClose, onSaved 
                       <button
                         key={idol.id}
                         type="button"
-                        className="flex w-full items-center gap-3 rounded px-2 py-1.5 text-left text-sm text-gray-800 hover:bg-gray-50"
+                        className="flex w-full items-center gap-3 rounded px-2 py-1.5 text-left text-sm text-app-text hover:bg-app-surface-2"
                         onClick={() => toggleIdol(idol.id, true)}
                         disabled={saving}
                       >
                         <span className="flex min-w-0 flex-1 items-baseline gap-2">
                           <span className="truncate">{primaryName}</span>
                           {secondaryName ? (
-                            <span className="truncate text-xs text-gray-500">{secondaryName}</span>
+                            <span className="truncate text-xs text-app-muted">{secondaryName}</span>
                           ) : null}
                         </span>
-                        <span className="shrink-0 text-xs tabular-nums text-gray-400">
+                        <span className="shrink-0 text-xs tabular-nums text-app-muted">
                           {javEditWorkCountLabel(idol?.work_count)}
                         </span>
                       </button>
@@ -1595,7 +1595,7 @@ function JavEditModal({ open, item, preferChineseName = false, onClose, onSaved 
             ))}
             <button
               type="button"
-              className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-app-border text-app-text hover:bg-app-surface-2 disabled:cursor-not-allowed disabled:opacity-60"
               onClick={() => {
                 setScrapedTagPickerOpen((current) => !current)
                 setIdolPickerOpen(false)
@@ -1611,7 +1611,7 @@ function JavEditModal({ open, item, preferChineseName = false, onClose, onSaved 
             </button>
           </div>
           {scrapedTagPickerOpen ? (
-            <div className="mt-2 rounded-md border border-gray-200 p-2">
+            <div className="mt-2 rounded-md border border-app-border p-2">
               <div className="mb-2 flex items-center gap-2">
                 <input
                   type="text"
@@ -1623,12 +1623,12 @@ function JavEditModal({ open, item, preferChineseName = false, onClose, onSaved 
                     void addScrapedTag()
                   }}
                   placeholder={zh('搜索或输入刮削标签', 'Search or enter a scraped tag')}
-                  className="min-w-0 flex-1 rounded border border-gray-300 px-2 py-1.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  className="focus:ring-app-gold/25 min-w-0 flex-1 rounded border border-app-border px-2 py-1.5 text-sm outline-none focus:border-app-gold focus:ring-2"
                   disabled={saving || creatingScrapedTag || tagOptionsLoading}
                 />
                 <button
                   type="button"
-                  className="inline-flex shrink-0 items-center gap-1 rounded-md border border-gray-300 px-2 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
+                  className="inline-flex shrink-0 items-center gap-1 rounded-md border border-app-border px-2 py-1.5 text-xs text-app-text hover:bg-app-surface-2"
                   onClick={() => {
                     setScrapedTagSearch('')
                     setScrapedTagPickerOpen(false)
@@ -1642,7 +1642,7 @@ function JavEditModal({ open, item, preferChineseName = false, onClose, onSaved 
                 {!tagOptionsLoading && scrapedTagSearch.trim() && !matchingScrapedTagOption ? (
                   <button
                     type="button"
-                    className="mb-1 flex w-full items-center gap-1 rounded bg-blue-50 px-2 py-1.5 text-left text-sm text-blue-700 hover:bg-blue-100"
+                    className="mb-1 flex w-full items-center gap-1 rounded bg-app-gold-soft px-2 py-1.5 text-left text-sm text-app-gold hover:bg-app-gold-soft"
                     onClick={() => void addScrapedTag()}
                     disabled={saving || creatingScrapedTag}
                   >
@@ -1656,11 +1656,11 @@ function JavEditModal({ open, item, preferChineseName = false, onClose, onSaved 
                   </button>
                 ) : null}
                 {tagOptionsLoading ? (
-                  <div className="px-2 py-1 text-sm text-gray-500">
+                  <div className="px-2 py-1 text-sm text-app-muted">
                     {zh('加载中...', 'Loading...')}
                   </div>
                 ) : availableScrapedTagOptions.length === 0 && !scrapedTagSearch.trim() ? (
-                  <div className="px-2 py-1 text-sm text-gray-500">
+                  <div className="px-2 py-1 text-sm text-app-muted">
                     {zh('暂无可添加刮削标签', 'No scraped tags to add')}
                   </div>
                 ) : (
@@ -1668,7 +1668,7 @@ function JavEditModal({ open, item, preferChineseName = false, onClose, onSaved 
                     <button
                       key={`${tag.id}-${tag.name}`}
                       type="button"
-                      className="flex w-full items-center gap-3 rounded px-2 py-1.5 text-left text-sm text-gray-800 hover:bg-gray-50"
+                      className="flex w-full items-center gap-3 rounded px-2 py-1.5 text-left text-sm text-app-text hover:bg-app-surface-2"
                       onClick={() =>
                         setSelectedScrapedTagIds((current) =>
                           Array.from(new Set([...current, String(tag.id)]))
@@ -1679,7 +1679,7 @@ function JavEditModal({ open, item, preferChineseName = false, onClose, onSaved 
                       <span className="min-w-0 flex-1 truncate">
                         {getJavTagDisplayName(tag, showSimplifiedTags)}
                       </span>
-                      <span className="shrink-0 text-xs tabular-nums text-gray-400">
+                      <span className="shrink-0 text-xs tabular-nums text-app-muted">
                         {javEditWorkCountLabel(tag?.count)}
                       </span>
                     </button>
@@ -1705,7 +1705,7 @@ function JavEditModal({ open, item, preferChineseName = false, onClose, onSaved 
             ))}
             <button
               type="button"
-              className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-app-border text-app-text hover:bg-app-surface-2 disabled:cursor-not-allowed disabled:opacity-60"
               onClick={() => {
                 setTagPickerOpen((current) => !current)
                 setIdolPickerOpen(false)
@@ -1721,7 +1721,7 @@ function JavEditModal({ open, item, preferChineseName = false, onClose, onSaved 
             </button>
           </div>
           {tagPickerOpen ? (
-            <div className="mt-2 rounded-md border border-gray-200 p-2">
+            <div className="mt-2 rounded-md border border-app-border p-2">
               <div className="mb-2 flex items-center gap-2">
                 <input
                   type="text"
@@ -1733,12 +1733,12 @@ function JavEditModal({ open, item, preferChineseName = false, onClose, onSaved 
                     void addCustomTag()
                   }}
                   placeholder={zh('搜索或输入自定义标签', 'Search or enter a custom tag')}
-                  className="min-w-0 flex-1 rounded border border-gray-300 px-2 py-1.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  className="focus:ring-app-gold/25 min-w-0 flex-1 rounded border border-app-border px-2 py-1.5 text-sm outline-none focus:border-app-gold focus:ring-2"
                   disabled={saving || creatingUserTag}
                 />
                 <button
                   type="button"
-                  className="inline-flex shrink-0 items-center gap-1 rounded-md border border-gray-300 px-2 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
+                  className="inline-flex shrink-0 items-center gap-1 rounded-md border border-app-border px-2 py-1.5 text-xs text-app-text hover:bg-app-surface-2"
                   onClick={() => {
                     setTagSearch('')
                     setTagPickerOpen(false)
@@ -1752,7 +1752,7 @@ function JavEditModal({ open, item, preferChineseName = false, onClose, onSaved 
                 {tagSearch.trim() && !matchingUserTagOption ? (
                   <button
                     type="button"
-                    className="mb-1 flex w-full items-center gap-1 rounded bg-blue-50 px-2 py-1.5 text-left text-sm text-blue-700 hover:bg-blue-100 disabled:cursor-wait disabled:opacity-60"
+                    className="mb-1 flex w-full items-center gap-1 rounded bg-app-gold-soft px-2 py-1.5 text-left text-sm text-app-gold hover:bg-app-gold-soft disabled:cursor-wait disabled:opacity-60"
                     onClick={() => void addCustomTag()}
                     disabled={saving || creatingUserTag}
                   >
@@ -1763,7 +1763,7 @@ function JavEditModal({ open, item, preferChineseName = false, onClose, onSaved 
                   </button>
                 ) : null}
                 {availableTagOptions.length === 0 && !tagSearch.trim() ? (
-                  <div className="px-2 py-1 text-sm text-gray-500">
+                  <div className="px-2 py-1 text-sm text-app-muted">
                     {zh('暂无可添加标签', 'No tags to add')}
                   </div>
                 ) : (
@@ -1771,12 +1771,12 @@ function JavEditModal({ open, item, preferChineseName = false, onClose, onSaved 
                     <button
                       key={`${tag.id}-${tag.provider || 0}`}
                       type="button"
-                      className="flex w-full items-center gap-3 rounded px-2 py-1.5 text-left text-sm text-gray-800 hover:bg-gray-50"
+                      className="flex w-full items-center gap-3 rounded px-2 py-1.5 text-left text-sm text-app-text hover:bg-app-surface-2"
                       onClick={() => toggleTag(tag.id, true)}
                       disabled={saving}
                     >
                       <span className="min-w-0 flex-1 truncate">{tag.name}</span>
-                      <span className="shrink-0 text-xs tabular-nums text-gray-400">
+                      <span className="shrink-0 text-xs tabular-nums text-app-muted">
                         {javEditWorkCountLabel(tag?.count)}
                       </span>
                     </button>
@@ -1788,10 +1788,10 @@ function JavEditModal({ open, item, preferChineseName = false, onClose, onSaved 
         </div>
         {error ? <div className="text-sm text-red-600">{error}</div> : null}
       </div>
-      <div className="flex justify-end gap-2 border-t border-gray-200 p-5">
+      <div className="flex justify-end gap-2 border-t border-app-border p-5">
         <button
           type="button"
-          className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+          className="rounded-md border border-app-border px-4 py-2 text-sm text-app-text hover:bg-app-surface-2"
           onClick={onClose}
           disabled={saving || creatingOption}
         >
@@ -1800,7 +1800,7 @@ function JavEditModal({ open, item, preferChineseName = false, onClose, onSaved 
         <button
           type="button"
           className={`rounded-md px-4 py-2 text-sm font-medium text-white ${
-            saving ? 'cursor-wait bg-blue-400' : 'bg-blue-600 hover:bg-blue-700'
+            saving ? 'cursor-wait bg-app-gold' : 'bg-app-gold hover:bg-app-gold-hover'
           }`}
           onClick={handleSave}
           disabled={saving || creatingOption}
@@ -1813,7 +1813,7 @@ function JavEditModal({ open, item, preferChineseName = false, onClose, onSaved 
 }
 
 function JavCoverPlaceholder() {
-  return <div className="absolute inset-0 bg-gray-200" aria-hidden="true" />
+  return <div className="absolute inset-0 bg-app-hover" aria-hidden="true" />
 }
 
 function normalizeIdolTagMaxRows(value) {
@@ -1981,7 +1981,7 @@ function IdolTagList({
           <a
             key={idol.id || idol.name}
             href={buildIdolFilterHref(idol)}
-            className="rounded-full bg-purple-100 px-2 py-1 text-xs font-medium text-purple-700 transition hover:bg-purple-200"
+            className="rounded-full bg-app-gold-soft px-2 py-1 text-xs font-medium text-app-gold transition hover:bg-app-gold-soft"
             onMouseEnter={(event) => onIdolHoverStart(idol, event)}
             onMouseLeave={onIdolHoverEnd}
             onClick={(event) => onFilterLinkClick(event, () => onIdolClick?.(idol))}
@@ -1994,8 +1994,8 @@ function IdolTagList({
             expanded={expanded}
             count={idols.length}
             title={toggleTitle}
-            expandedClassName="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-gray-300 bg-gray-50 text-gray-600 shadow-sm transition hover:border-gray-400 hover:bg-gray-100"
-            collapsedClassName="inline-flex h-6 shrink-0 items-center gap-1 rounded-md border border-purple-300 bg-white px-1.5 text-[11px] font-semibold text-purple-700 shadow-sm transition hover:border-purple-500 hover:bg-purple-50"
+            expandedClassName="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-app-border bg-app-surface-2 text-app-muted shadow-sm transition hover:border-app-gold/40 hover:bg-app-surface-2"
+            collapsedClassName="inline-flex h-6 shrink-0 items-center gap-1 rounded-md border border-app-gold/40 bg-app-surface px-1.5 text-[11px] font-semibold text-app-gold shadow-sm transition hover:border-app-gold hover:bg-app-gold-soft"
             onToggle={() => setExpanded((current) => !current)}
           />
         ) : null}
@@ -2010,7 +2010,7 @@ function IdolTagList({
             <span
               key={idol.id || idol.name}
               data-idol-tag-measure
-              className="rounded-full bg-purple-100 px-2 py-1 text-xs font-medium"
+              className="rounded-full bg-app-gold-soft px-2 py-1 text-xs font-medium"
             >
               {getIdolDisplayName(idol, preferChineseName)}
             </span>
@@ -2165,8 +2165,8 @@ function JavTagList({ tags, maxRows, buildTagFilterHref, onTagClick, onFilterLin
             expanded={expanded}
             count={tags.length}
             title={toggleTitle}
-            expandedClassName="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-gray-300 bg-gray-50 text-gray-600 shadow-sm transition hover:border-gray-400 hover:bg-gray-100"
-            collapsedClassName="inline-flex h-6 shrink-0 items-center gap-1 rounded-md border border-orange-300 bg-white px-1.5 text-[11px] font-semibold text-orange-700 shadow-sm transition hover:border-orange-500 hover:bg-orange-50"
+            expandedClassName="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-app-border bg-app-surface-2 text-app-muted shadow-sm transition hover:border-app-gold/40 hover:bg-app-surface-2"
+            collapsedClassName="inline-flex h-6 shrink-0 items-center gap-1 rounded-md border border-orange-300 bg-app-surface px-1.5 text-[11px] font-semibold text-orange-700 shadow-sm transition hover:border-orange-500 hover:bg-orange-50"
             onToggle={() => setExpanded((current) => !current)}
           />
         ) : null}
@@ -2862,15 +2862,13 @@ function JavCard({
 
   return (
     <>
-      <div
-        className={`flex min-w-0 flex-col overflow-hidden rounded-lg border bg-white shadow-sm transition hover:shadow-lg ${checked ? 'border-sky-400 ring-2 ring-sky-200' : ''}`}
-      >
+      <div className={`app-card flex min-w-0 flex-col ${checked ? 'app-card--selected' : ''}`}>
         <JavDisplayCover
           src={cover}
           alt={item?.code || zh('JAV 封面', 'JAV cover')}
           orientation={coverOrientation}
           onDisplayChange={setCoverVisible}
-          className="card-hover-scope group w-full overflow-hidden bg-white"
+          className="card-hover-scope group w-full overflow-hidden bg-app-surface"
           imageClassName={
             inLibrary
               ? undefined
@@ -2986,7 +2984,7 @@ function JavCard({
                   {favoriteRatingEditing && favoriteRating > 0 ? (
                     <button
                       type="button"
-                      className="ml-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-white transition hover:bg-white/20"
+                      className="hover:bg-app-hover/20 ml-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-white transition"
                       disabled={favoriteRatingSaving || !item?.id}
                       aria-label={zh('清除喜爱度评分', 'Clear favorite rating')}
                       onMouseEnter={() => setFavoriteRatingPreview(0)}
@@ -3026,7 +3024,7 @@ function JavCard({
                   }}
                   className={`card-hover-focus-visible flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-black/65 shadow-lg shadow-black/40 transition hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-60 [@media(hover:none)]:opacity-100 ${
                     checked
-                      ? 'text-sky-300 opacity-100'
+                      ? 'text-app-gold opacity-100'
                       : 'text-white opacity-0 group-hover:opacity-100'
                   }`}
                 >
@@ -3152,13 +3150,13 @@ function JavCard({
           <div className="flex flex-1 flex-col gap-2 p-3">
             {!hideTitle && titleText ? (
               <div className="text-sm leading-tight" title={titleText} style={titleClampStyle}>
-                {codeText ? <span className="font-semibold text-gray-800">{codeText}</span> : null}
+                {codeText ? <span className="font-semibold text-app-text">{codeText}</span> : null}
                 {codeText ? ' ' : null}
-                <span className="font-medium text-gray-800">{mainTitle}</span>
+                <span className="font-medium text-app-text">{mainTitle}</span>
               </div>
             ) : null}
             {!hideMeta ? (
-              <div className="flex min-w-0 flex-nowrap items-center gap-x-3 overflow-hidden text-xs text-gray-600">
+              <div className="flex min-w-0 flex-nowrap items-center gap-x-3 overflow-hidden text-xs text-app-muted">
                 <span className="inline-flex shrink-0 items-center gap-1">
                   <Tooltip title={zh('发行日期', 'Release date')} arrow>
                     <span className="inline-flex">
@@ -3181,14 +3179,14 @@ function JavCard({
                       <span className="inline-flex">
                         <VideocamOutlinedIcon
                           sx={{ fontSize: 16 }}
-                          className="shrink-0 text-sky-600"
+                          className="shrink-0 text-app-gold"
                         />
                       </span>
                     </Tooltip>
                     <a
                       href={buildStudioFilterHref(item.studio)}
                       className={`block min-w-0 truncate text-left ${
-                        canFilterStudio ? 'cursor-pointer hover:text-blue-700 hover:underline' : ''
+                        canFilterStudio ? 'cursor-pointer hover:text-app-gold hover:underline' : ''
                       }`}
                       onClick={(event) =>
                         handleFilterLinkClick(event, () => {
@@ -3205,7 +3203,7 @@ function JavCard({
               </div>
             ) : null}
             {!hideSeries && seriesText ? (
-              <div className="flex min-w-0 items-center gap-1 text-xs text-gray-600">
+              <div className="flex min-w-0 items-center gap-1 text-xs text-app-muted">
                 <Tooltip title={zh('系列', 'Series')} arrow>
                   <span className="inline-flex">
                     <CollectionsBookmarkOutlinedIcon
@@ -3217,7 +3215,7 @@ function JavCard({
                 <a
                   href={buildSeriesFilterHref(preferredSeries)}
                   className={`min-w-0 whitespace-normal break-words text-left leading-snug ${
-                    canFilterSeries ? 'cursor-pointer hover:text-blue-700 hover:underline' : ''
+                    canFilterSeries ? 'cursor-pointer hover:text-app-gold hover:underline' : ''
                   }`}
                   onClick={(event) =>
                     handleFilterLinkClick(event, () => {
@@ -3409,7 +3407,7 @@ function JavCard({
                   </Tooltip>
                 </div>
                 {Array.isArray(item?.videos) && item.videos.length > 1 && (
-                  <span className="text-xs text-gray-500">
+                  <span className="text-xs text-app-muted">
                     {zh(`${item.videos.length} 个视频`, `${item.videos.length} video files`)}
                   </span>
                 )}
@@ -3528,13 +3526,13 @@ function JavVideoManagerModal({
     <AppModal
       ariaLabel={zh('视频管理', 'Manage videos')}
       className="px-4"
-      contentClassName="flex max-h-[90vh] w-full max-w-6xl flex-col rounded-lg bg-white p-4 shadow-xl"
+      contentClassName="flex max-h-[90vh] w-full max-w-6xl flex-col rounded-2xl bg-app-surface p-4 shadow-xl"
       onClose={onClose}
     >
       <div className="mb-3 flex items-center justify-between gap-3">
         <div className="min-w-0">
           <h2 className="truncate text-base font-semibold">{zh('视频管理', 'Manage videos')}</h2>
-          <div className="mt-1 truncate text-xs text-gray-500">
+          <div className="mt-1 truncate text-xs text-app-muted">
             {item?.code || zh('未知番号', 'Unknown code')}
             {title && title !== item?.code ? ` · ${title}` : ''}
           </div>
@@ -3542,7 +3540,7 @@ function JavVideoManagerModal({
         <button
           type="button"
           onClick={onClose}
-          className="rounded px-2 py-1 text-gray-500 hover:bg-gray-100"
+          className="rounded px-2 py-1 text-app-muted hover:bg-app-surface-2"
           aria-label={zh('关闭视频管理', 'Close video manager')}
         >
           ✕
@@ -3568,7 +3566,7 @@ function JavVideoManagerModal({
             onTagClick={onTagClick}
           />
         ) : (
-          <div className="flex min-h-[160px] items-center justify-center rounded border border-dashed border-gray-200 text-sm text-gray-500">
+          <div className="flex min-h-[160px] items-center justify-center rounded border border-dashed border-app-border text-sm text-app-muted">
             {zh('暂无关联视频', 'No linked videos')}
           </div>
         )}
@@ -3577,7 +3575,7 @@ function JavVideoManagerModal({
         <button
           type="button"
           onClick={onClose}
-          className="rounded border px-3 py-1.5 text-sm hover:bg-gray-50"
+          className="rounded border px-3 py-1.5 text-sm hover:bg-app-surface-2"
         >
           {zh('关闭', 'Close')}
         </button>

@@ -95,7 +95,7 @@ function clampPercent(value) {
 }
 
 const iconButtonClass =
-  'flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white transition-colors hover:bg-white/15 pointer-coarse:h-8 pointer-coarse:w-8'
+  'flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white transition-colors hover:bg-app-hover/15 pointer-coarse:h-8 pointer-coarse:w-8'
 
 function isPlayerChromeTarget(target) {
   return Boolean(
@@ -2127,13 +2127,13 @@ export default function PlayerModal({
                         setSubMenu(null)
                         showControls()
                       }}
-                      className={`hover:bg-white/15 flex h-9 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-medium text-white transition-colors pointer-coarse:h-8 ${
-                        menuOpen === 'episodes' ? 'bg-white/15 text-yellow-300' : ''
+                      className={`hover:bg-app-hover/15 flex h-9 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-medium text-white transition-colors pointer-coarse:h-8 ${
+                        menuOpen === 'episodes' ? 'bg-app-surface/15 text-yellow-300' : ''
                       }`}
                     >
                       <PlaylistPlayIcon style={{ fontSize: 18 }} />
                       {isPiP ? null : <span>{zh('选集', 'Episodes')}</span>}
-                      <span className="bg-white/20 rounded-full px-1.5 text-[10px] font-semibold tabular-nums leading-4">
+                      <span className="bg-app-surface/20 rounded-full px-1.5 text-[10px] font-semibold tabular-nums leading-4">
                         {episodeList.length}
                       </span>
                     </button>
@@ -2171,7 +2171,7 @@ export default function PlayerModal({
                                   onSwitchVideo?.(ep)
                                 }}
                                 title={label}
-                                className={`hover:bg-white/10 flex w-full items-center gap-2 px-3.5 py-1.5 text-left text-xs transition-colors ${
+                                className={`hover:bg-app-hover/10 flex w-full items-center gap-2 px-3.5 py-1.5 text-left text-xs transition-colors ${
                                   active ? 'font-semibold text-white' : 'text-white/80'
                                 }`}
                               >
@@ -2217,7 +2217,7 @@ export default function PlayerModal({
                             onClick={() => setSubMenu('local')}
                             className={`rounded px-2.5 py-1.5 text-sm transition-colors ${
                               subMenu === 'local'
-                                ? 'bg-white/15 font-semibold text-white'
+                                ? 'bg-app-surface/15 font-semibold text-white'
                                 : 'text-white/60 hover:text-white'
                             }`}
                           >
@@ -2228,7 +2228,7 @@ export default function PlayerModal({
                             onClick={() => openSubtitleSearch()}
                             className={`rounded px-2.5 py-1.5 text-sm transition-colors ${
                               subMenu === 'search'
-                                ? 'bg-white/15 font-semibold text-white'
+                                ? 'bg-app-surface/15 font-semibold text-white'
                                 : 'text-white/60 hover:text-white'
                             }`}
                           >
@@ -2239,7 +2239,7 @@ export default function PlayerModal({
                             onClick={() => setSubMenu('style')}
                             className={`rounded px-2.5 py-1.5 text-sm transition-colors ${
                               subMenu === 'style'
-                                ? 'bg-white/15 font-semibold text-white'
+                                ? 'bg-app-surface/15 font-semibold text-white'
                                 : 'text-white/60 hover:text-white'
                             }`}
                           >
@@ -2307,13 +2307,13 @@ export default function PlayerModal({
                                 }
                               }}
                               placeholder={zh('番号，如 SSIS-480', 'Movie code, e.g. SSIS-480')}
-                              className="bg-white/10 min-w-0 flex-1 rounded px-3 py-2 text-sm text-white placeholder:text-white/40 focus:outline-none"
+                              className="bg-app-surface/10 min-w-0 flex-1 rounded px-3 py-2 text-sm text-white placeholder:text-white/40 focus:outline-none"
                             />
                             <button
                               type="button"
                               disabled={subSearchBusy}
                               onClick={() => runSubtitleSearch()}
-                              className="bg-white/15 hover:bg-white/25 rounded px-2.5 text-white transition-colors disabled:opacity-50"
+                              className="bg-app-surface/15 hover:bg-app-hover/25 rounded px-2.5 text-white transition-colors disabled:opacity-50"
                             >
                               <SearchIcon style={{ fontSize: 20 }} />
                             </button>
@@ -2346,7 +2346,7 @@ export default function PlayerModal({
                                     event.stopPropagation()
                                     openSubtitleDetail(item)
                                   }}
-                                  className="hover:bg-white/10 flex w-full items-center justify-between gap-2 px-4 py-2.5 text-left text-sm transition-colors"
+                                  className="hover:bg-app-hover/10 flex w-full items-center justify-between gap-2 px-4 py-2.5 text-left text-sm transition-colors"
                                 >
                                   <span className="min-w-0 flex-1">
                                     <span className="block font-semibold text-white">
@@ -2399,7 +2399,7 @@ export default function PlayerModal({
                                               label: track.label || track.lang,
                                             })
                                           }
-                                          className="hover:bg-white/15 rounded p-1.5 text-white/50 transition-colors hover:text-white"
+                                          className="hover:bg-app-hover/15 rounded p-1.5 text-white/50 transition-colors hover:text-white"
                                         >
                                           <PreviewIcon style={{ fontSize: 18 }} />
                                         </button>
@@ -2414,7 +2414,7 @@ export default function PlayerModal({
                                               label: track.label || track.lang,
                                             })
                                           }
-                                          className="hover:bg-white/15 rounded p-1.5 text-white/50 transition-colors hover:text-white"
+                                          className="hover:bg-app-hover/15 rounded p-1.5 text-white/50 transition-colors hover:text-white"
                                         >
                                           <DownloadIcon style={{ fontSize: 18 }} />
                                         </button>
@@ -2502,7 +2502,7 @@ export default function PlayerModal({
                               setMenuOpen(null)
                               scheduleHideControls()
                             }}
-                            className={`hover:bg-white/10 flex w-full items-center justify-between px-3.5 py-1.5 text-sm transition-colors ${
+                            className={`hover:bg-app-hover/10 flex w-full items-center justify-between px-3.5 py-1.5 text-sm transition-colors ${
                               active ? 'font-semibold text-white' : 'text-white/80'
                             }`}
                           >
@@ -2567,7 +2567,7 @@ export default function PlayerModal({
 // online track). Optionally shows a preview button next to the label.
 function SubMenuItem({ active, label, onClick, onPreview }) {
   return (
-    <div className={`flex items-center gap-1.5 px-4 py-2 ${active ? 'bg-white/10' : ''}`}>
+    <div className={`flex items-center gap-1.5 px-4 py-2 ${active ? 'bg-app-surface/10' : ''}`}>
       <button
         type="button"
         onClick={onClick}
@@ -2587,7 +2587,7 @@ function SubMenuItem({ active, label, onClick, onPreview }) {
           type="button"
           aria-label={zh('预览', 'Preview')}
           onClick={onPreview}
-          className="hover:bg-white/15 rounded p-1.5 text-white/50 transition-colors hover:text-white"
+          className="hover:bg-app-hover/15 rounded p-1.5 text-white/50 transition-colors hover:text-white"
         >
           <PreviewIcon style={{ fontSize: 18 }} />
         </button>

@@ -25,7 +25,7 @@ export default function JavSeriesView({
   return (
     <>
       {loading ? (
-        <div className="mt-4 flex min-h-[200px] items-center justify-center rounded border border-dashed border-gray-200 text-gray-500">
+        <div className="mt-4 flex min-h-[200px] items-center justify-center rounded border border-dashed border-app-border text-app-muted">
           {zh('加载中…', 'Loading...')}
         </div>
       ) : (
@@ -52,7 +52,7 @@ function JavSeriesGrid({ items, onSelectSeries, onSelectStudio, onOpenFavorites,
   const hasItems = Array.isArray(items) && items.length > 0
   if (!hasItems) {
     return (
-      <div className="flex min-h-[200px] items-center justify-center rounded border border-dashed border-gray-200 text-gray-500">
+      <div className="flex min-h-[200px] items-center justify-center rounded border border-dashed border-app-border text-app-muted">
         {zh('暂无系列数据', 'No series data')}
       </div>
     )
@@ -60,7 +60,7 @@ function JavSeriesGrid({ items, onSelectSeries, onSelectStudio, onOpenFavorites,
 
   return (
     <div
-      className="grid gap-4 bg-white"
+      className="grid gap-4 bg-app-surface"
       style={{
         gridTemplateColumns: `repeat(auto-fill, minmax(${cardMinmax}, 1fr))`,
       }}
@@ -137,7 +137,7 @@ export function SeriesCard({ item, href, onSelectSeries, onSelectStudio, onOpenF
   return (
     <a
       href={href || '#'}
-      className="card-hover-scope group flex cursor-pointer flex-col overflow-hidden rounded-lg border bg-white shadow-sm transition hover:shadow-lg"
+      className="card-hover-scope app-card group flex cursor-pointer flex-col"
       onClick={handleClick}
       onKeyDown={(e) => {
         if (e.key === ' ') {
@@ -150,10 +150,10 @@ export function SeriesCard({ item, href, onSelectSeries, onSelectStudio, onOpenF
         src={cover}
         alt={name}
         orientation={coverOrientation}
-        className="w-full overflow-hidden bg-gray-100"
+        className="w-full overflow-hidden bg-app-surface-2"
         imageClassName="object-cover transition duration-200 group-hover:scale-[1.03]"
         fallback={
-          <div className="absolute inset-0 flex h-full w-full items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 p-4 text-center text-lg font-semibold text-gray-600">
+          <div className="absolute inset-0 flex h-full w-full items-center justify-center bg-gradient-to-br from-app-surface-2 to-app-hover p-4 text-center text-lg font-semibold text-app-muted">
             {name}
           </div>
         }
@@ -195,18 +195,18 @@ export function SeriesCard({ item, href, onSelectSeries, onSelectStudio, onOpenF
       </JavDisplayCover>
       <div className="flex flex-1 flex-col gap-1 p-3">
         <div className="line-clamp-2 text-sm font-semibold leading-tight">{name}</div>
-        <div className="flex min-w-0 items-center gap-2 text-xs text-gray-500">
+        <div className="flex min-w-0 items-center gap-2 text-xs text-app-muted">
           {studioName ? (
             <span className="inline-flex min-w-0 items-center gap-1">
               <Tooltip title={zh('片商', 'Studio')} arrow>
                 <span className="inline-flex">
-                  <VideocamOutlinedIcon sx={{ fontSize: 16 }} className="shrink-0 text-sky-600" />
+                  <VideocamOutlinedIcon sx={{ fontSize: 16 }} className="shrink-0 text-app-gold" />
                 </span>
               </Tooltip>
               <button
                 type="button"
                 className={`min-w-0 truncate text-left ${
-                  canFilterStudio ? 'cursor-pointer hover:text-blue-700 hover:underline' : ''
+                  canFilterStudio ? 'cursor-pointer hover:text-app-gold hover:underline' : ''
                 }`}
                 onClick={handleStudioClick}
                 disabled={!canFilterStudio}

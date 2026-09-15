@@ -114,7 +114,7 @@ function JavFavoriteRatingEditor({ value, saving, error, onChange }) {
       <span
         role="group"
         aria-label={zh('喜爱度评分', 'Favorite rating')}
-        className={`inline-flex min-w-[7.75rem] items-center rounded-full bg-gray-100 px-1.5 py-0.5 transition-opacity ${
+        className={`inline-flex min-w-[7.75rem] items-center rounded-full bg-app-surface-2 px-1.5 py-0.5 transition-opacity ${
           saving ? 'opacity-60' : 'opacity-100'
         }`}
         onMouseLeave={() => {
@@ -154,7 +154,7 @@ function JavFavoriteRatingEditor({ value, saving, error, onChange }) {
         {editing && rating > 0 ? (
           <button
             type="button"
-            className="ml-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-gray-500 transition hover:bg-gray-200 hover:text-gray-800"
+            className="ml-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-app-muted transition hover:bg-app-hover hover:text-app-text"
             disabled={saving}
             aria-label={zh('清空喜爱度', 'Clear favorite rating')}
             onMouseEnter={() => setPreview(0)}
@@ -165,7 +165,7 @@ function JavFavoriteRatingEditor({ value, saving, error, onChange }) {
           </button>
         ) : null}
         {rating > 0 && !editing ? (
-          <span className="ml-1 shrink-0 text-xs font-semibold tabular-nums leading-none text-gray-700">
+          <span className="ml-1 shrink-0 text-xs font-semibold tabular-nums leading-none text-app-text">
             {rating.toFixed(1)}
           </span>
         ) : null}
@@ -330,7 +330,7 @@ function JavScreenshotGrid({ videos, onPlayAtTime, onCoverChanged }) {
 
   if (loading) {
     return (
-      <div className="flex min-h-28 items-center justify-center rounded-lg border border-dashed border-gray-200 text-xs text-gray-500">
+      <div className="flex min-h-28 items-center justify-center rounded-lg border border-dashed border-app-border text-xs text-app-muted">
         {zh('正在加载视频截图…', 'Loading video screenshots...')}
       </div>
     )
@@ -338,7 +338,7 @@ function JavScreenshotGrid({ videos, onPlayAtTime, onCoverChanged }) {
 
   if (items.length === 0) {
     return (
-      <div className="flex min-h-28 items-center justify-center rounded-lg border border-dashed border-gray-200 px-4 text-center text-xs text-gray-500">
+      <div className="flex min-h-28 items-center justify-center rounded-lg border border-dashed border-app-border px-4 text-center text-xs text-app-muted">
         {failedCount > 0 ? getErrorMessage() : zh('暂无视频截图', 'No video screenshots')}
       </div>
     )
@@ -347,7 +347,7 @@ function JavScreenshotGrid({ videos, onPlayAtTime, onCoverChanged }) {
   return (
     <>
       {failedCount > 0 ? (
-        <div className="mb-2 rounded border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-700">
+        <div className="mb-2 rounded border border-amber-700/40 bg-amber-950/40 px-2.5 py-1.5 text-xs text-amber-200">
           {zh(
             '截图实时刷新失败，正在保留现有结果并继续重试。',
             'Live screenshot refresh failed. Existing results are preserved while retrying.'
@@ -355,7 +355,7 @@ function JavScreenshotGrid({ videos, onPlayAtTime, onCoverChanged }) {
         </div>
       ) : null}
       {error ? (
-        <div className="mb-2 rounded border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs text-red-700">
+        <div className="mb-2 rounded border border-red-200 bg-red-950/40 px-2.5 py-1.5 text-xs text-red-700">
           {error}
         </div>
       ) : null}
@@ -368,10 +368,10 @@ function JavScreenshotGrid({ videos, onPlayAtTime, onCoverChanged }) {
           return (
             <div
               key={`${video?.id || 'video'}-${screenshot?.name || screenshot?.url}`}
-              className="group overflow-hidden rounded-md border border-gray-200 bg-white text-left"
+              className="group overflow-hidden rounded-md border border-app-border bg-app-surface text-left"
             >
               <div
-                className="relative aspect-video cursor-pointer overflow-hidden bg-gray-100"
+                className="relative aspect-video cursor-pointer overflow-hidden bg-app-surface-2"
                 role="button"
                 tabIndex={0}
                 onClick={() => setPreviewItem(screenshot)}
@@ -406,7 +406,7 @@ function JavScreenshotGrid({ videos, onPlayAtTime, onCoverChanged }) {
                     }}
                     disabled={Boolean(deletingKey)}
                     aria-label={zh('删除截图', 'Delete screenshot')}
-                    className="pointer-events-none !absolute !right-1.5 !top-1.5 !z-10 !bg-white/90 !text-red-600 !opacity-0 hover:!bg-white disabled:!opacity-50 group-hover:pointer-events-auto group-hover:!opacity-100"
+                    className="!bg-app-surface/90 pointer-events-none !absolute !right-1.5 !top-1.5 !z-10 !text-red-600 !opacity-0 hover:!bg-app-surface-2 disabled:!opacity-50 group-hover:pointer-events-auto group-hover:!opacity-100"
                   >
                     <DeleteOutlineIcon fontSize="small" />
                   </IconButton>
@@ -421,7 +421,7 @@ function JavScreenshotGrid({ videos, onPlayAtTime, onCoverChanged }) {
                         }}
                         disabled={startTime == null}
                         aria-label={zh('从此处播放', 'Play from here')}
-                        className="!h-10 !w-10 !bg-white/90 !text-gray-900 hover:!bg-white disabled:!opacity-50"
+                        className="!bg-app-surface/90 !h-10 !w-10 !text-app-text hover:!bg-app-surface-2 disabled:!opacity-50"
                       >
                         <PlayArrowIcon fontSize="small" />
                       </IconButton>
@@ -430,15 +430,15 @@ function JavScreenshotGrid({ videos, onPlayAtTime, onCoverChanged }) {
                 </div>
               </div>
               <div className="px-2 py-1.5">
-                <div className="truncate text-[11px] font-medium text-gray-800" title={videoName}>
+                <div className="truncate text-[11px] font-medium text-app-text" title={videoName}>
                   {videoName}
                 </div>
-                <div className="text-[10px] text-gray-500">
+                <div className="text-[10px] text-app-muted">
                   {formatScreenshotTime(screenshot.name)}
                 </div>
               </div>
               {deletingKey === actionKey ? (
-                <div className="h-0.5 animate-pulse bg-blue-500" />
+                <div className="h-0.5 animate-pulse bg-app-gold" />
               ) : null}
             </div>
           )
@@ -633,7 +633,9 @@ export default function JavDetailModal({
           {typeof item?.is_uncensored === 'boolean' ? (
             <span
               className={`rounded px-2 py-0.5 text-xs font-medium ${
-                item.is_uncensored ? 'bg-rose-100 text-rose-700' : 'bg-sky-100 text-sky-700'
+                item.is_uncensored
+                  ? 'bg-rose-950/50 text-rose-200'
+                  : 'bg-app-purple-soft text-app-gold'
               }`}
             >
               {item.is_uncensored ? zh('无码', 'Uncensored') : zh('有码', 'Censored')}
@@ -649,7 +651,7 @@ export default function JavDetailModal({
       content: studioName ? (
         <a
           href={buildStudioUrl?.(studio) || '#'}
-          className="text-left font-medium text-blue-700 hover:underline"
+          className="text-left font-medium text-app-gold hover:underline"
           onMouseEnter={(event) => handleHoverStart('studio', studio, event)}
           onMouseLeave={scheduleHoverClose}
         >
@@ -664,7 +666,7 @@ export default function JavDetailModal({
       content: seriesName ? (
         <a
           href={buildSeriesUrl?.(series) || '#'}
-          className="text-left font-medium text-blue-700 hover:underline"
+          className="text-left font-medium text-app-gold hover:underline"
           onMouseEnter={(event) => handleHoverStart('series', series, event)}
           onMouseLeave={scheduleHoverClose}
         >
@@ -682,19 +684,19 @@ export default function JavDetailModal({
       backdropBlur="2px"
       backdropColor="rgba(2, 6, 23, 0.7)"
       className="p-3 sm:p-6"
-      contentClassName="flex max-h-[92vh] w-full max-w-[90rem] flex-col overflow-hidden rounded-xl bg-white shadow-2xl"
+      contentClassName="flex max-h-[92vh] w-full max-w-[90rem] flex-col overflow-hidden rounded-2xl bg-app-surface shadow-2xl"
       onClose={onClose}
       zIndex={1300}
     >
-      <div className="flex items-center justify-between gap-3 border-b border-gray-200 px-4 py-1.5 sm:px-5">
+      <div className="flex items-center justify-between gap-3 border-b border-app-border px-4 py-1.5 sm:px-5">
         <div className="min-w-0">
-          <h2 id={titleId} className="truncate text-sm font-semibold text-gray-900 sm:text-base">
+          <h2 id={titleId} className="truncate text-sm font-semibold text-app-text sm:text-base">
             {title}
           </h2>
         </div>
         <button
           type="button"
-          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-gray-500 transition hover:bg-gray-100 hover:text-gray-900"
+          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-app-muted transition hover:bg-app-surface-2 hover:text-app-text"
           onClick={onClose}
           aria-label={zh('关闭', 'Close')}
         >
@@ -708,9 +710,9 @@ export default function JavDetailModal({
             src={cover}
             alt={code || zh('JAV 封面', 'JAV cover')}
             orientation={coverOrientation}
-            className="group w-full overflow-hidden rounded-lg border border-gray-200 bg-gray-50 shadow-sm"
+            className="group w-full overflow-hidden rounded-2xl border border-app-border bg-app-surface-2 shadow-sm"
             fallback={
-              <span className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 text-lg font-semibold text-gray-500">
+              <span className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-app-surface-2 to-app-hover text-lg font-semibold text-app-muted">
                 {code || zh('暂无封面', 'No cover')}
               </span>
             }
@@ -728,23 +730,23 @@ export default function JavDetailModal({
           </JavDisplayCover>
 
           <div className="flex min-w-0 flex-col gap-5">
-            <dl className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+            <dl className="overflow-hidden rounded-2xl border border-app-border bg-app-surface">
               {detailRows.map((row, index) => (
                 <div
                   key={row.label}
                   className={`grid grid-cols-[5.5rem_minmax(0,1fr)] gap-3 px-4 py-2.5 text-sm ${
-                    index > 0 ? 'border-t border-gray-100' : ''
+                    index > 0 ? 'border-t border-app-border' : ''
                   }`}
                 >
-                  <dt className="font-medium text-gray-500">{row.label}</dt>
-                  <dd className="min-w-0 break-words text-gray-800">{row.content}</dd>
+                  <dt className="font-medium text-app-muted">{row.label}</dt>
+                  <dd className="min-w-0 break-words text-app-text">{row.content}</dd>
                 </div>
               ))}
             </dl>
 
             {idols.length > 0 ? (
               <section aria-label={zh('女优', 'Actresses')}>
-                <h3 className="mb-2 text-sm font-semibold text-gray-800">
+                <h3 className="mb-2 text-sm font-semibold text-app-text">
                   {zh('女优', 'Actresses')}
                 </h3>
                 <div className="flex flex-wrap gap-2">
@@ -752,7 +754,7 @@ export default function JavDetailModal({
                     <a
                       key={idol?.id || idol?.name}
                       href={buildIdolUrl?.(idol) || '#'}
-                      className="rounded-full border border-purple-200 bg-purple-50 px-3 py-1 text-xs font-medium text-purple-700 transition hover:border-purple-300 hover:bg-purple-100"
+                      className="rounded-full border border-app-gold/40 bg-app-gold-soft px-3 py-1 text-xs font-medium text-app-gold transition hover:border-app-gold hover:bg-app-gold-soft"
                       onMouseEnter={(event) => handleHoverStart('idol', idol, event)}
                       onMouseLeave={scheduleHoverClose}
                     >
@@ -765,7 +767,7 @@ export default function JavDetailModal({
 
             {tags.length > 0 ? (
               <section aria-label={zh('标签', 'Tags')}>
-                <h3 className="mb-2 text-sm font-semibold text-gray-800">{zh('标签', 'Tags')}</h3>
+                <h3 className="mb-2 text-sm font-semibold text-app-text">{zh('标签', 'Tags')}</h3>
                 <div className="flex flex-wrap gap-2">
                   {tags.map((tag) => {
                     const isUser = isUserJavTag(tag)
@@ -789,7 +791,7 @@ export default function JavDetailModal({
 
             {externalLinks.length > 0 ? (
               <section aria-label={zh('外部链接', 'External links')}>
-                <h3 className="mb-2 text-sm font-semibold text-gray-800">
+                <h3 className="mb-2 text-sm font-semibold text-app-text">
                   {zh('外部链接', 'External links')}
                 </h3>
                 <div className="flex flex-wrap gap-2">
@@ -799,7 +801,7 @@ export default function JavDetailModal({
                       href={site.href}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 rounded border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 transition hover:border-gray-300 hover:bg-gray-50"
+                      className="inline-flex items-center gap-1.5 rounded border border-app-border bg-app-surface px-2.5 py-1.5 text-xs font-medium text-app-text transition hover:border-app-border hover:bg-app-surface-2"
                       onClick={site.onClick}
                     >
                       <img
@@ -816,13 +818,13 @@ export default function JavDetailModal({
             ) : null}
 
             <section className="mt-auto pt-1" aria-label={zh('操作', 'Actions')}>
-              <h3 className="mb-2 text-sm font-semibold text-gray-800">
+              <h3 className="mb-2 text-sm font-semibold text-app-text">
                 {zh('操作栏', 'Actions')}
               </h3>
               <div className="group flex flex-wrap items-center gap-2">
                 <button
                   type="button"
-                  className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition hover:border-gray-400 hover:bg-gray-50"
+                  className="hover:border-app-gold/40 inline-flex items-center gap-1.5 rounded-md border border-app-border bg-app-surface px-3 py-1.5 text-xs font-medium text-app-text transition hover:bg-app-surface-2"
                   onClick={onOpenFavorites}
                 >
                   {favoriteCount > 0 ? (
@@ -834,7 +836,7 @@ export default function JavDetailModal({
                 </button>
                 <button
                   type="button"
-                  className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition hover:border-gray-400 hover:bg-gray-50"
+                  className="hover:border-app-gold/40 inline-flex items-center gap-1.5 rounded-md border border-app-border bg-app-surface px-3 py-1.5 text-xs font-medium text-app-text transition hover:bg-app-surface-2"
                   onClick={onEdit}
                 >
                   <MovieEdit sx={{ fontSize: 16 }} />
@@ -852,9 +854,12 @@ export default function JavDetailModal({
         </div>
 
         <div className="mt-7 space-y-7">
-          <section className="border-t border-gray-200 pt-5" aria-labelledby={`${titleId}-videos`}>
+          <section
+            className="border-t border-app-border pt-5"
+            aria-labelledby={`${titleId}-videos`}
+          >
             <div className="mb-3">
-              <h3 id={`${titleId}-videos`} className="text-base font-semibold text-gray-900">
+              <h3 id={`${titleId}-videos`} className="text-base font-semibold text-app-text">
                 {zh('关联视频', 'Related videos')}
               </h3>
             </div>
@@ -877,7 +882,7 @@ export default function JavDetailModal({
                 onTagClick={onVideoTagClick}
               />
             ) : (
-              <div className="flex min-h-28 items-center justify-center rounded-lg border border-dashed border-gray-200 text-xs text-gray-500">
+              <div className="flex min-h-28 items-center justify-center rounded-lg border border-dashed border-app-border text-xs text-app-muted">
                 {zh('暂无关联视频', 'No related videos')}
               </div>
             )}
@@ -885,23 +890,23 @@ export default function JavDetailModal({
 
           {sampleImagesLoading || sampleImagesError || sampleImages.length > 0 ? (
             <section
-              className="border-t border-gray-200 pt-5"
+              className="border-t border-app-border pt-5"
               aria-labelledby={`${titleId}-sample-images`}
             >
               <h3
                 id={`${titleId}-sample-images`}
-                className="mb-3 text-base font-semibold text-gray-900"
+                className="mb-3 text-base font-semibold text-app-text"
               >
                 {zh('样品图像', 'Sample images')}
               </h3>
               {sampleImagesLoading ? (
-                <div className="flex min-h-28 items-center justify-center rounded-lg border border-dashed border-gray-200 text-xs text-gray-500">
+                <div className="flex min-h-28 items-center justify-center rounded-lg border border-dashed border-app-border text-xs text-app-muted">
                   {zh('正在加载样品图像…', 'Loading sample images...')}
                 </div>
               ) : sampleImages.length > 0 ? (
                 <JavSampleImageGrid images={sampleImages} />
               ) : (
-                <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                <div className="rounded border border-amber-700/40 bg-amber-950/40 px-3 py-2 text-xs text-amber-200">
                   {sampleImagesError}
                 </div>
               )}
@@ -909,12 +914,12 @@ export default function JavDetailModal({
           ) : null}
 
           <section
-            className="border-t border-gray-200 pt-5"
+            className="border-t border-app-border pt-5"
             aria-labelledby={`${titleId}-screenshots`}
           >
             <h3
               id={`${titleId}-screenshots`}
-              className="mb-3 text-base font-semibold text-gray-900"
+              className="mb-3 text-base font-semibold text-app-text"
             >
               {zh('视频截图', 'Video screenshots')}
             </h3>
@@ -940,10 +945,10 @@ export default function JavDetailModal({
         <div
           className={
             hoverPreview?.type === 'studio'
-              ? 'w-[320px] p-2 -m-2'
+              ? '-m-2 w-[320px] p-2'
               : hoverPreview?.type === 'series'
-                ? 'w-[260px] p-2 -m-2'
-                : 'w-[220px] p-2 -m-2'
+                ? '-m-2 w-[260px] p-2'
+                : '-m-2 w-[220px] p-2'
           }
           onMouseEnter={clearHoverCloseTimer}
           onMouseLeave={scheduleHoverClose}

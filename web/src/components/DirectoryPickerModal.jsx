@@ -81,12 +81,12 @@ export default function DirectoryPickerModal({ initialPath = '', onSelect, onClo
       onClose={onClose}
       zIndex={1500}
       className="max-w-full p-3 sm:p-6"
-      contentClassName="flex h-[600px] max-h-[85dvh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl"
+      contentClassName="flex h-[600px] max-h-[85dvh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-app-surface shadow-xl"
     >
       <div className="flex shrink-0 items-start justify-between gap-3 border-b px-5 py-4">
         <div>
-          <h2 id={titleId} className="flex items-center gap-2 text-lg font-semibold text-gray-900">
-            <FolderOpenOutlinedIcon className="text-blue-600" />
+          <h2 id={titleId} className="flex items-center gap-2 text-lg font-semibold text-app-text">
+            <FolderOpenOutlinedIcon className="text-app-gold" />
             {zh('选择目录', 'Choose directory')}
           </h2>
         </div>
@@ -114,12 +114,12 @@ export default function DirectoryPickerModal({ initialPath = '', onSelect, onClo
               key={root.path}
               type="button"
               onClick={() => navigate(root.path)}
-              className="rounded-md border px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
+              className="rounded-md border px-2 py-1 text-xs text-app-muted hover:bg-app-surface-2"
             >
               {root.name}
             </button>
           ))}
-          <label className="ml-auto flex items-center gap-2 text-xs text-gray-600">
+          <label className="ml-auto flex items-center gap-2 text-xs text-app-muted">
             <input
               type="checkbox"
               checked={showHidden}
@@ -147,12 +147,12 @@ export default function DirectoryPickerModal({ initialPath = '', onSelect, onClo
             value={pathInput}
             onChange={(event) => setPathInput(event.target.value)}
             placeholder={zh('输入完整目录路径', 'Enter an absolute directory path')}
-            className="min-w-0 flex-1 rounded-lg border px-3 py-2 text-sm outline-none focus:border-blue-500"
+            className="min-w-0 flex-1 rounded-lg border px-3 py-2 text-sm outline-none focus:border-app-gold"
           />
           <button
             type="submit"
             disabled={!pathInput.trim()}
-            className="rounded-lg border px-3 py-2 text-sm hover:bg-gray-50 disabled:opacity-50"
+            className="rounded-lg border px-3 py-2 text-sm hover:bg-app-surface-2 disabled:opacity-50"
           >
             {zh('前往', 'Go')}
           </button>
@@ -162,7 +162,7 @@ export default function DirectoryPickerModal({ initialPath = '', onSelect, onClo
         {loading ? (
           <div
             role="status"
-            className="flex h-full items-center justify-center gap-3 text-sm text-gray-500"
+            className="flex h-full items-center justify-center gap-3 text-sm text-app-muted"
           >
             <CircularProgress size={20} />
             {zh('正在读取目录…', 'Loading directories…')}
@@ -176,7 +176,7 @@ export default function DirectoryPickerModal({ initialPath = '', onSelect, onClo
             <button
               type="button"
               onClick={() => navigate(request.path)}
-              className="rounded-lg border px-3 py-2 hover:bg-gray-50"
+              className="rounded-lg border px-3 py-2 hover:bg-app-surface-2"
             >
               {zh('重试', 'Retry')}
             </button>
@@ -184,7 +184,7 @@ export default function DirectoryPickerModal({ initialPath = '', onSelect, onClo
         ) : directories.length === 0 ? (
           <div
             role="status"
-            className="flex h-full items-center justify-center text-sm text-gray-500"
+            className="flex h-full items-center justify-center text-sm text-app-muted"
           >
             {zh(
               '此目录下没有子目录，可直接选择当前目录',
@@ -198,20 +198,20 @@ export default function DirectoryPickerModal({ initialPath = '', onSelect, onClo
                 <button
                   type="button"
                   onClick={() => navigate(entry.path)}
-                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-gray-700 hover:bg-blue-50 focus-visible:bg-blue-50"
+                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-app-text hover:bg-app-gold-soft focus-visible:bg-app-gold-soft"
                   title={displayHostPath(entry.path, useHostPaths)}
                 >
-                  <FolderOpenOutlinedIcon className="shrink-0 text-blue-500" fontSize="small" />
+                  <FolderOpenOutlinedIcon className="shrink-0 text-app-gold" fontSize="small" />
                   <span className="min-w-0 flex-1 break-all">{entry.name}</span>
-                  <ChevronRightRoundedIcon fontSize="small" className="shrink-0 text-gray-400" />
+                  <ChevronRightRoundedIcon fontSize="small" className="shrink-0 text-app-muted" />
                 </button>
               </li>
             ))}
           </ul>
         )}
       </div>
-      <div className="shrink-0 space-y-3 border-t bg-gray-50 px-5 py-4">
-        <p className="break-all text-xs text-gray-500" aria-live="polite">
+      <div className="shrink-0 space-y-3 border-t bg-app-surface-2 px-5 py-4">
+        <p className="break-all text-xs text-app-muted" aria-live="polite">
           {zh('当前目录：', 'Current directory: ')}
           {loading ? '…' : displayHostPath(listing?.path, useHostPaths) || '—'}
         </p>
@@ -219,7 +219,7 @@ export default function DirectoryPickerModal({ initialPath = '', onSelect, onClo
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border bg-white px-4 py-2 text-sm hover:bg-gray-100"
+            className="rounded-lg border bg-app-surface px-4 py-2 text-sm hover:bg-app-surface-2"
           >
             {zh('取消', 'Cancel')}
           </button>
@@ -227,7 +227,7 @@ export default function DirectoryPickerModal({ initialPath = '', onSelect, onClo
             type="button"
             disabled={loading || !listing || !!error || inputChanged}
             onClick={() => onSelect(listing.path)}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+            className="rounded-lg bg-app-gold px-4 py-2 text-sm text-white hover:bg-app-gold-hover disabled:opacity-50"
           >
             {zh('选择此目录', 'Select this directory')}
           </button>

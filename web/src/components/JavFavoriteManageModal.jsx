@@ -119,11 +119,11 @@ export default function JavFavoriteManageModal({
           ariaLabel={labels.manageTitle}
           className="px-4"
           closeDisabled={saving}
-          contentClassName="flex max-h-[82vh] w-full max-w-lg flex-col rounded-lg bg-white shadow-xl"
+          contentClassName="flex max-h-[82vh] w-full max-w-lg flex-col rounded-2xl bg-app-surface shadow-xl"
           onClose={onClose}
         >
           <div className="flex items-center justify-between border-b px-4 py-3">
-            <h2 className="text-base font-semibold text-gray-950">{labels.manageTitle}</h2>
+            <h2 className="text-base font-semibold text-app-text">{labels.manageTitle}</h2>
             <IconButton
               type="button"
               size="small"
@@ -137,7 +137,7 @@ export default function JavFavoriteManageModal({
 
           <div className="min-h-0 flex-1 overflow-y-auto p-4">
             {error ? (
-              <div className="mb-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              <div className="mb-3 rounded border border-red-200 bg-red-950/40 px-3 py-2 text-sm text-red-700">
                 {error}
               </div>
             ) : null}
@@ -200,14 +200,14 @@ function CreateGroupModal({ open, name, creating, onNameChange, onClose, onSubmi
       ariaLabel={zh('新增收藏夹', 'Add favorite')}
       className="px-4"
       closeDisabled={creating}
-      contentClassName="w-full max-w-sm rounded-lg bg-white shadow-xl"
+      contentClassName="w-full max-w-sm rounded-2xl bg-app-surface shadow-xl"
       contentComponent="form"
       contentProps={{ onSubmit }}
       onClose={onClose}
       zIndex={1400}
     >
       <div className="flex items-center justify-between border-b px-4 py-3">
-        <h2 className="text-base font-semibold text-gray-950">
+        <h2 className="text-base font-semibold text-app-text">
           {zh('新增收藏夹', 'Add favorite')}
         </h2>
         <IconButton
@@ -225,7 +225,7 @@ function CreateGroupModal({ open, name, creating, onNameChange, onClose, onSubmi
           value={name}
           onChange={(event) => onNameChange(event.target.value)}
           placeholder={zh('收藏夹名称', 'Favorite name')}
-          className="h-9 w-full rounded border border-gray-200 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+          className="focus:ring-app-gold/25 h-9 w-full rounded border border-app-border px-3 text-sm outline-none focus:border-app-gold focus:ring-2"
           disabled={creating}
         />
       </div>
@@ -252,7 +252,7 @@ function GroupOrderList({
 }) {
   if (!groups.length) {
     return (
-      <div className="rounded border border-dashed border-gray-200 px-3 py-8 text-center text-sm text-gray-500">
+      <div className="rounded border border-dashed border-app-border px-3 py-8 text-center text-sm text-app-muted">
         {emptyText}
       </div>
     )
@@ -423,12 +423,12 @@ function FavoriteGroupEditModal({
       ariaLabel={zh('编辑收藏夹', 'Edit favorite')}
       className="px-4"
       closeDisabled={saving}
-      contentClassName="flex max-h-[86vh] w-full max-w-xl flex-col rounded-lg bg-white shadow-xl"
+      contentClassName="flex max-h-[86vh] w-full max-w-xl flex-col rounded-2xl bg-app-surface shadow-xl"
       onClose={onClose}
       zIndex={1400}
     >
       <div className="flex items-center justify-between border-b px-4 py-3">
-        <h2 className="min-w-0 truncate text-base font-semibold text-gray-950">
+        <h2 className="min-w-0 truncate text-base font-semibold text-app-text">
           {zh('编辑收藏夹', 'Edit favorite')}
         </h2>
         <IconButton
@@ -444,7 +444,7 @@ function FavoriteGroupEditModal({
 
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
         {error ? (
-          <div className="mb-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <div className="mb-3 rounded border border-red-200 bg-red-950/40 px-3 py-2 text-sm text-red-700">
             {error}
           </div>
         ) : null}
@@ -453,7 +453,7 @@ function FavoriteGroupEditModal({
           <input
             value={groupName}
             onChange={(event) => setGroupName(event.target.value)}
-            className="h-8 min-w-0 flex-1 rounded border border-gray-200 px-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            className="focus:ring-app-gold/25 h-8 min-w-0 flex-1 rounded border border-app-border px-2 text-sm outline-none focus:border-app-gold focus:ring-2"
             disabled={saving}
           />
           <Button
@@ -516,7 +516,7 @@ function IdolOrderList({
 }) {
   if (!idols.length) {
     return (
-      <div className="rounded border border-dashed border-gray-200 px-3 py-8 text-center text-sm text-gray-500">
+      <div className="rounded border border-dashed border-app-border px-3 py-8 text-center text-sm text-app-muted">
         {loading ? zh('加载中…', 'Loading...') : labels.emptyItemsText}
       </div>
     )
@@ -533,7 +533,7 @@ function IdolOrderList({
           type="checkbox"
           checked={selectedIds.includes(Number(idol.id))}
           onChange={(event) => onToggleSelected?.(idol.id, event.target.checked)}
-          className="h-4 w-4 shrink-0 accent-blue-600"
+          className="h-4 w-4 shrink-0 accent-app-gold"
           aria-label={labels.selectAria}
         />
       )}

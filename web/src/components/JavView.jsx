@@ -139,7 +139,7 @@ export default function JavView({
         </div>
       </div>
       {javLoading ? (
-        <div className="flex min-h-[200px] items-center justify-center rounded border border-dashed border-gray-200 text-gray-500">
+        <div className="flex min-h-[200px] items-center justify-center rounded border border-dashed border-app-border text-app-muted">
           {zh('加载中…', 'Loading...')}
         </div>
       ) : (

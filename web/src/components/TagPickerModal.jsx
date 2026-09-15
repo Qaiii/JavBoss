@@ -53,7 +53,7 @@ export default function TagPickerModal({
       ariaLabel={zh('选择标签', 'Choose Tags')}
       className="px-4"
       closeDisabled={creating}
-      contentClassName="w-full max-w-xs rounded-lg bg-white p-4 shadow-xl"
+      contentClassName="w-full max-w-xs rounded-2xl bg-app-surface p-4 shadow-xl"
       onClose={onClose}
     >
       <div className="mb-3 flex items-center justify-between">
@@ -61,7 +61,7 @@ export default function TagPickerModal({
         <button
           onClick={onClose}
           disabled={creating}
-          className="rounded px-2 py-1 text-gray-500 hover:bg-gray-100"
+          className="rounded px-2 py-1 text-app-muted hover:bg-app-surface-2"
           aria-label={zh('关闭标签选择', 'Close Tag Picker')}
         >
           ✕
@@ -72,7 +72,7 @@ export default function TagPickerModal({
           value={newTagName}
           onChange={(event) => setNewTagName(event.target.value)}
           placeholder={zh('新建标签', 'New tag')}
-          className="min-w-0 flex-1 rounded border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+          className="focus:ring-app-gold/25 min-w-0 flex-1 rounded border border-app-border px-3 py-2 text-sm outline-none focus:border-app-gold focus:ring-2"
           disabled={creating}
         />
         <Button
@@ -91,7 +91,7 @@ export default function TagPickerModal({
           return (
             <label
               key={`${tag.id}-${tag.provider || 0}`}
-              className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 hover:bg-gray-50"
+              className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 hover:bg-app-surface-2"
             >
               <input
                 type="checkbox"
@@ -99,7 +99,7 @@ export default function TagPickerModal({
                 disabled={creating}
                 onChange={(e) => onToggleChoice?.(tag.id, e.target.checked)}
               />
-              <span className="text-sm text-gray-800">{tag.name}</span>
+              <span className="text-sm text-app-text">{tag.name}</span>
             </label>
           )
         })}
@@ -108,13 +108,13 @@ export default function TagPickerModal({
         <button
           onClick={onClose}
           disabled={creating}
-          className="rounded border px-3 py-1.5 text-sm hover:bg-gray-50 disabled:opacity-50"
+          className="rounded border px-3 py-1.5 text-sm hover:bg-app-surface-2 disabled:opacity-50"
         >
           {zh('取消', 'Cancel')}
         </button>
         <button
           onClick={onSave}
-          className="rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+          className="rounded bg-app-gold px-3 py-1.5 text-sm text-white hover:bg-app-gold-hover disabled:opacity-50"
           disabled={saveDisabled || creating}
         >
           {zh('保存', 'Save')}

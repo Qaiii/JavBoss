@@ -113,7 +113,7 @@ export default function JavIdolHero({ idolId }) {
               style={{ objectPosition }}
             />
           ) : (
-            <div className="flex h-full w-full items-center bg-slate-900 px-10 text-4xl font-semibold text-white/80">
+            <div className="text-app-gold/80 flex h-full w-full items-center bg-app-bg px-10 text-4xl font-semibold">
               {primaryName}
             </div>
           )}
@@ -140,7 +140,7 @@ export default function JavIdolHero({ idolId }) {
             ) : null}
             <button
               type="button"
-              className="mt-6 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-sm text-white backdrop-blur hover:bg-white/25"
+              className="bg-app-gold/20 hover:bg-app-gold/35 mt-6 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm text-app-gold backdrop-blur"
               onClick={() => setPosterOpen(true)}
             >
               <PhotoCameraRoundedIcon sx={{ fontSize: 16 }} />

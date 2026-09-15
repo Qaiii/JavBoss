@@ -135,8 +135,8 @@ export default function VideoCard({
 
   return (
     <div
-      className={`card-hover-scope video-card group relative overflow-hidden rounded-xl border bg-white shadow transition-all ${
-        checked ? 'border-sky-400 ring-2 ring-sky-200' : 'border-gray-200 hover:border-gray-300'
+      className={`card-hover-scope video-card app-card group relative ${
+        checked ? 'app-card--selected' : ''
       }`}
     >
       {showSelection ? (
@@ -155,7 +155,7 @@ export default function VideoCard({
           />
         </div>
       ) : null}
-      <div className="relative aspect-video w-full overflow-hidden bg-gray-200">
+      <div className="relative aspect-video w-full overflow-hidden bg-app-hover">
         <img
           src={thumbnailSrc}
           alt={displayName}
@@ -199,25 +199,25 @@ export default function VideoCard({
           </div>
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-1">
-          <span className="inline-flex h-4 items-center rounded bg-gray-100 px-1 text-[10px] font-medium text-gray-700">
+          <span className="inline-flex h-4 items-center rounded bg-app-surface-2 px-1 text-[10px] font-medium text-app-text">
             {durationMinutes
               ? zh(`${durationMinutes} 分钟`, `${durationMinutes} min`)
               : zh('时长未知', 'Unknown duration')}
           </span>
           {resolution ? (
-            <span className="inline-flex h-4 items-center rounded bg-gray-100 px-1 text-[10px] font-medium text-gray-700">
+            <span className="inline-flex h-4 items-center rounded bg-app-surface-2 px-1 text-[10px] font-medium text-app-text">
               {resolution}
             </span>
           ) : null}
           {sizeText ? (
-            <span className="inline-flex h-4 items-center rounded bg-gray-100 px-1 text-[10px] font-medium text-gray-700">
+            <span className="inline-flex h-4 items-center rounded bg-app-surface-2 px-1 text-[10px] font-medium text-app-text">
               {sizeText}
             </span>
           ) : null}
           {actualFormat ? (
             <span
               className={`inline-flex h-4 items-center rounded px-1 text-[10px] font-medium ${
-                formatMismatch ? 'bg-amber-200 text-amber-900' : 'bg-gray-100 text-gray-700'
+                formatMismatch ? 'bg-amber-200 text-amber-100' : 'bg-app-surface-2 text-app-text'
               }`}
               title={
                 formatMismatch
@@ -328,7 +328,7 @@ export default function VideoCard({
               size="small"
               onClick={handleOpenScrapeSettings}
               aria-label={zh('刮削设置', 'Scrape settings')}
-              className={`h-6 w-6 ${hasScrapeOverride ? 'text-blue-700' : ''}`}
+              className={`h-6 w-6 ${hasScrapeOverride ? 'text-app-gold' : ''}`}
             >
               <ManageSearchIcon fontSize="inherit" />
             </IconButton>
@@ -345,7 +345,7 @@ export default function VideoCard({
               <button
                 type="button"
                 onClick={handleRename}
-                className="inline-flex items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-gray-700 hover:bg-gray-50"
+                className="inline-flex items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-app-text hover:bg-app-surface-2"
               >
                 <DriveFileRenameOutlineIcon className="h-4 w-4" fontSize="inherit" />
                 <span>{zh('重命名', 'Rename')}</span>
@@ -353,7 +353,7 @@ export default function VideoCard({
               <button
                 type="button"
                 onClick={handleDelete}
-                className="inline-flex items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-red-600 hover:bg-red-50"
+                className="inline-flex items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-red-600 hover:bg-red-950/40"
               >
                 <DeleteOutlineIcon className="h-4 w-4" fontSize="inherit" />
                 <span>{zh('删除', 'Delete')}</span>

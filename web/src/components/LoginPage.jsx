@@ -27,17 +27,17 @@ export default function LoginPage({ onLogin, checkError = '', onRetry }) {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-zinc-100 via-zinc-50 to-zinc-200 px-4">
-      <section className="w-full max-w-md rounded-[28px] border border-zinc-200/80 bg-white/90 p-8 shadow-2xl shadow-zinc-300/50 backdrop-blur">
+    <main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-[#1a1612] via-[#0c0a08] to-[#1a1408] px-4">
+      <section className="bg-app-surface/90 w-full max-w-md rounded-[28px] border border-app-border p-8 shadow-[0_24px_80px_rgba(12,8,4,0.55)] backdrop-blur">
         <div className="mb-8 text-center">
-          <div className="text-3xl font-bold tracking-tight text-zinc-900">JavBoss</div>
-          <p className="mt-2 text-sm text-zinc-500">
+          <div className="app-gold-letter text-3xl font-bold tracking-tight">JavBoss</div>
+          <p className="mt-2 text-sm text-app-muted">
             {zh('请输入密码继续', 'Enter your password to continue')}
           </p>
         </div>
 
         {checkError ? (
-          <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
+          <div className="mb-4 rounded-xl border border-amber-700/40 bg-amber-950/40 p-3 text-sm text-amber-200">
             <div>{checkError}</div>
             <button type="button" onClick={onRetry} className="mt-2 font-medium underline">
               {zh('重新连接', 'Retry')}
@@ -49,7 +49,7 @@ export default function LoginPage({ onLogin, checkError = '', onRetry }) {
           <div>
             <label
               htmlFor="login-password"
-              className="mb-1.5 block text-sm font-medium text-zinc-700"
+              className="mb-1.5 block text-sm font-medium text-app-text"
             >
               {zh('密码', 'Password')}
             </label>
@@ -63,12 +63,12 @@ export default function LoginPage({ onLogin, checkError = '', onRetry }) {
                   setPassword(event.target.value)
                   setError('')
                 }}
-                className="w-full rounded-xl border border-zinc-200 bg-white py-2.5 pl-3 pr-11 text-zinc-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                className="focus:ring-app-gold/25 w-full rounded-xl border border-app-border bg-app-surface py-2.5 pl-3 pr-11 text-app-text outline-none transition focus:border-app-gold focus:ring-2"
               />
               <button
                 type="button"
                 onClick={() => setPasswordVisible((visible) => !visible)}
-                className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center justify-center rounded-md p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700"
+                className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center justify-center rounded-md p-1 text-app-muted hover:bg-app-bg hover:text-app-text"
                 aria-label={
                   passwordVisible
                     ? zh('隐藏密码', 'Hide password')
@@ -87,29 +87,29 @@ export default function LoginPage({ onLogin, checkError = '', onRetry }) {
           <button
             type="submit"
             disabled={submitting || !password}
-            className="w-full rounded-xl bg-blue-600 px-4 py-2.5 font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+            className="w-full rounded-xl bg-app-gold px-4 py-2.5 font-medium text-[#1a1208] transition hover:bg-app-gold-hover disabled:cursor-not-allowed disabled:opacity-60"
           >
             {submitting ? zh('登录中…', 'Signing in...') : zh('登录', 'Sign in')}
           </button>
         </form>
 
-        <div className="mt-5 border-t border-zinc-200 pt-4">
+        <div className="mt-5 border-t border-app-border pt-4">
           <button
             type="button"
             aria-expanded={recoveryOpen}
             aria-controls="password-recovery-help"
             onClick={() => setRecoveryOpen((value) => !value)}
-            className="flex w-full items-center justify-between text-left text-sm font-medium text-zinc-600 hover:text-zinc-900"
+            className="flex w-full items-center justify-between text-left text-sm font-medium text-app-muted hover:text-app-text"
           >
             <span>{zh('忘记密码？', 'Forgot your password?')}</span>
-            <span aria-hidden="true" className="text-xs text-zinc-400">
+            <span aria-hidden="true" className="text-xs text-app-muted">
               {recoveryOpen ? '▲' : '▼'}
             </span>
           </button>
           {recoveryOpen ? (
             <div
               id="password-recovery-help"
-              className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"
+              className="mt-3 rounded-xl border border-amber-700/40 bg-amber-950/40 p-4 text-sm text-amber-100"
             >
               <ol className="list-decimal space-y-2 pl-5">
                 <li>{zh('先停止 JavBoss。', 'Stop JavBoss first.')}</li>
@@ -136,7 +136,7 @@ export default function LoginPage({ onLogin, checkError = '', onRetry }) {
           ) : null}
         </div>
 
-        <p className="mt-5 text-center text-xs text-zinc-400">
+        <p className="mt-5 text-center text-xs text-app-muted">
           {zh(
             '默认密码：admin，登陆后可在全局设置中修改',
             'Default password: admin. You can change it in Global Settings after signing in.'

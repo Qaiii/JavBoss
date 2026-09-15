@@ -64,7 +64,7 @@ export function AuthProvider({ children }) {
 
   if (checking) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-zinc-100 text-sm text-zinc-500">
+      <div className="flex min-h-screen items-center justify-center bg-app-bg text-sm text-app-muted">
         {zh('正在检查登录状态…', 'Checking sign-in status...')}
       </div>
     )

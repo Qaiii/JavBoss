@@ -3,7 +3,10 @@ import fs from 'node:fs'
 import test from 'node:test'
 
 const css = fs.readFileSync(new URL('../src/index.css', import.meta.url), 'utf8')
-const modal = fs.readFileSync(new URL('../src/components/JavDetailModal.jsx', import.meta.url), 'utf8')
+const modal = fs.readFileSync(
+  new URL('../src/components/JavDetailModal.jsx', import.meta.url),
+  'utf8'
+)
 
 test('detail modal keeps a stable scrollbar gutter', () => {
   assert.match(css, /\.app-modal-body\s*\{[^}]*scrollbar-gutter:\s*stable/s)

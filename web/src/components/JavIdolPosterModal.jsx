@@ -138,15 +138,15 @@ export default function JavIdolPosterModal({
       ariaLabel={zh('女优海报', 'Idol poster')}
       className="px-4 py-6"
       closeDisabled={saving || uploading}
-      contentClassName="flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-lg bg-white shadow-2xl"
+      contentClassName="flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-app-surface shadow-2xl"
       onClose={onClose}
     >
-      <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+      <div className="flex items-center justify-between border-b border-app-border px-4 py-3">
         <div className="min-w-0">
-          <div className="truncate text-base font-semibold text-slate-950">
+          <div className="truncate text-base font-semibold text-app-text">
             {getIdolDisplayName(item, preferChineseName)}
           </div>
-          <div className="text-xs text-slate-500">
+          <div className="text-xs text-app-muted">
             {zh(
               `海报（已选 ${selected.length}/${IDOL_POSTER_MAX_IMAGES}）`,
               `Poster (${selected.length}/${IDOL_POSTER_MAX_IMAGES} selected)`
@@ -155,7 +155,7 @@ export default function JavIdolPosterModal({
         </div>
         <button
           type="button"
-          className="flex h-8 w-8 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100"
+          className="flex h-8 w-8 items-center justify-center rounded-full text-app-muted hover:bg-app-surface-2"
           onClick={onClose}
           aria-label={zh('关闭', 'Close')}
         >
@@ -164,21 +164,21 @@ export default function JavIdolPosterModal({
       </div>
 
       <div className="grid min-h-0 flex-1 gap-0 overflow-hidden md:grid-cols-[18rem_minmax(0,1fr)]">
-        <div className="min-h-[12rem] overflow-y-auto border-b border-slate-200 md:border-b-0 md:border-r">
+        <div className="min-h-[12rem] overflow-y-auto border-b border-app-border md:border-b-0 md:border-r">
           <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
-            <span className="text-sm font-semibold text-slate-800">
+            <span className="text-sm font-semibold text-app-text">
               {zh('已选图片', 'Selected')}
             </span>
             <button
               type="button"
-              className="text-xs text-slate-500 hover:text-slate-800"
+              className="text-xs text-app-muted hover:text-app-text"
               onClick={() => setSelected([])}
             >
               {zh('清空', 'Clear')}
             </button>
           </div>
           {selected.length === 0 ? (
-            <div className="px-3 py-4 text-sm text-slate-500">
+            <div className="px-3 py-4 text-sm text-app-muted">
               {zh('尚未选择海报图片', 'No poster images selected')}
             </div>
           ) : (
@@ -189,15 +189,15 @@ export default function JavIdolPosterModal({
                 <button
                   key={key}
                   type="button"
-                  className="flex w-full items-center gap-2 border-b px-3 py-2 text-left hover:bg-slate-50"
+                  className="flex w-full items-center gap-2 border-b px-3 py-2 text-left hover:bg-app-surface-2"
                   onClick={() => toggleImage(image)}
                 >
                   {src ? (
                     <img src={src} alt="" className="h-12 w-16 shrink-0 rounded object-cover" />
                   ) : (
-                    <span className="h-12 w-16 shrink-0 rounded bg-slate-100" />
+                    <span className="h-12 w-16 shrink-0 rounded bg-app-surface-2" />
                   )}
-                  <span className="min-w-0 flex-1 truncate text-xs text-slate-600">
+                  <span className="min-w-0 flex-1 truncate text-xs text-app-muted">
                     {image.kind === IDOL_POSTER_KIND_UPLOAD
                       ? zh('自定义图片', 'Custom image')
                       : image.name}
@@ -210,7 +210,7 @@ export default function JavIdolPosterModal({
 
         <div className="min-h-0 overflow-y-auto p-4">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <div className="text-sm font-semibold text-slate-800">
+            <div className="text-sm font-semibold text-app-text">
               {zh(
                 '从作品截图中选择，或上传自定义图片',
                 'Pick screenshots or upload a custom image'
@@ -218,7 +218,7 @@ export default function JavIdolPosterModal({
             </div>
             <button
               type="button"
-              className="inline-flex items-center gap-1.5 rounded border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded border border-app-border px-3 py-1.5 text-sm text-app-text hover:bg-app-surface-2 disabled:opacity-50"
               disabled={uploading || saving}
               onClick={() => fileRef.current?.click()}
             >
@@ -234,9 +234,9 @@ export default function JavIdolPosterModal({
             />
           </div>
           {loading ? (
-            <div className="text-sm text-slate-500">{zh('加载中…', 'Loading...')}</div>
+            <div className="text-sm text-app-muted">{zh('加载中…', 'Loading...')}</div>
           ) : works.length === 0 ? (
-            <div className="text-sm text-slate-500">
+            <div className="text-sm text-app-muted">
               {zh('暂无可用截图', 'No screenshots available')}
             </div>
           ) : (
@@ -246,11 +246,11 @@ export default function JavIdolPosterModal({
                 return (
                   <section key={work.jav_id || work.code}>
                     <div className="mb-2 min-w-0">
-                      <div className="truncate text-sm font-semibold text-slate-900">
+                      <div className="truncate text-sm font-semibold text-app-text">
                         {work.code}
                       </div>
                       {title && title !== work.code ? (
-                        <div className="truncate text-xs text-slate-500">{title}</div>
+                        <div className="truncate text-xs text-app-muted">{title}</div>
                       ) : null}
                     </div>
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
@@ -270,8 +270,8 @@ export default function JavIdolPosterModal({
                               type="button"
                               className={`relative overflow-hidden rounded border ${
                                 active
-                                  ? 'border-slate-900 ring-2 ring-slate-900'
-                                  : 'border-slate-200'
+                                  ? 'border-app-gold ring-2 ring-app-gold'
+                                  : 'border-app-border'
                               }`}
                               onClick={() => toggleImage(image)}
                             >
@@ -299,17 +299,17 @@ export default function JavIdolPosterModal({
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-200 px-4 py-3">
+      <div className="flex flex-wrap items-center justify-end gap-2 border-t border-app-border px-4 py-3">
         <button
           type="button"
-          className="rounded border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+          className="rounded border border-app-border px-3 py-1.5 text-sm text-app-text hover:bg-app-surface-2"
           onClick={onClose}
         >
           {zh('取消', 'Cancel')}
         </button>
         <button
           type="button"
-          className="inline-flex items-center gap-1.5 rounded bg-slate-900 px-3 py-1.5 text-sm text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex items-center gap-1.5 rounded bg-app-gold px-3 py-1.5 text-sm text-[#1a1208] hover:bg-app-gold-hover disabled:cursor-not-allowed disabled:opacity-50"
           disabled={saving || loading}
           onClick={handleSave}
         >

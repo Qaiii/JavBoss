@@ -32,7 +32,7 @@ export default function SelectionOpsModal({
       ariaLabel={zh('已选择文件', 'Selected Files')}
       className="px-4"
       closeDisabled={busy}
-      contentClassName="w-full max-w-lg rounded-lg bg-white p-4 shadow-xl"
+      contentClassName="w-full max-w-lg rounded-2xl bg-app-surface p-4 shadow-xl"
       onClose={onClose}
     >
       <div className="mb-3 flex items-center justify-between">
@@ -40,21 +40,21 @@ export default function SelectionOpsModal({
         <button
           onClick={onClose}
           disabled={busy}
-          className="rounded px-2 py-1 text-gray-500 hover:bg-gray-100"
+          className="rounded px-2 py-1 text-app-muted hover:bg-app-surface-2"
           aria-label={zh('关闭', 'Close')}
         >
           ✕
         </button>
       </div>
-      <div className="max-h-[60vh] overflow-y-auto rounded border bg-gray-50 p-2 text-sm">
+      <div className="max-h-[60vh] overflow-y-auto rounded border bg-app-surface-2 p-2 text-sm">
         {list.length === 0 ? (
-          <div className="text-gray-500">{zh('暂无选择', 'No files selected')}</div>
+          <div className="text-app-muted">{zh('暂无选择', 'No files selected')}</div>
         ) : (
           <ul className="space-y-0.5">
             {list.map((item) => (
               <li
                 key={item.id}
-                className="flex min-w-0 items-center gap-2 rounded px-2 py-0.5 text-gray-800"
+                className="flex min-w-0 items-center gap-2 rounded px-2 py-0.5 text-app-text"
               >
                 <span className="min-w-0 flex-1 truncate">{item.label}</span>
                 <Tooltip title={zh('移除所选', 'Remove from selection')} arrow>

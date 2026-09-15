@@ -41,7 +41,7 @@ export default function JavStudioView({
   return (
     <>
       {loading ? (
-        <div className="mt-4 flex min-h-[200px] items-center justify-center rounded border border-dashed border-gray-200 text-gray-500">
+        <div className="mt-4 flex min-h-[200px] items-center justify-center rounded border border-dashed border-app-border text-app-muted">
           {zh('加载中…', 'Loading...')}
         </div>
       ) : (
@@ -92,7 +92,7 @@ function JavStudioGrid({
   const hasItems = displayItems.length > 0
   if (!hasItems) {
     return (
-      <div className="flex min-h-[200px] items-center justify-center rounded border border-dashed border-gray-200 text-gray-500">
+      <div className="flex min-h-[200px] items-center justify-center rounded border border-dashed border-app-border text-app-muted">
         {zh('暂无片商数据', 'No studio data')}
       </div>
     )
@@ -101,7 +101,7 @@ function JavStudioGrid({
   return (
     <>
       <div
-        className="grid gap-4 bg-white"
+        className="grid gap-4"
         style={{
           gridTemplateColumns: `repeat(auto-fill, minmax(${cardMinmax}, 1fr))`,
         }}
@@ -458,7 +458,7 @@ export function StudioCard({
   return (
     <a
       href={href || '#'}
-      className="card-hover-scope group flex cursor-pointer flex-col overflow-hidden rounded-lg border bg-white shadow-sm transition hover:shadow-lg"
+      className="card-hover-scope app-card group flex cursor-pointer flex-col"
       onClick={handleClick}
       onKeyDown={(e) => {
         if (e.key === ' ') {
@@ -471,10 +471,10 @@ export function StudioCard({
         src={cover}
         alt={name}
         orientation={coverOrientation}
-        className="w-full overflow-hidden bg-gray-100"
+        className="w-full overflow-hidden bg-app-surface-2"
         imageClassName="object-cover transition duration-200 group-hover:scale-[1.03]"
         fallback={
-          <div className="absolute inset-0 flex h-full w-full items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 p-4 text-center text-lg font-semibold text-gray-600">
+          <div className="absolute inset-0 flex h-full w-full items-center justify-center bg-gradient-to-br from-app-surface-2 to-app-hover p-4 text-center text-lg font-semibold text-app-muted">
             {name}
           </div>
         }
@@ -537,7 +537,7 @@ export function StudioCard({
           </span>
           {aliases.length > 0 ? (
             <span
-              className="min-w-0 flex-1 truncate text-[10px] text-gray-500"
+              className="min-w-0 flex-1 truncate text-[10px] text-app-muted"
               title={aliases.join(', ')}
             >
               {zh(aliases.join('、'), aliases.join(', '))}
@@ -554,14 +554,14 @@ export function StudioCard({
               })
               .join(', ')}
           >
-            <span className="rounded bg-gray-900 px-1 py-0.5 text-[9px] font-semibold leading-3 text-white">
+            <span className="rounded bg-black/70 px-1 py-0.5 text-[9px] font-semibold leading-3 text-white">
               {zh(`${codePrefixes.length}个番号`, `${codePrefixes.length} codes`)}
             </span>
             {codePrefixes.map((prefixItem) => (
               <button
                 type="button"
                 key={prefixItem.prefix}
-                className="rounded border border-gray-200 bg-gray-50 px-1 py-0.5 text-[9px] font-medium leading-3 text-gray-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                className="hover:border-app-gold/50 rounded border border-app-border bg-app-surface-2 px-1 py-0.5 text-[9px] font-medium leading-3 text-app-text hover:bg-app-gold-soft hover:text-app-gold"
                 title={zh(
                   `查看 ${prefixItem.prefix} 的全部作品`,
                   `Show all ${prefixItem.prefix} works`
@@ -570,7 +570,7 @@ export function StudioCard({
               >
                 <span>{prefixItem.prefix}</span>
                 {prefixItem.work_count ? (
-                  <span className="ml-1 text-[8px] font-semibold leading-3 text-gray-500">
+                  <span className="ml-1 text-[8px] font-semibold leading-3 text-app-muted">
                     {prefixItem.work_count}
                   </span>
                 ) : null}
@@ -605,7 +605,7 @@ export function StudioCard({
               })}
               <span
                 data-series-more-button="true"
-                className="rounded border border-emerald-200 bg-white px-1 py-0.5 text-[9px] font-semibold leading-3 text-emerald-700 shadow-sm"
+                className="rounded border border-emerald-200 bg-app-surface px-1 py-0.5 text-[9px] font-semibold leading-3 text-emerald-700 shadow-sm"
               >
                 {zh('展开全部', 'All')}
               </span>
@@ -646,7 +646,7 @@ export function StudioCard({
               {hasHiddenSeries ? (
                 <button
                   type="button"
-                  className="absolute bottom-0 right-0 rounded border border-emerald-200 bg-white px-1 py-0.5 text-[9px] font-semibold leading-3 text-emerald-700 shadow-sm hover:bg-emerald-50"
+                  className="absolute bottom-0 right-0 rounded border border-emerald-200 bg-app-surface px-1 py-0.5 text-[9px] font-semibold leading-3 text-emerald-700 shadow-sm hover:bg-emerald-50"
                   onClick={openSeriesList}
                 >
                   {zh('展开全部', 'All')}
@@ -687,7 +687,7 @@ export function StudioCard({
               <AppModal
                 ariaLabel={zh('片商系列', 'Studio series')}
                 className="p-4"
-                contentClassName="flex max-h-[84vh] w-[min(72rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xl"
+                contentClassName="flex max-h-[84vh] w-[min(72rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border border-app-border bg-app-surface shadow-xl"
                 contentProps={{ onClick: (event) => event.stopPropagation() }}
                 onClose={(event) => {
                   event?.preventDefault()
@@ -696,8 +696,8 @@ export function StudioCard({
                 }}
                 zIndex={seriesListModalZIndex}
               >
-                <div className="flex shrink-0 items-center justify-between gap-3 border-b border-gray-100 bg-white px-3 py-2">
-                  <div className="text-xs font-semibold text-gray-700">
+                <div className="flex shrink-0 items-center justify-between gap-3 border-b border-app-border bg-app-surface px-3 py-2">
+                  <div className="text-xs font-semibold text-app-text">
                     {zh(
                       `片商：${name}，共${seriesItems.length}个系列`,
                       `Studio: ${name}, ${seriesItems.length} series`
@@ -705,7 +705,7 @@ export function StudioCard({
                   </div>
                   <button
                     type="button"
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-900"
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-app-muted hover:bg-app-surface-2 hover:text-app-text"
                     aria-label={zh('关闭片商系列', 'Close studio series')}
                     title={zh('关闭', 'Close')}
                     onClick={(event) => {
@@ -808,7 +808,7 @@ function JavStudioEditModal({ open, item, onClose, onSaved, onMerged }) {
         ariaLabel={zh('编辑片商信息', 'Edit studio info')}
         className="p-4"
         closeDisabled={saving}
-        contentClassName="flex max-h-[90vh] w-full max-w-xl flex-col overflow-hidden rounded-lg bg-white shadow-2xl"
+        contentClassName="flex max-h-[90vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl bg-app-surface shadow-2xl"
         contentComponent="form"
         contentProps={{ onSubmit: handleSubmit }}
         onClose={onClose}
@@ -816,14 +816,14 @@ function JavStudioEditModal({ open, item, onClose, onSaved, onMerged }) {
       >
         <div className="flex items-center justify-between border-b px-4 py-3">
           <div className="min-w-0">
-            <div className="text-base font-semibold text-gray-950">
+            <div className="text-base font-semibold text-app-text">
               {zh('编辑片商信息', 'Edit studio info')}
             </div>
-            <div className="truncate text-xs text-gray-500">{item.name}</div>
+            <div className="truncate text-xs text-app-muted">{item.name}</div>
           </div>
           <button
             type="button"
-            className="flex h-8 w-8 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-900"
+            className="flex h-8 w-8 items-center justify-center rounded-full text-app-muted hover:bg-app-surface-2 hover:text-app-text"
             aria-label={zh('关闭', 'Close')}
             onClick={onClose}
           >
@@ -831,13 +831,13 @@ function JavStudioEditModal({ open, item, onClose, onSaved, onMerged }) {
           </button>
         </div>
         <div className="flex-1 overflow-y-auto p-4">
-          <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
+          <label className="flex flex-col gap-1 text-sm font-medium text-app-text">
             <span>{zh('名称', 'Name')}</span>
             <input
               value={form.name}
               required
               onChange={(event) => setField('name', event.target.value)}
-              className="rounded border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-900"
+              className="rounded border border-app-border px-3 py-2 text-sm outline-none focus:border-gray-900"
             />
           </label>
           <StudioAliasEditor
@@ -850,7 +850,7 @@ function JavStudioEditModal({ open, item, onClose, onSaved, onMerged }) {
           <div className="mt-4 flex flex-wrap gap-2 border-t pt-4">
             <button
               type="button"
-              className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+              className="rounded border border-app-border px-3 py-1.5 text-sm text-app-text hover:bg-app-surface-2"
               onClick={() => setMergeOpen(true)}
             >
               {zh('合并到其它片商', 'Merge into another studio')}
@@ -861,7 +861,7 @@ function JavStudioEditModal({ open, item, onClose, onSaved, onMerged }) {
         <div className="flex justify-end gap-2 border-t px-4 py-3">
           <button
             type="button"
-            className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+            className="rounded border border-app-border px-3 py-1.5 text-sm text-app-text hover:bg-app-surface-2"
             onClick={onClose}
             disabled={saving}
           >
@@ -869,7 +869,7 @@ function JavStudioEditModal({ open, item, onClose, onSaved, onMerged }) {
           </button>
           <button
             type="submit"
-            className="rounded bg-gray-950 px-3 py-1.5 text-sm text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:bg-gray-300"
+            className="rounded bg-app-gold px-3 py-1.5 text-sm text-[#1a1208] hover:bg-app-gold-hover disabled:cursor-not-allowed disabled:bg-app-hover"
             disabled={saving || !String(form.name || '').trim()}
           >
             {saving ? zh('保存中…', 'Saving...') : zh('保存', 'Save')}
@@ -891,23 +891,23 @@ function StudioAliasEditor({ aliases = [], inputValue = '', onInputChange, onAdd
     if (String(inputValue || '').trim()) onAdd?.(inputValue)
   }
   return (
-    <div className="mt-3 flex flex-col gap-1 text-sm font-medium text-gray-700">
+    <div className="mt-3 flex flex-col gap-1 text-sm font-medium text-app-text">
       <div className="flex flex-wrap items-center gap-2">
         <span>{zh('别名：', 'Aliases:')}</span>
-        <span className="text-xs font-normal text-gray-400">
+        <span className="text-xs font-normal text-app-muted">
           {zh('输入后按 Enter 添加', 'Press Enter to add')}
         </span>
       </div>
-      <div className="flex min-h-[2.75rem] flex-wrap items-center gap-2 rounded border border-gray-300 bg-white px-2 py-2 focus-within:border-gray-900">
+      <div className="flex min-h-[2.75rem] flex-wrap items-center gap-2 rounded border border-app-border bg-app-surface px-2 py-2 focus-within:border-gray-900">
         {aliases.map((alias) => (
           <span
             key={alias}
-            className="inline-flex max-w-full items-center gap-1 rounded-full border border-gray-200 bg-gray-100 px-2 py-1 text-xs font-medium text-gray-800"
+            className="inline-flex max-w-full items-center gap-1 rounded-full border border-app-border bg-app-surface-2 px-2 py-1 text-xs font-medium text-app-text"
           >
             <span className="max-w-[12rem] truncate">{alias}</span>
             <button
               type="button"
-              className="flex h-4 w-4 items-center justify-center rounded-full text-gray-500 hover:bg-gray-300 hover:text-gray-900"
+              className="flex h-4 w-4 items-center justify-center rounded-full text-app-muted hover:bg-app-hover hover:text-app-text"
               aria-label={zh(`移除别名 ${alias}`, `Remove alias ${alias}`)}
               onClick={() => onRemove?.(alias)}
             >
@@ -1016,7 +1016,7 @@ function JavStudioMergeModal({ open, item, onClose, onMerged }) {
       ariaLabel={zh('合并片商', 'Merge studio')}
       className="p-4"
       closeDisabled={saving}
-      contentClassName="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-lg bg-white shadow-2xl"
+      contentClassName="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-app-surface shadow-2xl"
       contentComponent="form"
       contentProps={{ onSubmit: handleSubmit }}
       onClose={onClose}
@@ -1024,16 +1024,16 @@ function JavStudioMergeModal({ open, item, onClose, onMerged }) {
     >
       <div className="flex items-center justify-between border-b px-4 py-3">
         <div className="min-w-0">
-          <div className="text-base font-semibold text-gray-950">
+          <div className="text-base font-semibold text-app-text">
             {zh('合并片商', 'Merge studio')}
           </div>
-          <div className="truncate text-xs text-gray-500">
+          <div className="truncate text-xs text-app-muted">
             {zh(`将 ${sourceName} 合并到目标片商`, `Merge ${sourceName} into target studio`)}
           </div>
         </div>
         <button
           type="button"
-          className="flex h-8 w-8 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-900"
+          className="flex h-8 w-8 items-center justify-center rounded-full text-app-muted hover:bg-app-surface-2 hover:text-app-text"
           aria-label={zh('关闭', 'Close')}
           onClick={onClose}
         >
@@ -1043,7 +1043,7 @@ function JavStudioMergeModal({ open, item, onClose, onMerged }) {
       <div className="flex flex-1 flex-col gap-3 overflow-hidden p-4">
         <label className="relative block">
           <SearchRoundedIcon
-            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-app-muted"
             sx={{ fontSize: 18 }}
           />
           <input
@@ -1052,13 +1052,13 @@ function JavStudioMergeModal({ open, item, onClose, onMerged }) {
               setSearch(event.target.value)
               setSelectedId(0)
             }}
-            className="w-full rounded border border-gray-300 py-2 pl-9 pr-3 text-sm outline-none focus:border-gray-900"
+            className="w-full rounded border border-app-border py-2 pl-9 pr-3 text-sm outline-none focus:border-gray-900"
             placeholder={zh('搜索要合并到的目标片商', 'Search target studio to merge into')}
           />
         </label>
-        <div className="min-h-[12rem] overflow-y-auto rounded border border-gray-200">
+        <div className="min-h-[12rem] overflow-y-auto rounded border border-app-border">
           {loading ? (
-            <div className="flex h-32 items-center justify-center text-sm text-gray-500">
+            <div className="flex h-32 items-center justify-center text-sm text-app-muted">
               {zh('加载中…', 'Loading...')}
             </div>
           ) : options.length > 0 ? (
@@ -1070,14 +1070,14 @@ function JavStudioMergeModal({ open, item, onClose, onMerged }) {
                   <button
                     key={option.id}
                     type="button"
-                    className={`flex w-full flex-col gap-1 px-3 py-2 text-left text-sm hover:bg-gray-50 ${
-                      id === selectedId ? 'bg-gray-100 text-gray-950' : 'text-gray-800'
+                    className={`flex w-full flex-col gap-1 px-3 py-2 text-left text-sm hover:bg-app-surface-2 ${
+                      id === selectedId ? 'bg-app-surface-2 text-app-text' : 'text-app-text'
                     }`}
                     onClick={() => setSelectedId(id)}
                   >
                     <span className="truncate font-medium">{option.name}</span>
                     {aliases ? (
-                      <span className="truncate text-xs text-gray-500">
+                      <span className="truncate text-xs text-app-muted">
                         {zh(`别名：${aliases}`, `Aliases: ${aliases}`)}
                       </span>
                     ) : null}
@@ -1086,13 +1086,13 @@ function JavStudioMergeModal({ open, item, onClose, onMerged }) {
               })}
             </div>
           ) : (
-            <div className="flex h-32 items-center justify-center text-sm text-gray-500">
+            <div className="flex h-32 items-center justify-center text-sm text-app-muted">
               {zh('没有可合并的目标片商', 'No target studio found')}
             </div>
           )}
         </div>
         {selected ? (
-          <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+          <div className="rounded border border-amber-700/40 bg-amber-950/40 p-3 text-sm text-amber-100">
             {zh(
               `"${sourceName}" 将作为 "${selectedName}" 的别名存在，当前片商记录会被删除，作品、系列及收藏夹数据会自动迁移。此操作无法撤回，请仔细核实后操作。`,
               `"${sourceName}" will exist as an alias of "${selectedName}". The current studio record will be deleted, and its works, series, and favorites will be migrated automatically. This action cannot be undone; verify carefully before continuing.`
@@ -1104,7 +1104,7 @@ function JavStudioMergeModal({ open, item, onClose, onMerged }) {
       <div className="flex justify-end gap-2 border-t px-4 py-3">
         <button
           type="button"
-          className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+          className="rounded border border-app-border px-3 py-1.5 text-sm text-app-text hover:bg-app-surface-2"
           onClick={onClose}
           disabled={saving}
         >
@@ -1112,7 +1112,7 @@ function JavStudioMergeModal({ open, item, onClose, onMerged }) {
         </button>
         <button
           type="submit"
-          className="rounded bg-gray-950 px-3 py-1.5 text-sm text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:bg-gray-300"
+          className="rounded bg-app-gold px-3 py-1.5 text-sm text-[#1a1208] hover:bg-app-gold-hover disabled:cursor-not-allowed disabled:bg-app-hover"
           disabled={!canSubmit || saving}
         >
           {saving ? zh('合并中…', 'Merging...') : zh('确认合并', 'Merge')}

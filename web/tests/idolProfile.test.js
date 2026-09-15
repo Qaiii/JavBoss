@@ -6,7 +6,10 @@ const css = fs.readFileSync(new URL('../src/index.css', import.meta.url), 'utf8'
 const urlSync = fs.readFileSync(new URL('../src/hooks/useUrlStateSync.js', import.meta.url), 'utf8')
 
 test('idol works sit below the hero instead of overlapping the first screen', () => {
-  assert.match(css, /\.idol-profile-works-inner\s*\{[^}]*min-height:\s*calc\(100dvh - var\(--topbar-height\)\)/s)
+  assert.match(
+    css,
+    /\.idol-profile-works-inner\s*\{[^}]*min-height:\s*calc\(100dvh - var\(--topbar-height\)\)/s
+  )
   assert.doesNotMatch(css, /\.idol-profile-works\s*\{[^}]*margin-top:\s*calc\(0px - \(100dvh/s)
   assert.doesNotMatch(css, /\.idol-profile-works\s*\{[^}]*padding-top:\s*calc\(100dvh/s)
 })

@@ -24,8 +24,8 @@ function SortText({ option, value }) {
   return (
     <span className="truncate text-sm font-semibold">
       <span>{parts.label}</span>
-      <span className="font-normal text-gray-500">{parts.separator}</span>
-      <span className="font-normal text-gray-500">{parts.direction}</span>
+      <span className="font-normal text-app-muted">{parts.separator}</span>
+      <span className="font-normal text-app-muted">{parts.direction}</span>
     </span>
   )
 }
@@ -36,7 +36,7 @@ function SortOptionRow({ option, inputValue, onChange }) {
   const id = `sort-${option.base}`
 
   return (
-    <div className="flex items-center gap-2 rounded border px-3 py-1.5 hover:border-blue-500">
+    <div className="flex items-center gap-2 rounded border px-3 py-1.5 hover:border-app-gold">
       <label htmlFor={id} className="flex min-w-0 flex-1 cursor-pointer items-center gap-3">
         <input
           id={id}
@@ -52,7 +52,7 @@ function SortOptionRow({ option, inputValue, onChange }) {
         <button
           type="button"
           onClick={() => onChange?.(reverseVideoSortValue(displayValue, option.defaultValue))}
-          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded border border-gray-200 text-gray-500 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700"
+          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded border border-app-border text-app-muted hover:border-app-gold hover:bg-app-gold-soft hover:text-app-gold"
           title={zh('反转排序', 'Reverse sort')}
           aria-label={zh(`反转${option.label[0]}排序`, `Reverse ${option.label[1]} sort`)}
         >
@@ -92,14 +92,14 @@ export default function VideoSettingsModal({
     <AppModal
       ariaLabel={zh('视频设置', 'Video Settings')}
       className="px-4"
-      contentClassName="w-full max-w-sm rounded-lg bg-white p-3 shadow-xl"
+      contentClassName="w-full max-w-sm rounded-2xl bg-app-surface p-3 shadow-xl"
       onClose={onClose}
     >
       <div className="mb-2 flex items-center gap-2">
         <h2 className="shrink-0 text-base font-semibold">{zh('视频设置', 'Video Settings')}</h2>
         {directoryPath ? (
           <span
-            className="flex min-w-0 flex-1 items-center justify-end gap-1 truncate text-xs text-gray-500"
+            className="flex min-w-0 flex-1 items-center justify-end gap-1 truncate text-xs text-app-muted"
             title={zh(`当前目录：${directoryPath}`, `Current directory: ${directoryPath}`)}
           >
             <FolderOutlinedIcon className="h-3.5 w-3.5 shrink-0" fontSize="inherit" />
@@ -110,37 +110,37 @@ export default function VideoSettingsModal({
         )}
         <button
           onClick={onClose}
-          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-app-muted hover:bg-app-surface-2 hover:text-app-text"
           aria-label={zh('关闭设置', 'Close settings')}
         >
           <CloseRoundedIcon sx={{ fontSize: 20 }} />
         </button>
       </div>
       <div className="space-y-2">
-        <label className="flex cursor-pointer items-center gap-2 rounded border px-3 py-2 text-sm font-medium text-gray-700 hover:border-blue-500">
+        <label className="flex cursor-pointer items-center gap-2 rounded border px-3 py-2 text-sm font-medium text-app-text hover:border-app-gold">
           <input
             type="checkbox"
             checked={Boolean(hideJavInput)}
             onChange={(event) => onHideJavChange?.(event.target.checked)}
-            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            className="h-4 w-4 rounded border-app-border text-app-gold focus:ring-app-gold"
           />
           <span>{zh('隐藏已刮削的视频', 'Hide scraped videos')}</span>
         </label>
-        <label className="flex items-center justify-between gap-3 text-sm font-medium text-gray-700">
+        <label className="flex items-center justify-between gap-3 text-sm font-medium text-app-text">
           <span>{zh('每页视频数量', 'Videos per page')}</span>
           <input
             type="number"
             min="1"
             value={pageSizeInput}
             onChange={(e) => onPageSizeChange?.(e.target.value)}
-            className="w-24 rounded border px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="w-24 rounded border px-3 py-1.5 text-sm focus:border-app-gold focus:outline-none focus:ring-1 focus:ring-app-gold"
           />
         </label>
-        <div className="flex min-h-11 items-center justify-between gap-4 py-1.5 text-sm text-slate-700">
+        <div className="flex min-h-11 items-center justify-between gap-4 py-1.5 text-sm text-app-text">
           <span className="font-medium">{zh('封面方向', 'Cover orientation')}</span>
-          <span className="text-sm text-slate-500">{zh('横版（锁定）', 'Landscape (locked)')}</span>
+          <span className="text-sm text-app-muted">{zh('横版（锁定）', 'Landscape (locked)')}</span>
         </div>
-        <label className="flex items-center justify-between gap-3 text-sm font-medium text-gray-700">
+        <label className="flex items-center justify-between gap-3 text-sm font-medium text-app-text">
           <span>{zh('横版宽度', 'Landscape width')}</span>
           <span className="flex w-40 items-center gap-2">
             <input
@@ -150,15 +150,15 @@ export default function VideoSettingsModal({
               step="1"
               value={normalizeCardWidth(cardWidthInput, CARD_WIDTH_DEFAULTS.video.landscape)}
               onChange={(event) => onCardWidthChange?.(Number(event.target.value))}
-              className="h-1.5 min-w-0 flex-1 accent-blue-600"
+              className="h-1.5 min-w-0 flex-1 accent-app-gold"
               aria-label={zh('横版宽度', 'Landscape width')}
             />
-            <span className="w-12 shrink-0 text-right tabular-nums text-slate-500">
+            <span className="w-12 shrink-0 text-right tabular-nums text-app-muted">
               {normalizeCardWidth(cardWidthInput, CARD_WIDTH_DEFAULTS.video.landscape)}rem
             </span>
           </span>
         </label>
-        <div className="text-sm font-medium text-gray-700">{zh('默认排序', 'Default sort')}</div>
+        <div className="text-sm font-medium text-app-text">{zh('默认排序', 'Default sort')}</div>
         {VIDEO_SORT_OPTIONS.map((option) => (
           <SortOptionRow
             key={option.base}
@@ -169,12 +169,15 @@ export default function VideoSettingsModal({
         ))}
       </div>
       <div className="mt-3 flex justify-end">
-        <button onClick={onClose} className="rounded border px-3 py-1 text-sm hover:bg-gray-50">
+        <button
+          onClick={onClose}
+          className="rounded border px-3 py-1 text-sm hover:bg-app-surface-2"
+        >
           {zh('取消', 'Cancel')}
         </button>
         <button
           onClick={onSave}
-          className="ml-2 rounded bg-blue-600 px-3 py-1 text-sm text-white hover:bg-blue-700"
+          className="ml-2 rounded bg-app-gold px-3 py-1 text-sm text-white hover:bg-app-gold-hover"
         >
           {zh('保存', 'Save')}
         </button>

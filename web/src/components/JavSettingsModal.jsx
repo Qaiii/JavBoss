@@ -28,8 +28,8 @@ function SortText({ option, value }) {
   return (
     <span className="truncate text-xs font-semibold sm:text-sm">
       <span>{parts.label}</span>
-      <span className="font-normal text-gray-500">{parts.separator}</span>
-      <span className="font-normal text-gray-500">{parts.direction}</span>
+      <span className="font-normal text-app-muted">{parts.separator}</span>
+      <span className="font-normal text-app-muted">{parts.direction}</span>
     </span>
   )
 }
@@ -41,10 +41,10 @@ function SortOptionRow({ option, name, inputValue, onChange }) {
 
   return (
     <div
-      className={`flex items-center gap-2 rounded-lg border bg-white px-3 py-2 transition ${
+      className={`flex items-center gap-2 rounded-lg border bg-app-surface px-3 py-2 transition ${
         active
-          ? 'border-blue-500 bg-blue-50/40 ring-1 ring-blue-100'
-          : 'border-slate-200 hover:border-blue-300'
+          ? 'bg-app-gold-soft/40 ring-app-gold/25 border-app-gold ring-1'
+          : 'border-app-border hover:border-app-gold'
       }`}
     >
       <label htmlFor={id} className="flex min-w-0 flex-1 cursor-pointer items-center gap-3">
@@ -55,7 +55,7 @@ function SortOptionRow({ option, name, inputValue, onChange }) {
           value={displayValue}
           checked={Boolean(active)}
           onChange={() => onChange?.(displayValue)}
-          className="h-4 w-4 accent-blue-600"
+          className="h-4 w-4 accent-app-gold"
         />
         <SortText option={option} value={displayValue} />
       </label>
@@ -63,7 +63,7 @@ function SortOptionRow({ option, name, inputValue, onChange }) {
         <button
           type="button"
           onClick={() => onChange?.(reverseSortValue([option], displayValue, option.defaultValue))}
-          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-app-border bg-app-surface text-app-muted transition hover:border-app-gold hover:bg-app-gold-soft hover:text-app-gold"
           title={zh('反转排序', 'Reverse sort')}
           aria-label={zh(`反转${option.label[0]}排序`, `Reverse ${option.label[1]} sort`)}
         >
@@ -76,8 +76,8 @@ function SortOptionRow({ option, name, inputValue, onChange }) {
 
 function SectionTitle({ children }) {
   return (
-    <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-800">
-      <span className="h-4 w-1 rounded-full bg-blue-600" aria-hidden="true" />
+    <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-app-text">
+      <span className="h-4 w-1 rounded-full bg-app-gold" aria-hidden="true" />
       <span>{children}</span>
     </div>
   )
@@ -85,7 +85,7 @@ function SectionTitle({ children }) {
 
 function SettingsSection({ title, children }) {
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm shadow-slate-100/70">
+    <section className="rounded-xl border border-app-border bg-app-surface p-4 shadow-sm shadow-black/30">
       <SectionTitle>{title}</SectionTitle>
       {children}
     </section>
@@ -94,7 +94,7 @@ function SettingsSection({ title, children }) {
 
 function SettingsRow({ label, children }) {
   return (
-    <div className="flex min-h-11 items-center justify-between gap-4 py-1.5 text-sm text-slate-700">
+    <div className="flex min-h-11 items-center justify-between gap-4 py-1.5 text-sm text-app-text">
       <span className="font-medium">{label}</span>
       {children}
     </div>
@@ -109,12 +109,12 @@ function SettingsSwitch({ label, checked, onChange }) {
       aria-label={label}
       aria-checked={Boolean(checked)}
       onClick={() => onChange?.(!checked)}
-      className={`relative inline-flex h-6 w-11 shrink-0 rounded-full transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${
-        checked ? 'bg-blue-600' : 'bg-slate-200'
+      className={`relative inline-flex h-6 w-11 shrink-0 rounded-full transition focus:outline-none focus-visible:ring-2 focus-visible:ring-app-gold focus-visible:ring-offset-2 focus-visible:ring-offset-app-bg ${
+        checked ? 'bg-app-gold' : 'bg-app-hover'
       }`}
     >
       <span
-        className={`mt-1 h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
+        className={`mt-1 h-4 w-4 rounded-full bg-app-text shadow-sm transition-transform ${
           checked ? 'translate-x-6' : 'translate-x-1'
         }`}
       />
@@ -134,10 +134,10 @@ function CardWidthRow({ label, value, fallback, onChange }) {
           step="1"
           value={width}
           onChange={(event) => onChange?.(Number(event.target.value))}
-          className="h-1.5 min-w-0 flex-1 accent-blue-600"
+          className="h-1.5 min-w-0 flex-1 accent-app-gold"
           aria-label={label}
         />
-        <span className="w-12 shrink-0 text-right tabular-nums text-slate-500">{width}rem</span>
+        <span className="w-12 shrink-0 text-right tabular-nums text-app-muted">{width}rem</span>
       </div>
     </SettingsRow>
   )
@@ -153,7 +153,7 @@ function CardLayoutFields({ entity, layout, onChange }) {
     <>
       <SettingsRow label={zh('封面方向', 'Cover orientation')}>
         {lock ? (
-          <span className="text-sm text-slate-500">
+          <span className="text-sm text-app-muted">
             {lock === 'portrait'
               ? zh('竖版（锁定）', 'Portrait (locked)')
               : zh('横版（锁定）', 'Landscape (locked)')}
@@ -258,9 +258,9 @@ function JavSortRuleEditor({ rule, index, total, onChange, onMove, onRemove }) {
   }
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+    <div className="bg-app-surface-2/70 rounded-xl border border-app-border p-4">
       <div className="flex items-center gap-2">
-        <span className="min-w-0 text-sm font-semibold text-slate-700">
+        <span className="min-w-0 text-sm font-semibold text-app-text">
           {zh(`规则 ${index + 1}`, `Rule ${index + 1}`)}
         </span>
         <span className="group relative">
@@ -278,7 +278,7 @@ function JavSortRuleEditor({ rule, index, total, onChange, onMove, onRemove }) {
             {javSortRuleDescription(rule)}
           </span>
         </span>
-        <span className="ml-auto text-xs text-slate-500">{zh('启用', 'Enable')}</span>
+        <span className="ml-auto text-xs text-app-muted">{zh('启用', 'Enable')}</span>
         <SettingsSwitch
           label={zh(`启用排序规则 ${index + 1}`, `Enable sort rule ${index + 1}`)}
           checked={rule.enabled}
@@ -288,7 +288,7 @@ function JavSortRuleEditor({ rule, index, total, onChange, onMove, onRemove }) {
           type="button"
           disabled={index === 0}
           onClick={() => onMove?.(-1)}
-          className="h-8 w-8 rounded-md border border-slate-200 bg-white text-slate-600 disabled:opacity-30"
+          className="h-8 w-8 rounded-md border border-app-border bg-app-surface text-app-muted disabled:opacity-30"
           aria-label={zh('上移规则', 'Move rule up')}
         >
           ↑
@@ -297,7 +297,7 @@ function JavSortRuleEditor({ rule, index, total, onChange, onMove, onRemove }) {
           type="button"
           disabled={index >= total - 1}
           onClick={() => onMove?.(1)}
-          className="h-8 w-8 rounded-md border border-slate-200 bg-white text-slate-600 disabled:opacity-30"
+          className="h-8 w-8 rounded-md border border-app-border bg-app-surface text-app-muted disabled:opacity-30"
           aria-label={zh('下移规则', 'Move rule down')}
         >
           ↓
@@ -305,19 +305,19 @@ function JavSortRuleEditor({ rule, index, total, onChange, onMove, onRemove }) {
         <button
           type="button"
           onClick={onRemove}
-          className="h-8 rounded-md border border-red-200 bg-white px-2 text-xs text-red-600 hover:bg-red-50"
+          className="h-8 rounded-md border border-red-200 bg-app-surface px-2 text-xs text-red-600 hover:bg-red-950/40"
         >
           {zh('删除', 'Delete')}
         </button>
       </div>
 
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
-        <label className="text-xs font-medium text-slate-600">
+        <label className="text-xs font-medium text-app-muted">
           {zh('匹配条件', 'Match condition')}
           <select
             value={rule.mode}
             onChange={(event) => update({ mode: event.target.value })}
-            className="mt-1 h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-sm"
+            className="mt-1 h-9 w-full rounded-lg border border-app-border bg-app-surface px-2 text-sm"
           >
             <option value="all">
               {zh(
@@ -333,12 +333,12 @@ function JavSortRuleEditor({ rule, index, total, onChange, onMove, onRemove }) {
             </option>
           </select>
         </label>
-        <label className="text-xs font-medium text-slate-600">
+        <label className="text-xs font-medium text-app-muted">
           {zh('命中后排序', 'Sort when matched')}
           <select
             value={rule.sort}
             onChange={(event) => update({ sort: event.target.value })}
-            className="mt-1 h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-sm"
+            className="mt-1 h-9 w-full rounded-lg border border-app-border bg-app-surface px-2 text-sm"
           >
             {javSortChoices.map((choice) => (
               <option key={choice.value} value={choice.value}>
@@ -358,8 +358,8 @@ function JavSortRuleEditor({ rule, index, total, onChange, onMove, onRemove }) {
                 key={filter.key}
                 className={`cursor-pointer rounded-full border px-2.5 py-1 text-xs transition ${
                   checked
-                    ? 'border-blue-500 bg-blue-50 text-blue-700'
-                    : 'border-slate-200 bg-white text-slate-600'
+                    ? 'border-app-gold bg-app-gold-soft text-app-gold'
+                    : 'border-app-border bg-app-surface text-app-muted'
                 }`}
               >
                 <input
@@ -384,7 +384,7 @@ function JavSortRuleEditor({ rule, index, total, onChange, onMove, onRemove }) {
 }
 
 const controlClassName =
-  'h-9 w-32 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition hover:border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-100'
+  'h-9 w-32 rounded-lg border border-app-border bg-app-surface px-3 text-sm text-app-text outline-none transition hover:border-app-border focus:border-app-gold focus:ring-2 focus:ring-app-gold/25'
 
 function normalizeSettingsTab(tab) {
   return ['jav', 'idol', 'studio', 'series', 'tag'].includes(tab) ? tab : 'jav'
@@ -498,20 +498,20 @@ export default function JavSettingsModal({
     <AppModal
       ariaLabelledby="jav-display-settings-title"
       className="px-4 py-4"
-      contentClassName="flex h-[860px] max-h-[94vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-white/80 bg-slate-50 shadow-2xl shadow-slate-900/20"
+      contentClassName="flex h-[860px] max-h-[94vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-app-border bg-app-surface-2 shadow-2xl shadow-black/50"
       onClose={onClose}
     >
       <header className="flex shrink-0 items-center justify-between px-5 pb-3 pt-5">
         <h2
           id="jav-display-settings-title"
-          className="text-xl font-bold tracking-tight text-slate-900"
+          className="text-xl font-bold tracking-tight text-app-text"
         >
           {zh('显示设置', 'Display settings')}
         </h2>
         <button
           type="button"
           onClick={onClose}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-200/70 hover:text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-full text-app-muted transition hover:bg-app-hover hover:text-app-text focus:outline-none focus-visible:ring-2 focus-visible:ring-app-gold"
           aria-label={zh('关闭设置', 'Close settings')}
         >
           <CloseRoundedIcon sx={{ fontSize: 22 }} />
@@ -528,10 +528,10 @@ export default function JavSettingsModal({
               role="tab"
               aria-selected={active}
               onClick={() => setActiveTab(tab.key)}
-              className={`rounded-full border px-4 py-1.5 text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${
+              className={`rounded-full border px-4 py-1.5 text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-app-gold focus-visible:ring-offset-2 ${
                 active
-                  ? 'border-blue-600 bg-blue-600 text-white shadow-md shadow-blue-200'
-                  : 'border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700'
+                  ? 'shadow-app-gold/25 border-app-gold bg-app-gold text-[#1a1208] shadow-md'
+                  : 'hover:border-app-gold/50 border-app-border bg-app-surface text-app-muted hover:bg-app-gold-soft hover:text-app-gold'
               }`}
             >
               {tab.label}
@@ -544,7 +544,7 @@ export default function JavSettingsModal({
         {activeTab === 'jav' ? (
           <div className="space-y-3">
             <SettingsSection title={zh('布局设置', 'Layout')}>
-              <div className="divide-y divide-slate-100 px-1">
+              <div className="divide-y divide-app-border px-1">
                 <SettingsRow label={zh('每页 JAV 数量', 'JAVs per page')}>
                   <input
                     type="number"
@@ -572,7 +572,7 @@ export default function JavSettingsModal({
             </SettingsSection>
 
             <SettingsSection title={zh('卡片设置', 'Card settings')}>
-              <div className="divide-y divide-slate-100 px-1">
+              <div className="divide-y divide-app-border px-1">
                 <CardLayoutFields
                   entity="jav"
                   layout={cardLayoutInput?.jav}
@@ -685,7 +685,7 @@ export default function JavSettingsModal({
 
             <SettingsSection title={zh('排序规则', 'Sort rules')}>
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                <p className="text-xs leading-5 text-slate-500">
+                <p className="text-xs leading-5 text-app-muted">
                   {zh(
                     '规则从上到下匹配，第一条命中的规则生效。',
                     'Rules match top to bottom; the first match wins.'
@@ -707,7 +707,7 @@ export default function JavSettingsModal({
                         },
                       ])
                     }
-                    className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:border-blue-300 disabled:cursor-not-allowed disabled:opacity-40"
+                    className="rounded-lg border border-app-border bg-app-surface px-3 py-1.5 text-xs font-medium text-app-text hover:border-app-gold disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     {zh('添加规则', 'Add rule')}
                   </button>
@@ -742,18 +742,18 @@ export default function JavSettingsModal({
                   />
                 ))}
                 {(javSortRulesInput || []).length === 0 ? (
-                  <div className="rounded-lg border border-dashed border-slate-300 px-3 py-5 text-center text-xs text-slate-500">
+                  <div className="rounded-lg border border-dashed border-app-border px-3 py-5 text-center text-xs text-app-muted">
                     {zh('暂无排序规则', 'No sort rules')}
                   </div>
                 ) : null}
               </div>
-              <div className="mt-4 border-t border-slate-200 pt-4">
+              <div className="mt-4 border-t border-app-border pt-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <div className="text-sm font-semibold text-slate-700">
+                    <div className="text-sm font-semibold text-app-text">
                       {zh('默认排序（兜底）', 'Default sort (fallback)')}
                     </div>
-                    <div className="mt-1 text-xs font-normal leading-5 text-slate-500">
+                    <div className="mt-1 text-xs font-normal leading-5 text-app-muted">
                       {zh('当所有规则都不满足时使用。', 'Used when none of the rules match.')}
                     </div>
                   </div>
@@ -761,7 +761,7 @@ export default function JavSettingsModal({
                     aria-label={zh('默认排序（兜底）', 'Default sort (fallback)')}
                     value={javSortInput}
                     onChange={(event) => onJavSortChange?.(event.target.value)}
-                    className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-normal text-slate-700 outline-none transition hover:border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 sm:w-64"
+                    className="focus:ring-app-gold/25 h-10 w-full rounded-lg border border-app-border bg-app-surface px-3 text-sm font-normal text-app-text outline-none transition hover:border-app-border focus:border-app-gold focus:ring-2 sm:w-64"
                   >
                     {javSortChoices.map((choice) => (
                       <option key={choice.value} value={choice.value}>
@@ -778,7 +778,7 @@ export default function JavSettingsModal({
         {activeTab === 'idol' ? (
           <div className="space-y-3">
             <SettingsSection title={zh('布局设置', 'Layout')}>
-              <div className="divide-y divide-slate-100 px-1">
+              <div className="divide-y divide-app-border px-1">
                 <SettingsRow label={zh('每页 女优 数量', 'Idols per page')}>
                   <input
                     type="number"
@@ -791,7 +791,7 @@ export default function JavSettingsModal({
               </div>
             </SettingsSection>
             <SettingsSection title={zh('卡片设置', 'Card settings')}>
-              <div className="divide-y divide-slate-100 px-1">
+              <div className="divide-y divide-app-border px-1">
                 <CardLayoutFields
                   entity="idol"
                   layout={cardLayoutInput?.idol}
@@ -837,7 +837,7 @@ export default function JavSettingsModal({
         {activeTab === 'studio' ? (
           <div className="space-y-3">
             <SettingsSection title={zh('布局设置', 'Layout')}>
-              <div className="divide-y divide-slate-100 px-1">
+              <div className="divide-y divide-app-border px-1">
                 <SettingsRow label={zh('每页 片商 数量', 'Studios per page')}>
                   <input
                     type="number"
@@ -850,7 +850,7 @@ export default function JavSettingsModal({
               </div>
             </SettingsSection>
             <SettingsSection title={zh('卡片设置', 'Card settings')}>
-              <div className="divide-y divide-slate-100 px-1">
+              <div className="divide-y divide-app-border px-1">
                 <CardLayoutFields
                   entity="studio"
                   layout={cardLayoutInput?.studio}
@@ -864,7 +864,7 @@ export default function JavSettingsModal({
         {activeTab === 'series' ? (
           <div className="space-y-3">
             <SettingsSection title={zh('布局设置', 'Layout')}>
-              <div className="divide-y divide-slate-100 px-1">
+              <div className="divide-y divide-app-border px-1">
                 <SettingsRow label={zh('每页 系列 数量', 'Series per page')}>
                   <input
                     type="number"
@@ -877,7 +877,7 @@ export default function JavSettingsModal({
               </div>
             </SettingsSection>
             <SettingsSection title={zh('卡片设置', 'Card settings')}>
-              <div className="divide-y divide-slate-100 px-1">
+              <div className="divide-y divide-app-border px-1">
                 <CardLayoutFields
                   entity="series"
                   layout={cardLayoutInput?.series}
@@ -907,11 +907,11 @@ export default function JavSettingsModal({
         ) : null}
       </div>
 
-      <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-slate-200 bg-white px-5 py-4">
+      <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-app-border bg-app-surface px-5 py-4">
         <button
           type="button"
           onClick={resetActiveTab}
-          className="rounded-lg px-3 py-2 text-sm font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+          className="rounded-lg px-3 py-2 text-sm font-medium text-app-muted transition hover:bg-app-surface-2 hover:text-app-text focus:outline-none focus-visible:ring-2 focus-visible:ring-app-gold"
         >
           {zh('恢复默认', 'Restore defaults')}
         </button>
@@ -919,14 +919,14 @@ export default function JavSettingsModal({
           <button
             type="button"
             onClick={onClose}
-            className="min-w-24 rounded-lg border border-slate-300 bg-white px-5 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            className="min-w-24 rounded-lg border border-app-border bg-app-surface px-5 py-2 text-sm font-medium text-app-text transition hover:bg-app-surface-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-app-gold"
           >
             {zh('取消', 'Cancel')}
           </button>
           <button
             type="button"
             onClick={onSave}
-            className="min-w-24 rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white shadow-md shadow-blue-200 transition hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+            className="shadow-app-gold/25 min-w-24 rounded-lg bg-app-gold px-5 py-2 text-sm font-medium text-white shadow-md transition hover:bg-app-gold-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-app-gold focus-visible:ring-offset-2"
           >
             {zh('保存', 'Save')}
           </button>

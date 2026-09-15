@@ -117,14 +117,14 @@ const directoryWorkStatusDisplay = (status) => {
     case 'scanning':
       return {
         label: zh('当前状态：扫描中', 'Status: Scanning'),
-        badge: 'bg-blue-50 text-blue-700',
-        dot: 'animate-pulse bg-blue-500',
+        badge: 'bg-app-gold-soft text-app-gold',
+        dot: 'animate-pulse bg-app-gold',
       }
     case 'organizing':
       return {
         label: zh('当前状态：整理中', 'Status: Organizing'),
-        badge: 'bg-amber-50 text-amber-700',
-        dot: 'animate-pulse bg-amber-500',
+        badge: 'bg-amber-950/40 text-amber-200',
+        dot: 'animate-pulse bg-amber-400',
       }
     case 'generating_sidecar':
       return {
@@ -138,14 +138,14 @@ const directoryWorkStatusDisplay = (status) => {
           '当前状态：整理并生成 NFO 和封面中',
           'Status: Organizing and generating NFO and covers'
         ),
-        badge: 'bg-amber-50 text-amber-700',
-        dot: 'animate-pulse bg-amber-500',
+        badge: 'bg-amber-950/40 text-amber-200',
+        dot: 'animate-pulse bg-amber-400',
       }
     default:
       return {
         label: zh('当前状态：空闲', 'Status: Idle'),
-        badge: 'bg-zinc-100 text-zinc-600',
-        dot: 'bg-zinc-400',
+        badge: 'bg-app-bg text-app-muted',
+        dot: 'bg-app-muted',
       }
   }
 }
@@ -530,7 +530,7 @@ export default function DirectoryManager({
               <div
                 key={d.id}
                 className={`relative flex flex-col gap-2 p-3 md:grid md:grid-cols-[minmax(0,1fr)_auto] md:items-start md:gap-x-4 ${
-                  isEditing ? 'rounded border bg-gray-50' : ''
+                  isEditing ? 'rounded border bg-app-surface-2' : ''
                 }`}
               >
                 <div className="min-w-0 space-y-1 pr-12 md:pr-0">
@@ -558,7 +558,7 @@ export default function DirectoryManager({
                               setPickerTarget('edit')
                             }}
                             disabled={picking || working}
-                            className="rounded border px-3 py-2 text-sm hover:bg-gray-100 disabled:opacity-60"
+                            className="rounded border px-3 py-2 text-sm hover:bg-app-surface-2 disabled:opacity-60"
                           >
                             {picking
                               ? zh('选择中…', 'Picking...')
@@ -566,12 +566,12 @@ export default function DirectoryManager({
                           </button>
                         ) : null}
                       </div>
-                      <div className="text-xs text-blue-700">{pathHelperText}</div>
+                      <div className="text-xs text-app-gold">{pathHelperText}</div>
                     </form>
                   )}
                   <div className="flex flex-wrap items-center gap-2">
                     {!isEditing && (
-                      <div className="flex items-center divide-x divide-zinc-200 text-xs text-zinc-500">
+                      <div className="flex items-center divide-x divide-zinc-200 text-xs text-app-muted">
                         {status === 'scanning' && (
                           <span
                             className="pr-3"
@@ -581,20 +581,20 @@ export default function DirectoryManager({
                             )}
                           >
                             {zh('已扫描文件', 'Scanned files')}{' '}
-                            <strong className="font-semibold tabular-nums text-zinc-800">
+                            <strong className="font-semibold tabular-nums text-app-text">
                               {Number(d.scanned_file_count) || 0}
                             </strong>
                           </span>
                         )}
                         <span className={status === 'scanning' ? 'px-3' : 'pr-3'}>
                           {zh('已扫描视频', 'Scanned videos')}{' '}
-                          <strong className="font-semibold tabular-nums text-zinc-800">
+                          <strong className="font-semibold tabular-nums text-app-text">
                             {Number(d.scanned_video_count) || 0}
                           </strong>
                         </span>
                         <span className="pl-3">
                           {zh('已刮削视频', 'Scraped videos')}{' '}
-                          <strong className="font-semibold tabular-nums text-zinc-800">
+                          <strong className="font-semibold tabular-nums text-app-text">
                             {Number(d.scraped_video_count) || 0}
                           </strong>
                         </span>
@@ -614,18 +614,18 @@ export default function DirectoryManager({
                       </span>
                     )}
                     {d.missing && (
-                      <span className="inline-flex items-center rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">
+                      <span className="inline-flex items-center rounded-full bg-red-950/40 px-2 py-0.5 text-xs font-medium text-red-700">
                         {zh('目录缺失', 'Missing')}
                       </span>
                     )}
                     {d.is_delete && (
-                      <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
+                      <span className="inline-flex items-center rounded-full bg-app-surface-2 px-2 py-0.5 text-xs font-medium text-app-text">
                         {zh('已删除', 'Deleted')}
                       </span>
                     )}
                   </div>
                   {!isEditing && (
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-zinc-500">
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-app-muted">
                       <div className="flex items-center">
                         <span>{zh('上次扫描：', 'Last scan:')}</span>
                         <Tooltip
@@ -652,13 +652,13 @@ export default function DirectoryManager({
                             type="button"
                             size="small"
                             aria-label={zh('上次扫描详情', 'Last scan details')}
-                            className="!-ml-1.5 !h-6 !w-6 !p-0.5 !text-zinc-500 hover:!bg-zinc-100 hover:!text-zinc-900"
+                            className="!-ml-1.5 !h-6 !w-6 !p-0.5 !text-app-muted hover:!bg-app-bg hover:!text-app-text"
                           >
                             <InfoOutlinedIcon sx={{ fontSize: 15 }} />
                           </IconButton>
                         </Tooltip>
                       </div>
-                      <div className="flex shrink-0 items-center gap-1 text-xs font-normal text-zinc-500">
+                      <div className="flex shrink-0 items-center gap-1 text-xs font-normal text-app-muted">
                         <span>{autoScanDisplay}</span>
                         <Tooltip title={zh('编辑扫描设置', 'Edit scan settings')} arrow>
                           <span className="inline-flex">
@@ -668,7 +668,7 @@ export default function DirectoryManager({
                               onClick={() => openScanSettings(d)}
                               disabled={d.is_delete || savingScanSettingsId === d.id}
                               aria-label={zh('编辑扫描设置', 'Edit scan settings')}
-                              className="!h-6 !w-6 !p-0.5 !text-zinc-500 hover:!bg-zinc-100 hover:!text-zinc-900 disabled:!opacity-60"
+                              className="!h-6 !w-6 !p-0.5 !text-app-muted hover:!bg-app-bg hover:!text-app-text disabled:!opacity-60"
                             >
                               {savingScanSettingsId === d.id ? (
                                 <CircularProgress size={13} color="inherit" />
@@ -687,7 +687,7 @@ export default function DirectoryManager({
                 </div>
                 <div className="contents md:flex md:flex-col md:items-end md:gap-2">
                   <label
-                    className="absolute right-2 top-2 flex items-center gap-1 text-xs text-zinc-600 md:static"
+                    className="absolute right-2 top-2 flex items-center gap-1 text-xs text-app-muted md:static"
                     title={zh(
                       '是否显示此目录里的内容',
                       'Whether to show content from this directory'
@@ -768,7 +768,7 @@ export default function DirectoryManager({
                           type="button"
                           onClick={handleEditSubmit}
                           disabled={working}
-                          className="rounded bg-blue-600 px-3 py-1.5 text-xs text-white disabled:opacity-60"
+                          className="rounded bg-app-gold px-3 py-1.5 text-xs text-white disabled:opacity-60"
                         >
                           {savingId === d.id ? zh('保存中…', 'Saving...') : zh('保存', 'Save')}
                         </button>
@@ -776,7 +776,7 @@ export default function DirectoryManager({
                           type="button"
                           onClick={cancelEdit}
                           disabled={working}
-                          className="rounded border px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+                          className="rounded border px-3 py-1.5 text-xs text-app-text hover:bg-app-surface-2 disabled:opacity-60"
                         >
                           {zh('取消', 'Cancel')}
                         </button>
@@ -790,7 +790,10 @@ export default function DirectoryManager({
         </div>
       )}
       {adding && (
-        <form onSubmit={handleSubmit} className="flex flex-col gap-2 rounded border bg-gray-50 p-3">
+        <form
+          onSubmit={handleSubmit}
+          className="flex flex-col gap-2 rounded border bg-app-surface-2 p-3"
+        >
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <input
               id="dir-path-input"
@@ -807,13 +810,13 @@ export default function DirectoryManager({
                   setPickerTarget('add')
                 }}
                 disabled={picking || submitting}
-                className="rounded border px-3 py-2 text-sm hover:bg-gray-100 disabled:opacity-60"
+                className="rounded border px-3 py-2 text-sm hover:bg-app-surface-2 disabled:opacity-60"
               >
                 {picking ? zh('选择中…', 'Picking...') : zh('选择目录', 'Choose directory')}
               </button>
             ) : null}
           </div>
-          <div className="text-xs text-blue-700">{pathHelperText}</div>
+          <div className="text-xs text-app-gold">{pathHelperText}</div>
           {error && <div className="text-sm text-red-600">{error}</div>}
           <div className="flex justify-end gap-2">
             <button
@@ -823,14 +826,14 @@ export default function DirectoryManager({
                 setPath('')
                 setError('')
               }}
-              className="rounded border px-3 py-1.5 text-sm hover:bg-gray-50"
+              className="rounded border px-3 py-1.5 text-sm hover:bg-app-surface-2"
             >
               {zh('取消', 'Cancel')}
             </button>
             <button
               type="submit"
               disabled={submitting || picking}
-              className="rounded bg-blue-600 px-3 py-1.5 text-sm text-white disabled:opacity-60"
+              className="rounded bg-app-gold px-3 py-1.5 text-sm text-white disabled:opacity-60"
             >
               {submitting ? zh('创建中…', 'Creating...') : zh('保存', 'Save')}
             </button>
@@ -845,7 +848,7 @@ export default function DirectoryManager({
               setAdding(true)
               setError('')
             }}
-            className="rounded border px-3 py-1.5 text-sm hover:bg-gray-50"
+            className="rounded border px-3 py-1.5 text-sm hover:bg-app-surface-2"
           >
             {zh('添加目录', 'Add Directory')}
           </button>
@@ -856,14 +859,14 @@ export default function DirectoryManager({
           ariaLabelledby="directory-tools-title"
           className="p-4"
           closeDisabled={toolDirectoryWorking}
-          contentClassName="w-full max-w-lg rounded-2xl bg-white p-5 shadow-xl"
+          contentClassName="w-full max-w-lg rounded-2xl bg-app-surface p-5 shadow-xl"
           onClose={() => setToolDirectory(null)}
           zIndex={1400}
         >
-          <div id="directory-tools-title" className="text-base font-semibold text-zinc-900">
+          <div id="directory-tools-title" className="text-base font-semibold text-app-text">
             {zh('目录工具', 'Directory Tools')}
           </div>
-          <div className="mt-1 truncate text-xs text-zinc-500">
+          <div className="mt-1 truncate text-xs text-app-muted">
             {displayPath(toolDirectory.path)}
           </div>
           <div className="mt-4 space-y-2">
@@ -874,8 +877,8 @@ export default function DirectoryManager({
                 aria-label={option.title}
                 className={`flex cursor-pointer gap-3 rounded-xl border p-3 transition ${
                   toolMode === option.mode
-                    ? 'border-blue-400 bg-blue-50'
-                    : 'border-zinc-200 hover:bg-zinc-50'
+                    ? 'border-app-gold bg-app-gold-soft'
+                    : 'border-app-border hover:bg-app-surface-2'
                 }`}
               >
                 <input
@@ -888,8 +891,8 @@ export default function DirectoryManager({
                   className="mt-0.5"
                 />
                 <span>
-                  <span className="block text-sm font-medium text-zinc-900">{option.title}</span>
-                  <span className="mt-0.5 block text-xs leading-5 text-zinc-600">
+                  <span className="block text-sm font-medium text-app-text">{option.title}</span>
+                  <span className="mt-0.5 block text-xs leading-5 text-app-muted">
                     {option.description}
                   </span>
                 </span>
@@ -898,7 +901,7 @@ export default function DirectoryManager({
           </div>
           {toolMode !== DIRECTORY_PROCESS_SIDECAR && (
             <div className="mt-4">
-              <div className="text-sm font-medium text-zinc-900">
+              <div className="text-sm font-medium text-app-text">
                 {zh('整理方式', 'Organization layout')}
               </div>
               <div className="mt-2 grid grid-cols-3 gap-2">
@@ -908,8 +911,8 @@ export default function DirectoryManager({
                     htmlFor={`directory-process-layout-${option.layout}`}
                     className={`min-w-0 cursor-pointer rounded-xl border p-3 transition ${
                       toolLayout === option.layout
-                        ? 'border-blue-400 bg-blue-50'
-                        : 'border-zinc-200 hover:bg-zinc-50'
+                        ? 'border-app-gold bg-app-gold-soft'
+                        : 'border-app-border hover:bg-app-surface-2'
                     }`}
                   >
                     <span className="flex items-center gap-2">
@@ -921,16 +924,16 @@ export default function DirectoryManager({
                         checked={toolLayout === option.layout}
                         onChange={() => setToolLayout(option.layout)}
                       />
-                      <span className="text-sm font-medium text-zinc-900">{option.title}</span>
+                      <span className="text-sm font-medium text-app-text">{option.title}</span>
                     </span>
-                    <span className="mt-1 block whitespace-nowrap text-[10px] text-zinc-500">
+                    <span className="mt-1 block whitespace-nowrap text-[10px] text-app-muted">
                       {option.example}
                     </span>
                   </label>
                 ))}
               </div>
               {toolLayout === DIRECTORY_PROCESS_LAYOUT_IDOL && (
-                <div className="mt-2 text-xs leading-5 text-zinc-500">
+                <div className="mt-2 text-xs leading-5 text-app-muted">
                   {zh(
                     '最多拼接 3 位女优名；超过 3 位时统一归入“多女优”，没有女优信息时归入“未知女优”。',
                     'Up to 3 sorted idol names are joined with "，". Works with more than 3 idols go under "多女优", and works without idol metadata go under "未知女优".'
@@ -940,7 +943,7 @@ export default function DirectoryManager({
             </div>
           )}
           {toolMode !== DIRECTORY_PROCESS_SIDECAR && (
-            <div className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
+            <div className="mt-3 rounded-lg bg-amber-950/40 px-3 py-2 text-xs leading-5 text-amber-200">
               {zh(
                 '整理后的文件统一位于 “所选目录/JAV” 中。任务完成后，会生成 “所选目录/JavBoss-整理报告.txt”，可查看未整理文件及失败原因。',
                 'Organized files are stored in “selected directory/JAV”. When the task finishes, “selected directory/JavBoss-整理报告.txt” is generated so you can review files that were not organized and the reasons.'
@@ -951,7 +954,7 @@ export default function DirectoryManager({
             <button
               type="button"
               onClick={() => setToolDirectory(null)}
-              className="rounded border px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50"
+              className="rounded border px-3 py-1.5 text-sm text-app-text hover:bg-app-surface-2"
             >
               {zh('取消', 'Cancel')}
             </button>
@@ -959,7 +962,7 @@ export default function DirectoryManager({
               type="button"
               onClick={() => handleProcess(toolDirectory, toolMode, toolLayout)}
               disabled={toolDirectoryWorking}
-              className="rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700 disabled:opacity-60"
+              className="rounded bg-app-gold px-3 py-1.5 text-sm text-white hover:bg-app-gold-hover disabled:opacity-60"
             >
               {zh('执行', 'Run')}
             </button>
@@ -972,7 +975,7 @@ export default function DirectoryManager({
           ariaLabelledby="directory-scan-settings-title"
           className="p-4"
           closeDisabled={savingScanSettingsId != null}
-          contentClassName="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl"
+          contentClassName="w-full max-w-sm rounded-2xl bg-app-surface p-5 shadow-xl"
           contentComponent="form"
           contentProps={{ onSubmit: handleScanSettingsSubmit }}
           onClose={() => {
@@ -981,25 +984,25 @@ export default function DirectoryManager({
           }}
           zIndex={1410}
         >
-          <div id="directory-scan-settings-title" className="text-base font-semibold text-zinc-900">
+          <div id="directory-scan-settings-title" className="text-base font-semibold text-app-text">
             {zh('扫描设置', 'Scan Settings')}
           </div>
           <div
             title={displayPath(currentScanSettingsDirectory.path)}
-            className="mt-2 truncate rounded-lg bg-zinc-50 px-3 py-2 text-xs text-zinc-500"
+            className="mt-2 truncate rounded-2xl bg-app-surface-2 px-3 py-2 text-xs text-app-muted"
           >
             {displayPath(currentScanSettingsDirectory.path)}
           </div>
-          <div className="mt-4 overflow-hidden rounded-xl border border-zinc-200">
+          <div className="mt-4 overflow-hidden rounded-xl border border-app-border">
             <label
               aria-label={zh('自动扫描', 'Automatic scan')}
               className="flex cursor-pointer items-center justify-between gap-4 px-4 py-3"
             >
               <span>
-                <span className="block text-sm font-medium text-zinc-900">
+                <span className="block text-sm font-medium text-app-text">
                   {zh('自动扫描', 'Automatic scan')}
                 </span>
-                <span className="mt-0.5 block text-xs text-zinc-500">
+                <span className="mt-0.5 block text-xs text-app-muted">
                   {scanSettingsEnabled
                     ? zh(
                         '按指定间隔进行目录扫描和 JAV 刮削',
@@ -1014,10 +1017,10 @@ export default function DirectoryManager({
                 onChange={(event) => setScanSettingsEnabled(event.target.checked)}
                 className="peer sr-only"
               />
-              <span className="relative h-6 w-11 shrink-0 rounded-full bg-zinc-300 transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:bg-blue-600 peer-checked:after:translate-x-5 peer-focus-visible:ring-2 peer-focus-visible:ring-blue-500 peer-focus-visible:ring-offset-2" />
+              <span className="relative h-6 w-11 shrink-0 rounded-full bg-app-hover transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-app-text after:shadow-sm after:transition-transform peer-checked:bg-app-gold peer-checked:after:translate-x-5 peer-focus-visible:ring-2 peer-focus-visible:ring-app-gold peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-app-bg" />
             </label>
             {scanSettingsEnabled && (
-              <label className="flex items-center gap-2 border-t border-zinc-200 px-4 py-3 text-sm text-zinc-700">
+              <label className="flex items-center gap-2 border-t border-app-border px-4 py-3 text-sm text-app-text">
                 <span>{zh('扫描间隔：', 'Scan interval:')}</span>
                 <input
                   type="number"
@@ -1026,15 +1029,15 @@ export default function DirectoryManager({
                   step="1"
                   value={scanSettingsIntervalMinutes}
                   onChange={(event) => setScanSettingsIntervalMinutes(event.target.value)}
-                  className="w-24 rounded-lg border border-zinc-300 px-3 py-1.5 text-center font-medium tabular-nums text-zinc-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  className="focus:ring-app-gold/25 w-24 rounded-lg border border-app-border px-3 py-1.5 text-center font-medium tabular-nums text-app-text outline-none focus:border-app-gold focus:ring-2"
                 />
                 <span>{zh('分钟', 'minutes')}</span>
               </label>
             )}
           </div>
           {scanSettingsRunning && (
-            <div className="mt-3 flex items-center gap-2 text-xs text-blue-700">
-              <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-blue-500" />
+            <div className="mt-3 flex items-center gap-2 text-xs text-app-gold">
+              <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-app-gold" />
               <span>
                 {zh(
                   '当前进行中的扫描会持续到结束，不受此次修改影响。',
@@ -1054,14 +1057,14 @@ export default function DirectoryManager({
                 setScanSettingsError('')
               }}
               disabled={savingScanSettingsId != null}
-              className="rounded border px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50 disabled:opacity-60"
+              className="rounded border px-3 py-1.5 text-sm text-app-text hover:bg-app-surface-2 disabled:opacity-60"
             >
               {zh('取消', 'Cancel')}
             </button>
             <button
               type="submit"
               disabled={savingScanSettingsId != null}
-              className="rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700 disabled:opacity-60"
+              className="rounded bg-app-gold px-3 py-1.5 text-sm text-white hover:bg-app-gold-hover disabled:opacity-60"
             >
               {savingScanSettingsId != null ? zh('保存中…', 'Saving...') : zh('保存', 'Save')}
             </button>

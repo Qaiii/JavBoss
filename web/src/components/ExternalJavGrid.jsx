@@ -48,7 +48,7 @@ export default function ExternalJavGrid({
 
   if (loading) {
     return (
-      <div className="mt-4 flex min-h-[200px] items-center justify-center rounded border border-dashed border-gray-200 text-gray-500">
+      <div className="mt-4 flex min-h-[200px] items-center justify-center rounded border border-dashed border-app-border text-app-muted">
         {zh('加载作品列表…', 'Loading works...')}
       </div>
     )
@@ -56,7 +56,7 @@ export default function ExternalJavGrid({
 
   if (error) {
     return (
-      <div className="mt-4 flex min-h-[120px] items-center justify-center rounded border border-dashed border-gray-200 text-gray-500">
+      <div className="mt-4 flex min-h-[120px] items-center justify-center rounded border border-dashed border-app-border text-app-muted">
         {zh(`作品列表加载失败：${error}`, `Failed to load the works list: ${error}`)}
       </div>
     )
@@ -64,7 +64,7 @@ export default function ExternalJavGrid({
 
   if (!hasItems) {
     return (
-      <div className="mt-4 flex min-h-[120px] flex-col items-center justify-center gap-2 rounded border border-dashed border-gray-200 text-gray-500">
+      <div className="mt-4 flex min-h-[120px] flex-col items-center justify-center gap-2 rounded border border-dashed border-app-border text-app-muted">
         <span>
           {tracked
             ? zh(
@@ -82,7 +82,7 @@ export default function ExternalJavGrid({
           </span>
         ) : null}
         {!tracked && !scrapeError ? (
-          <span className="max-w-xl text-center text-xs text-gray-400">
+          <span className="max-w-xl text-center text-xs text-app-muted">
             {zh(
               '首次抓取需要一点时间（每页抓取间隔约 2 秒），若一直无数据请检查网络能否访问 javdb.com，或配置代理后重启',
               'First fetch takes a while (~2s per page). If nothing appears, make sure javdb.com is reachable or configure a proxy and restart'
@@ -95,8 +95,8 @@ export default function ExternalJavGrid({
 
   return (
     <section className="mt-6">
-      <div className="mb-3 flex flex-wrap items-center gap-2 text-sm text-gray-500">
-        <span className="font-semibold text-gray-700">
+      <div className="mb-3 flex flex-wrap items-center gap-2 text-sm text-app-muted">
+        <span className="font-semibold text-app-text">
           {zh(`JavDB 作品（共 ${total} 部）`, `JavDB works (${total})`)}
         </span>
         {tracked && formatScrapedAt() ? (
@@ -109,7 +109,7 @@ export default function ExternalJavGrid({
             href={sourceURL}
             target="_blank"
             rel="noopener noreferrer"
-            className="truncate text-xs text-blue-600 hover:underline"
+            className="truncate text-xs text-app-gold hover:underline"
           >
             {zh('查看女优主页 ↗', 'View profile ↗')}
           </a>
@@ -128,18 +128,16 @@ export default function ExternalJavGrid({
           return (
             <div
               key={`${item?.code || 'item'}-${index}`}
-              className={`flex flex-col overflow-hidden rounded-lg border bg-white shadow-sm transition hover:shadow-lg ${
-                inLibrary ? 'border-gray-200' : 'border-amber-300 bg-amber-50/40'
-              }`}
+              className={`app-card flex flex-col ${inLibrary ? '' : 'border-amber-400/50'}`}
             >
               <JavDisplayCover
                 src={cover || null}
                 alt={code || zh('JavDB 封面', 'JavDB cover')}
                 orientation={coverOrientation}
                 referrerPolicy="no-referrer"
-                className="group relative block overflow-hidden bg-white"
+                className="group relative block overflow-hidden bg-app-surface"
                 fallback={
-                  <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 text-lg font-semibold text-gray-600">
+                  <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-app-surface-2 to-app-hover text-lg font-semibold text-app-muted">
                     {code || zh('未知番号', 'Unknown code')}
                   </div>
                 }
@@ -155,9 +153,9 @@ export default function ExternalJavGrid({
               </JavDisplayCover>
               <div className="flex flex-1 flex-col gap-1 p-3">
                 <div className="text-sm leading-tight">
-                  {code ? <span className="font-semibold text-gray-800">{code}</span> : null}
+                  {code ? <span className="font-semibold text-app-text">{code}</span> : null}
                   {code ? ' ' : null}
-                  <span className="font-medium text-gray-800">{title}</span>
+                  <span className="font-medium text-app-text">{title}</span>
                 </div>
               </div>
             </div>
@@ -169,16 +167,16 @@ export default function ExternalJavGrid({
           type="button"
           disabled={page <= 1}
           onClick={() => onPageChange?.(page - 1)}
-          className="rounded border border-gray-300 px-3 py-1 text-sm text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+          className="rounded border border-app-border px-3 py-1 text-sm text-app-text transition hover:bg-app-surface-2 disabled:cursor-not-allowed disabled:opacity-40"
         >
           {zh('上一页', 'Prev')}
         </button>
-        <span className="text-sm text-gray-500">{zh(`第 ${page} 页`, `Page ${page}`)}</span>
+        <span className="text-sm text-app-muted">{zh(`第 ${page} 页`, `Page ${page}`)}</span>
         <button
           type="button"
           disabled={!hasNext}
           onClick={() => onPageChange?.(page + 1)}
-          className="rounded border border-gray-300 px-3 py-1 text-sm text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+          className="rounded border border-app-border px-3 py-1 text-sm text-app-text transition hover:bg-app-surface-2 disabled:cursor-not-allowed disabled:opacity-40"
         >
           {zh('下一页', 'Next')}
         </button>

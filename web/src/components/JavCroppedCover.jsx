@@ -114,7 +114,7 @@ export default function JavCroppedCover({
   return (
     <div
       ref={coverFrameRef}
-      className={`relative w-full overflow-hidden bg-gray-100 ${className}`}
+      className={`relative w-full overflow-hidden bg-app-surface-2 ${className}`}
       style={{ paddingTop: `${coverAspectPercent}%` }}
     >
       {ready ? (

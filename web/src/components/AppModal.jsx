@@ -7,7 +7,7 @@ export default function AppModal({
   ariaLabel,
   ariaLabelledby,
   backdropBlur,
-  backdropColor = 'rgba(0, 0, 0, 0.5)',
+  backdropColor = 'rgba(8, 6, 4, 0.78)',
   children,
   className = '',
   closeDisabled = false,

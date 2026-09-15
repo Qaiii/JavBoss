@@ -62,12 +62,12 @@ function buildStudioSearchText(studio) {
 function SelectedIdolChip({ idol, preferChineseName, onRemove }) {
   const displayName = getIdolDisplayName(idol, preferChineseName)
   return (
-    <span className="inline-flex max-w-full items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">
+    <span className="inline-flex max-w-full items-center gap-1 rounded-full bg-app-gold-soft px-2.5 py-1 text-xs font-medium text-app-gold">
       <span className="truncate">{displayName}</span>
       <button
         type="button"
         onClick={onRemove}
-        className="inline-flex h-4 w-4 items-center justify-center rounded-full hover:bg-blue-100"
+        className="inline-flex h-4 w-4 items-center justify-center rounded-full hover:bg-app-gold-soft"
         aria-label={zh(`删除女优 ${displayName}`, `Remove idol ${displayName}`)}
       >
         <CloseOutlinedIcon fontSize="inherit" />
@@ -531,18 +531,18 @@ export default function JavQueryEditorModal({
     <AppModal
       ariaLabel={zh('编辑 JAV 查询条件', 'Edit JAV Filters')}
       className="px-4"
-      contentClassName="jav-query-editor-modal flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl ring-1 ring-slate-200"
+      contentClassName="jav-query-editor-modal flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-app-surface shadow-2xl ring-1 ring-app-border"
       onClose={onClose}
     >
-      <div className="flex items-center gap-4 border-b border-slate-200 bg-slate-50 px-5 py-4">
-        <h2 className="shrink-0 text-base font-semibold text-slate-900">
+      <div className="flex items-center gap-4 border-b border-app-border bg-app-surface-2 px-5 py-4">
+        <h2 className="shrink-0 text-base font-semibold text-app-text">
           {zh('编辑 JAV 查询条件', 'Edit JAV Filters')}
         </h2>
         <div
           className={`ml-auto min-w-0 rounded-lg border px-3.5 py-2 text-[13px] ${
             filterOptionsError
               ? 'border-rose-200 bg-rose-50 text-rose-700'
-              : 'border-blue-100 bg-blue-50 text-blue-700'
+              : 'border-app-gold/40 bg-app-gold-soft text-app-gold'
           }`}
         >
           <div className="truncate">
@@ -559,7 +559,7 @@ export default function JavQueryEditorModal({
         <button
           type="button"
           onClick={onClose}
-          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded text-slate-500 hover:bg-slate-200"
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded text-app-muted hover:bg-app-hover"
           aria-label={zh('关闭查询条件编辑', 'Close query editor')}
         >
           <CloseOutlinedIcon fontSize="small" />
@@ -568,17 +568,17 @@ export default function JavQueryEditorModal({
 
       <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-4">
         <section className="min-w-0 space-y-2">
-          <div className="text-sm font-semibold text-slate-800">{zh('作品类型', 'Work Type')}</div>
-          <label className="flex cursor-pointer items-center gap-2 rounded border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">
+          <div className="text-sm font-semibold text-app-text">{zh('作品类型', 'Work Type')}</div>
+          <label className="flex cursor-pointer items-center gap-2 rounded border border-app-border bg-app-surface px-3 py-2 text-sm text-app-text hover:bg-app-surface-2">
             <input
               type="checkbox"
               checked={selectedSoloOnly}
               onChange={(event) => setSelectedSoloOnly(event.target.checked)}
-              className="h-4 w-4 rounded border-slate-300 text-blue-600"
+              className="h-4 w-4 rounded border-app-border text-app-gold"
             />
             <span className="min-w-0 flex-1">{zh('只看单体作品', 'Solo works only')}</span>
             {!selectedSoloOnly ? (
-              <span className="shrink-0 text-xs text-slate-400">
+              <span className="shrink-0 text-xs text-app-muted">
                 {zh(`${filterOptions.solo_count} 部`, `${filterOptions.solo_count} works`)}
               </span>
             ) : null}
@@ -586,20 +586,20 @@ export default function JavQueryEditorModal({
         </section>
 
         <section className="min-w-0 space-y-2">
-          <div className="text-sm font-semibold text-slate-800">
+          <div className="text-sm font-semibold text-app-text">
             {zh('喜爱度', 'Favorite Rating')}
           </div>
-          <label className="flex cursor-pointer items-center gap-2 rounded border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">
+          <label className="flex cursor-pointer items-center gap-2 rounded border border-app-border bg-app-surface px-3 py-2 text-sm text-app-text hover:bg-app-surface-2">
             <input
               type="checkbox"
               checked={selectedFavoriteRatingEnabled}
               onChange={(event) => setSelectedFavoriteRatingEnabled(event.target.checked)}
-              className="h-4 w-4 rounded border-slate-300 text-blue-600"
+              className="h-4 w-4 rounded border-app-border text-app-gold"
             />
             <span>{zh('按喜爱度范围筛选', 'Filter by favorite rating range')}</span>
           </label>
           {selectedFavoriteRatingEnabled ? (
-            <div className="rounded border border-slate-200 bg-slate-50 px-5 pb-2 pt-7">
+            <div className="rounded border border-app-border bg-app-surface-2 px-5 pb-2 pt-7">
               <Slider
                 value={selectedFavoriteRatingRange}
                 onChange={(_, value) => {
@@ -637,13 +637,13 @@ export default function JavQueryEditorModal({
         <div className="grid grid-cols-2 items-start gap-x-5 gap-y-4">
           <section className="min-w-0 space-y-2">
             <label
-              className="block text-sm font-semibold leading-5 text-slate-800"
+              className="block text-sm font-semibold leading-5 text-app-text"
               htmlFor="jav-query-keyword"
             >
               {zh('关键词', 'Keyword')}
             </label>
-            <div className="flex items-center gap-2 rounded border border-slate-200 bg-white px-3 py-2">
-              <SearchIcon fontSize="small" className="text-slate-400" />
+            <div className="flex items-center gap-2 rounded border border-app-border bg-app-surface px-3 py-2">
+              <SearchIcon fontSize="small" className="text-app-muted" />
               <input
                 id="jav-query-keyword"
                 value={keyword}
@@ -655,7 +655,7 @@ export default function JavQueryEditorModal({
                 <button
                   type="button"
                   onClick={() => setKeyword('')}
-                  className="inline-flex h-7 w-7 items-center justify-center rounded text-slate-400 hover:bg-slate-100"
+                  className="inline-flex h-7 w-7 items-center justify-center rounded text-app-muted hover:bg-app-surface-2"
                   aria-label={zh('清空关键词', 'Clear keyword')}
                 >
                   <CloseOutlinedIcon fontSize="inherit" />
@@ -665,7 +665,7 @@ export default function JavQueryEditorModal({
           </section>
 
           <section className="min-w-0 space-y-2">
-            <div className="text-sm font-semibold leading-5 text-slate-800">
+            <div className="text-sm font-semibold leading-5 text-app-text">
               {zh('番号', 'Code')}
             </div>
             {selectedPrefixDisplay ? (
@@ -710,13 +710,13 @@ export default function JavQueryEditorModal({
                   setPrefixPickerOpen(true)
                   setSelectedPrefix(null)
                 }}
-                className="w-full rounded border border-slate-200 px-3 py-2 text-sm uppercase outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                className="w-full rounded border border-app-border px-3 py-2 text-sm uppercase outline-none focus:border-app-gold focus:ring-1 focus:ring-app-gold"
                 placeholder={zh('搜索并选择番号', 'Search and choose a code')}
               />
               {prefixPickerOpen ? (
-                <div className="mt-1 max-h-52 overflow-y-auto rounded border border-slate-200 bg-white p-1 shadow-lg">
+                <div className="mt-1 max-h-52 overflow-y-auto rounded border border-app-border bg-app-surface p-1 shadow-lg">
                   {filterOptionsLoading ? (
-                    <div className="px-2 py-3 text-sm text-slate-500">
+                    <div className="px-2 py-3 text-sm text-app-muted">
                       {zh('加载中…', 'Loading...')}
                     </div>
                   ) : filteredPrefixes.length > 0 ? (
@@ -735,32 +735,32 @@ export default function JavQueryEditorModal({
                             setPrefixPickerOpen(false)
                             prefixInputRef.current?.blur()
                           }}
-                          className="flex w-full cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-slate-50"
+                          className="flex w-full cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-app-surface-2"
                         >
                           <input
                             type="radio"
                             checked={checked}
                             readOnly
                             tabIndex={-1}
-                            className="pointer-events-none h-4 w-4 shrink-0 border-slate-300 text-blue-600"
+                            className="pointer-events-none h-4 w-4 shrink-0 border-app-border text-app-gold"
                             aria-hidden="true"
                           />
-                          <span className="min-w-0 flex-1 truncate font-medium text-slate-800">
+                          <span className="min-w-0 flex-1 truncate font-medium text-app-text">
                             {item.prefix}
                           </span>
                           {item.studio_name ? (
-                            <span className="min-w-0 max-w-[45%] truncate text-xs text-slate-400">
+                            <span className="min-w-0 max-w-[45%] truncate text-xs text-app-muted">
                               {item.studio_name}
                             </span>
                           ) : null}
-                          <span className="shrink-0 text-xs text-slate-400">
+                          <span className="shrink-0 text-xs text-app-muted">
                             {zh(`${item.work_count || 0} 部`, `${item.work_count || 0} works`)}
                           </span>
                         </button>
                       )
                     })
                   ) : (
-                    <div className="px-2 py-3 text-sm text-slate-500">
+                    <div className="px-2 py-3 text-sm text-app-muted">
                       {zh('没有匹配番号', 'No matching codes')}
                     </div>
                   )}
@@ -770,7 +770,7 @@ export default function JavQueryEditorModal({
           </section>
 
           <section className="min-w-0 space-y-2">
-            <div className="text-sm font-semibold text-slate-800">{zh('女优', 'Idols')}</div>
+            <div className="text-sm font-semibold text-app-text">{zh('女优', 'Idols')}</div>
             {selectedIdols.length > 0 ? (
               <div className="flex flex-wrap gap-2">
                 {selectedIdols.map((idol) => (
@@ -792,13 +792,13 @@ export default function JavQueryEditorModal({
                   setIdolSearch(event.target.value)
                   setIdolPickerOpen(true)
                 }}
-                className="w-full rounded border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                className="w-full rounded border border-app-border px-3 py-2 text-sm outline-none focus:border-app-gold focus:ring-1 focus:ring-app-gold"
                 placeholder={zh('搜索女优', 'Search idols')}
               />
               {idolPickerOpen ? (
-                <div className="mt-1 max-h-52 overflow-y-auto rounded border border-slate-200 bg-white p-1 shadow-lg">
+                <div className="mt-1 max-h-52 overflow-y-auto rounded border border-app-border bg-app-surface p-1 shadow-lg">
                   {filterOptionsLoading ? (
-                    <div className="px-2 py-3 text-sm text-slate-500">
+                    <div className="px-2 py-3 text-sm text-app-muted">
                       {zh('加载中…', 'Loading...')}
                     </div>
                   ) : filteredIdols.length > 0 ? (
@@ -817,21 +817,21 @@ export default function JavQueryEditorModal({
                             setIdolPickerOpen(false)
                             idolInputRef.current?.blur()
                           }}
-                          className="flex w-full cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-slate-50"
+                          className="flex w-full cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-app-surface-2"
                         >
                           <input
                             type="checkbox"
                             checked={checked}
                             readOnly
                             tabIndex={-1}
-                            className="pointer-events-none h-4 w-4 shrink-0 rounded border-slate-300 text-blue-600"
+                            className="pointer-events-none h-4 w-4 shrink-0 rounded border-app-border text-app-gold"
                             aria-hidden="true"
                           />
-                          <span className="min-w-0 flex-1 truncate text-slate-800">
+                          <span className="min-w-0 flex-1 truncate text-app-text">
                             {getIdolDisplayName(idol, preferChineseName)}
                           </span>
                           {Number.isFinite(idol?.work_count) ? (
-                            <span className="shrink-0 text-xs text-slate-400">
+                            <span className="shrink-0 text-xs text-app-muted">
                               {zh(`${idol.work_count} 部`, `${idol.work_count} works`)}
                             </span>
                           ) : null}
@@ -839,7 +839,7 @@ export default function JavQueryEditorModal({
                       )
                     })
                   ) : (
-                    <div className="px-2 py-3 text-sm text-slate-500">
+                    <div className="px-2 py-3 text-sm text-app-muted">
                       {zh('没有匹配女优', 'No matching idols')}
                     </div>
                   )}
@@ -849,7 +849,7 @@ export default function JavQueryEditorModal({
           </section>
 
           <section className="min-w-0 space-y-2">
-            <div className="text-sm font-semibold text-slate-800">{zh('标签', 'Tags')}</div>
+            <div className="text-sm font-semibold text-app-text">{zh('标签', 'Tags')}</div>
             {selectedTags.length > 0 ? (
               <div className="flex flex-wrap gap-2">
                 {selectedTags.map((tag) => (
@@ -884,13 +884,13 @@ export default function JavQueryEditorModal({
                   setTagSearch(event.target.value)
                   setTagPickerOpen(true)
                 }}
-                className="w-full rounded border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                className="w-full rounded border border-app-border px-3 py-2 text-sm outline-none focus:border-app-gold focus:ring-1 focus:ring-app-gold"
                 placeholder={zh('搜索标签', 'Search tags')}
               />
               {tagPickerOpen ? (
-                <div className="mt-1 max-h-52 overflow-y-auto rounded border border-slate-200 bg-white p-1 shadow-lg">
+                <div className="mt-1 max-h-52 overflow-y-auto rounded border border-app-border bg-app-surface p-1 shadow-lg">
                   {filterOptionsLoading ? (
-                    <div className="px-2 py-3 text-sm text-slate-500">
+                    <div className="px-2 py-3 text-sm text-app-muted">
                       {zh('加载中…', 'Loading...')}
                     </div>
                   ) : filteredTags.length > 0 ? (
@@ -910,17 +910,17 @@ export default function JavQueryEditorModal({
                             setTagPickerOpen(false)
                             tagInputRef.current?.blur()
                           }}
-                          className="flex w-full cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-slate-50"
+                          className="flex w-full cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-app-surface-2"
                         >
                           <input
                             type="checkbox"
                             checked={checked}
                             readOnly
                             tabIndex={-1}
-                            className="pointer-events-none h-4 w-4 shrink-0 rounded border-slate-300 text-blue-600"
+                            className="pointer-events-none h-4 w-4 shrink-0 rounded border-app-border text-app-gold"
                             aria-hidden="true"
                           />
-                          <span className="min-w-0 flex-1 truncate text-slate-800">{tag.name}</span>
+                          <span className="min-w-0 flex-1 truncate text-app-text">{tag.name}</span>
                           <span
                             className={`shrink-0 rounded px-1.5 py-0.5 text-xs ${
                               isUser
@@ -933,7 +933,7 @@ export default function JavQueryEditorModal({
                               : zh('刮削标签', 'Scraped tag')}
                           </span>
                           {Number.isFinite(tag?.count) ? (
-                            <span className="shrink-0 text-xs text-slate-400">
+                            <span className="shrink-0 text-xs text-app-muted">
                               {zh(`${tag.count} 部`, `${tag.count} works`)}
                             </span>
                           ) : null}
@@ -941,7 +941,7 @@ export default function JavQueryEditorModal({
                       )
                     })
                   ) : (
-                    <div className="px-2 py-3 text-sm text-slate-500">
+                    <div className="px-2 py-3 text-sm text-app-muted">
                       {zh('没有匹配标签', 'No matching tags')}
                     </div>
                   )}
@@ -951,7 +951,7 @@ export default function JavQueryEditorModal({
           </section>
 
           <section className="min-w-0 space-y-2">
-            <div className="text-sm font-semibold text-slate-800">{zh('片商', 'Studio')}</div>
+            <div className="text-sm font-semibold text-app-text">{zh('片商', 'Studio')}</div>
             {selectedStudio ? (
               <div className="flex items-center justify-between gap-2 rounded border border-violet-100 bg-violet-50 px-3 py-2 text-sm text-violet-800">
                 <span className="min-w-0 truncate font-medium">{selectedStudio.name}</span>
@@ -982,13 +982,13 @@ export default function JavQueryEditorModal({
                   setStudioPickerOpen(true)
                   setSelectedStudio(null)
                 }}
-                className="w-full rounded border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                className="w-full rounded border border-app-border px-3 py-2 text-sm outline-none focus:border-app-gold focus:ring-1 focus:ring-app-gold"
                 placeholder={zh('搜索并选择片商', 'Search and choose a studio')}
               />
               {studioPickerOpen ? (
-                <div className="mt-1 max-h-52 overflow-y-auto rounded border border-slate-200 bg-white p-1 shadow-lg">
+                <div className="mt-1 max-h-52 overflow-y-auto rounded border border-app-border bg-app-surface p-1 shadow-lg">
                   {filterOptionsLoading ? (
-                    <div className="px-2 py-3 text-sm text-slate-500">
+                    <div className="px-2 py-3 text-sm text-app-muted">
                       {zh('加载中…', 'Loading...')}
                     </div>
                   ) : filteredStudios.length > 0 ? (
@@ -1007,27 +1007,27 @@ export default function JavQueryEditorModal({
                             setStudioPickerOpen(false)
                             studioInputRef.current?.blur()
                           }}
-                          className="flex w-full cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-slate-50"
+                          className="flex w-full cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-app-surface-2"
                         >
                           <input
                             type="radio"
                             checked={checked}
                             readOnly
                             tabIndex={-1}
-                            className="pointer-events-none h-4 w-4 shrink-0 border-slate-300 text-blue-600"
+                            className="pointer-events-none h-4 w-4 shrink-0 border-app-border text-app-gold"
                             aria-hidden="true"
                           />
-                          <span className="min-w-0 flex-1 truncate text-slate-800">
+                          <span className="min-w-0 flex-1 truncate text-app-text">
                             {studio.name}
                           </span>
-                          <span className="shrink-0 text-xs text-slate-400">
+                          <span className="shrink-0 text-xs text-app-muted">
                             {zh(`${studio.work_count || 0} 部`, `${studio.work_count || 0} works`)}
                           </span>
                         </button>
                       )
                     })
                   ) : (
-                    <div className="px-2 py-3 text-sm text-slate-500">
+                    <div className="px-2 py-3 text-sm text-app-muted">
                       {zh('没有匹配片商', 'No matching studios')}
                     </div>
                   )}
@@ -1037,7 +1037,7 @@ export default function JavQueryEditorModal({
           </section>
 
           <section className="min-w-0 space-y-2">
-            <div className="text-sm font-semibold text-slate-800">{zh('系列', 'Series')}</div>
+            <div className="text-sm font-semibold text-app-text">{zh('系列', 'Series')}</div>
             {selectedSeries ? (
               <div className="flex items-center justify-between gap-2 rounded border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
                 <span className="min-w-0 truncate font-medium">{selectedSeries.name}</span>
@@ -1068,13 +1068,13 @@ export default function JavQueryEditorModal({
                   setSeriesPickerOpen(true)
                   setSelectedSeries(null)
                 }}
-                className="w-full rounded border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                className="w-full rounded border border-app-border px-3 py-2 text-sm outline-none focus:border-app-gold focus:ring-1 focus:ring-app-gold"
                 placeholder={zh('搜索并选择系列', 'Search and choose a series')}
               />
               {seriesPickerOpen ? (
-                <div className="mt-1 max-h-52 overflow-y-auto rounded border border-slate-200 bg-white p-1 shadow-lg">
+                <div className="mt-1 max-h-52 overflow-y-auto rounded border border-app-border bg-app-surface p-1 shadow-lg">
                   {filterOptionsLoading ? (
-                    <div className="px-2 py-3 text-sm text-slate-500">
+                    <div className="px-2 py-3 text-sm text-app-muted">
                       {zh('加载中…', 'Loading...')}
                     </div>
                   ) : filteredSeries.length > 0 ? (
@@ -1093,27 +1093,27 @@ export default function JavQueryEditorModal({
                             setSeriesPickerOpen(false)
                             seriesInputRef.current?.blur()
                           }}
-                          className="flex w-full cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-slate-50"
+                          className="flex w-full cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-app-surface-2"
                         >
                           <input
                             type="radio"
                             checked={checked}
                             readOnly
                             tabIndex={-1}
-                            className="pointer-events-none h-4 w-4 shrink-0 border-slate-300 text-blue-600"
+                            className="pointer-events-none h-4 w-4 shrink-0 border-app-border text-app-gold"
                             aria-hidden="true"
                           />
-                          <span className="min-w-0 flex-1 truncate text-slate-800">
+                          <span className="min-w-0 flex-1 truncate text-app-text">
                             {series.name}
                           </span>
-                          <span className="shrink-0 text-xs text-slate-400">
+                          <span className="shrink-0 text-xs text-app-muted">
                             {zh(`${series.work_count || 0} 部`, `${series.work_count || 0} works`)}
                           </span>
                         </button>
                       )
                     })
                   ) : (
-                    <div className="px-2 py-3 text-sm text-slate-500">
+                    <div className="px-2 py-3 text-sm text-app-muted">
                       {zh('没有匹配系列', 'No matching series')}
                     </div>
                   )}
@@ -1124,11 +1124,11 @@ export default function JavQueryEditorModal({
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-app-border bg-app-surface-2 px-5 py-4">
         <button
           type="button"
           onClick={clearAll}
-          className="rounded border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+          className="rounded border border-app-border bg-app-surface px-3 py-2 text-sm text-app-text hover:bg-app-surface-2"
         >
           {zh('清空条件', 'Clear Filters')}
         </button>
@@ -1136,14 +1136,14 @@ export default function JavQueryEditorModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+            className="rounded border border-app-border bg-app-surface px-3 py-2 text-sm text-app-text hover:bg-app-surface-2"
           >
             {zh('取消', 'Cancel')}
           </button>
           <button
             type="button"
             onClick={applyQuery}
-            className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+            className="rounded bg-app-gold px-4 py-2 text-sm font-medium text-white hover:bg-app-gold-hover"
           >
             {zh('应用查询', 'Apply Query')}
           </button>

@@ -152,22 +152,22 @@ export default function JavPrefixModal({
     <AppModal
       ariaLabelledby="jav-prefix-modal-title"
       className="p-4"
-      contentClassName="flex h-[86vh] w-full max-w-4xl flex-col rounded-lg bg-white shadow-xl"
+      contentClassName="flex h-[86vh] w-full max-w-4xl flex-col rounded-2xl bg-app-surface shadow-xl"
       onClose={onClose}
     >
       <div className="flex items-center justify-between border-b px-5 py-4">
         <div>
-          <h2 id="jav-prefix-modal-title" className="text-lg font-semibold text-gray-900">
+          <h2 id="jav-prefix-modal-title" className="text-lg font-semibold text-app-text">
             {zh('番号', 'JAV codes')}
           </h2>
-          <p className="mt-1 text-xs text-gray-500">
+          <p className="mt-1 text-xs text-app-muted">
             {zh('点击番号查询对应影片', 'Select a code to filter matching works')}
           </p>
         </div>
         <button
           type="button"
           onClick={onClose}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-full text-app-muted hover:bg-app-surface-2 hover:text-app-text focus:outline-none focus-visible:ring-2 focus-visible:ring-app-gold"
           aria-label={zh('关闭', 'Close')}
         >
           <CloseRoundedIcon fontSize="small" />
@@ -179,19 +179,19 @@ export default function JavPrefixModal({
           <input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            className="h-9 min-w-0 flex-1 rounded border border-gray-200 px-3 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+            className="focus:ring-app-gold/25 h-9 min-w-0 flex-1 rounded border border-app-border px-3 text-sm outline-none focus:border-app-gold focus:ring-2"
             placeholder={zh('搜索番号或片商', 'Search code or studio')}
             aria-label={zh('搜索番号', 'Search JAV codes')}
           />
           <div className="flex shrink-0 items-center gap-1.5">
-            <span className="text-xs font-semibold text-gray-900">{zh('类型', 'Type')}</span>
-            <div className="inline-flex overflow-hidden rounded border border-gray-200 bg-white text-xs">
+            <span className="text-xs font-semibold text-app-text">{zh('类型', 'Type')}</span>
+            <div className="inline-flex overflow-hidden rounded border border-app-border bg-app-surface text-xs">
               <button
                 type="button"
                 className={`px-3 py-2 font-medium ${
                   censorMode === 'all'
-                    ? 'bg-blue-50 text-blue-700'
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    ? 'bg-app-gold-soft text-app-gold'
+                    : 'text-app-muted hover:bg-app-surface-2 hover:text-app-text'
                 }`}
                 onClick={() => setCensorMode('all')}
               >
@@ -199,10 +199,10 @@ export default function JavPrefixModal({
               </button>
               <button
                 type="button"
-                className={`border-l border-gray-200 px-3 py-2 font-medium ${
+                className={`border-l border-app-border px-3 py-2 font-medium ${
                   censorMode === 'censored'
-                    ? 'bg-blue-50 text-blue-700'
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    ? 'bg-app-gold-soft text-app-gold'
+                    : 'text-app-muted hover:bg-app-surface-2 hover:text-app-text'
                 }`}
                 onClick={() => setCensorMode('censored')}
               >
@@ -210,10 +210,10 @@ export default function JavPrefixModal({
               </button>
               <button
                 type="button"
-                className={`border-l border-gray-200 px-3 py-2 font-medium ${
+                className={`border-l border-app-border px-3 py-2 font-medium ${
                   censorMode === 'uncensored'
-                    ? 'bg-blue-50 text-blue-700'
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    ? 'bg-app-gold-soft text-app-gold'
+                    : 'text-app-muted hover:bg-app-surface-2 hover:text-app-text'
                 }`}
                 onClick={() => setCensorMode('uncensored')}
               >
@@ -222,14 +222,14 @@ export default function JavPrefixModal({
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
-            <span className="text-xs font-semibold text-gray-900">{zh('排序', 'Sort')}</span>
-            <div className="inline-flex overflow-hidden rounded border border-gray-200 bg-white text-xs">
+            <span className="text-xs font-semibold text-app-text">{zh('排序', 'Sort')}</span>
+            <div className="inline-flex overflow-hidden rounded border border-app-border bg-app-surface text-xs">
               <button
                 type="button"
                 className={`px-3 py-2 font-medium ${
                   sortMode === 'count'
-                    ? 'bg-blue-50 text-blue-700'
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    ? 'bg-app-gold-soft text-app-gold'
+                    : 'text-app-muted hover:bg-app-surface-2 hover:text-app-text'
                 }`}
                 onClick={() => setSortMode('count')}
               >
@@ -237,10 +237,10 @@ export default function JavPrefixModal({
               </button>
               <button
                 type="button"
-                className={`border-l border-gray-200 px-3 py-2 font-medium ${
+                className={`border-l border-app-border px-3 py-2 font-medium ${
                   sortMode === 'az'
-                    ? 'bg-blue-50 text-blue-700'
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    ? 'bg-app-gold-soft text-app-gold'
+                    : 'text-app-muted hover:bg-app-surface-2 hover:text-app-text'
                 }`}
                 onClick={() => setSortMode('az')}
               >
@@ -264,10 +264,10 @@ export default function JavPrefixModal({
                   type="button"
                   className={`inline-flex h-6 min-w-0 flex-1 items-center justify-center rounded border text-[10px] font-semibold transition-colors ${
                     active
-                      ? 'border-blue-600 bg-blue-600 text-white'
+                      ? 'border-app-gold bg-app-gold text-[#1a1208]'
                       : !available
-                        ? 'border-gray-100 bg-gray-50 text-gray-300'
-                        : 'border-gray-200 bg-white text-gray-600 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700'
+                        ? 'border-app-border bg-app-surface-2 text-app-muted'
+                        : 'border-app-border bg-app-surface text-app-muted hover:border-app-gold hover:bg-app-gold-soft hover:text-app-gold'
                   }`}
                   disabled={!available}
                   aria-pressed={active}
@@ -287,20 +287,20 @@ export default function JavPrefixModal({
 
       <div className="min-h-[260px] flex-1 overflow-auto">
         {loading ? (
-          <div className="flex min-h-[260px] items-center justify-center text-sm text-gray-500">
+          <div className="flex min-h-[260px] items-center justify-center text-sm text-app-muted">
             {zh('加载中…', 'Loading...')}
           </div>
         ) : error ? (
-          <div className="m-5 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          <div className="m-5 rounded border border-red-200 bg-red-950/40 p-3 text-sm text-red-700">
             {error}
           </div>
         ) : filteredItems.length === 0 ? (
-          <div className="flex min-h-[260px] items-center justify-center text-sm text-gray-500">
+          <div className="flex min-h-[260px] items-center justify-center text-sm text-app-muted">
             {zh('暂无番号', 'No codes')}
           </div>
         ) : (
           <table className="w-full border-collapse text-left text-sm">
-            <thead className="sticky top-0 bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+            <thead className="sticky top-0 bg-app-surface-2 text-xs uppercase tracking-wide text-app-muted">
               <tr>
                 <th className="px-5 py-3 font-semibold">{zh('番号', 'Code')}</th>
                 <th className="px-5 py-3 font-semibold">{zh('片商', 'Studio')}</th>
@@ -316,12 +316,12 @@ export default function JavPrefixModal({
                 return (
                   <tr
                     key={`${prefix}-${item?.studio_id || 'none'}-${String(item?.is_uncensored)}`}
-                    className={active ? 'bg-blue-50' : 'hover:bg-gray-50'}
+                    className={active ? 'bg-app-gold-soft' : 'hover:bg-app-surface-2'}
                   >
                     <td className="px-5 py-3">
                       <a
                         href={href}
-                        className="font-semibold text-blue-700 hover:text-blue-800 hover:underline"
+                        className="font-semibold text-app-gold hover:text-app-gold hover:underline"
                         onClick={(event) => {
                           if (isModifiedClick(event)) return
                           event.preventDefault()
@@ -331,7 +331,7 @@ export default function JavPrefixModal({
                         {prefix}
                       </a>
                     </td>
-                    <td className="px-5 py-3 text-gray-700">
+                    <td className="px-5 py-3 text-app-text">
                       <div className="flex flex-wrap gap-y-1">
                         {(item?.studioItems || []).length > 0 ? (
                           item.studioItems.map((studio, index) => {
@@ -352,7 +352,7 @@ export default function JavPrefixModal({
                               >
                                 <a
                                   href={buildPrefixUrl?.(studioFilterItem) || '#'}
-                                  className="text-gray-700 hover:text-gray-900 hover:underline"
+                                  className="text-app-text hover:text-app-text hover:underline"
                                   title={zh(
                                     `搜索 ${prefix} + ${studioFilterItem.studio_name}`,
                                     `Search ${prefix} + ${studioFilterItem.studio_name}`
@@ -366,7 +366,7 @@ export default function JavPrefixModal({
                                   {studioFilterItem.studio_name}
                                 </a>
                                 {index < studios.length - 1 ? (
-                                  <span className="text-gray-500">{studioListSeparator()}</span>
+                                  <span className="text-app-muted">{studioListSeparator()}</span>
                                 ) : null}
                               </span>
                             )
@@ -381,7 +381,7 @@ export default function JavPrefixModal({
                                 include_studio_filter: true,
                               }) || '#'
                             }
-                            className="text-gray-700 hover:text-gray-900 hover:underline"
+                            className="text-app-text hover:text-app-text hover:underline"
                             title={zh(
                               `搜索 ${prefix} + ${unknownStudioLabel()}`,
                               `Search ${prefix} + ${unknownStudioLabel()}`
@@ -402,8 +402,8 @@ export default function JavPrefixModal({
                         )}
                       </div>
                     </td>
-                    <td className="px-5 py-3 text-gray-700">{censorLabel(item?.is_uncensored)}</td>
-                    <td className="px-5 py-3 text-right font-medium text-gray-900">
+                    <td className="px-5 py-3 text-app-text">{censorLabel(item?.is_uncensored)}</td>
+                    <td className="px-5 py-3 text-right font-medium text-app-text">
                       {Number(item?.work_count || 0).toLocaleString()}
                     </td>
                   </tr>

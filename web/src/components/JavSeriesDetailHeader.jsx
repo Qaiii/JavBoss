@@ -86,10 +86,10 @@ export function JavDetailHeader({
 
   return (
     <section className="mb-4" aria-label={zh(meta.aria[0], meta.aria[1])}>
-      <h1 className="text-xl font-semibold text-gray-900">
+      <h1 className="text-xl font-semibold text-app-text">
         {name || zh(meta.unknown[0], meta.unknown[1])}
       </h1>
-      <div className="mt-1 text-sm text-gray-600">
+      <div className="mt-1 text-sm text-app-muted">
         {zh(
           `入库 ${Number.isFinite(workCount) ? workCount : 0}`,
           `${Number.isFinite(workCount) ? workCount : 0} in library`
@@ -99,7 +99,7 @@ export function JavDetailHeader({
         <div className="mt-3" aria-label={zh('女优', 'Actresses')}>
           <button
             type="button"
-            className="inline-flex items-center gap-1 text-sm font-medium text-purple-700 hover:text-purple-900"
+            className="inline-flex items-center gap-1 text-sm font-medium text-app-gold hover:text-app-gold-hover"
             aria-expanded={idolsOpen}
             onClick={() => setIdolsOpen((open) => !open)}
           >
@@ -115,7 +115,7 @@ export function JavDetailHeader({
                   <a
                     key={idol?.id || idol?.name}
                     href={buildIdolUrl?.(idol) || '#'}
-                    className="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2.5 py-1 text-xs font-medium text-purple-700 transition hover:bg-purple-200"
+                    className="inline-flex items-center gap-1 rounded-full bg-app-gold-soft px-2.5 py-1 text-xs font-medium text-app-gold transition hover:bg-app-gold-soft"
                     onClick={(event) => {
                       if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
                       event.preventDefault()
@@ -124,7 +124,7 @@ export function JavDetailHeader({
                   >
                     <span>{label}</span>
                     {Number.isFinite(count) && count > 0 ? (
-                      <span className="tabular-nums text-purple-500">{count}</span>
+                      <span className="tabular-nums text-app-gold">{count}</span>
                     ) : null}
                   </a>
                 )
