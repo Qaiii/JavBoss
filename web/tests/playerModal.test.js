@@ -7,6 +7,11 @@ const player = fs.readFileSync(
   'utf8'
 )
 
+test('fullscreen player owns the next browser back action', () => {
+  assert.match(player, /useOverlayHistory\(Boolean\(video\) && !isPiP, handleClose\)/)
+  assert.match(player, /@\/hooks\/useOverlayHistory/)
+})
+
 test('player host stays mounted while loading or error overlays show', () => {
   assert.match(player, /playerHostRef = useRef\(null\)/)
   assert.match(player, /<div ref=\{playerHostRef\} className="h-full w-full" \/>/)

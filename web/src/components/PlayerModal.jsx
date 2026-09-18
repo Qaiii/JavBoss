@@ -56,6 +56,7 @@ import {
   PIP_MARGIN,
 } from '@/utils/playerPip'
 import { selectPlaybackSource, startBrowserPlayback } from '@/utils/browserPlayback'
+import useOverlayHistory from '@/hooks/useOverlayHistory'
 import { zh } from '@/utils/i18n'
 import { getErrorMessage } from '@/utils/errors'
 import {
@@ -253,6 +254,9 @@ export default function PlayerModal({
       typeof window !== 'undefined' &&
       window.matchMedia('(hover: hover) and (pointer: fine)').matches
   )
+  // 全屏遮罩打开时压一条同 URL 历史，鼠标侧键/浏览器后退先关播放器，不把底下页面退走。
+  // 画中画时页面可见，把这条历史弹掉，让后退继续翻页。
+  useOverlayHistory(Boolean(video) && !isPiP, handleClose)
   const normalizedHotkeys = useMemo(() => parsePlayerHotkeys(hotkeys), [hotkeys])
   const screenshotHotkeyLabel = useMemo(() => {
     const item = normalizedHotkeys.find(
