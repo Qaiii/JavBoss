@@ -33,3 +33,41 @@ behavior tests at the facade. If parsing changes cached output, update that
 provider's cache version without changing existing provider IDs.
 
 Run `GOCACHE=$(pwd)/.gocache go test ./internal/jav/...` from the repository root.
+
+Connectivity checks in JAV Providers use these authenticated routes:
+
+- `GET /jav/providers`: list registered providers supporting connectivity checks
+  (`id`, `name`, `domain`, and optional `last_result`). The displayed domain comes from each provider's
+  connectivity origin; JavDB's website and API have separate domains.
+- `POST /jav/providers/:provider/connectivity`: check one numeric provider ID using
+  the server's saved proxy configuration. No body or query parameters are needed;
+  arbitrary target URLs are not accepted. Returns `provider`, `status`,
+  `elapsed_ms`, `checked_at` (UTC), and `http_status` when an HTTP response was received.
+
+The latest completed result per provider is retained in server memory until a
+manual check replaces it, proxy settings are saved, or the process restarts. Listing
+providers returns these results without making network requests. Manual checks
+always make fresh requests. Canceled checks do not replace previous results, and
+older concurrent checks cannot overwrite newer checks or repopulate invalidated
+results. Nothing is persisted to the database or browser storage.
+
+Network & Proxy stores `proxy_mode` as `auto` (default), `direct` (skip environment
+and system proxies), or `manual` (use `proxy_host` and `proxy_port`). Existing
+settings without a mode retain manual proxy behavior when a valid port is present.
+Mode changes take effect on subsequent requests and clear connectivity results.
+Proxy configuration changes increment an in-memory version. Each HTTP client
+checks that version before a request and rebuilds its transport when outdated,
+including HTTP/2 connection pools. Identical settings preserve existing pools.
+Requests already in progress can finish using their original connection; old
+idle connections are closed and busy connections expire after becoming idle.
+The last manual address is retained when switching to auto or direct mode.
+
+Each check makes a fresh GET using the provider's normal headers, transport and
+rate limiter, bypassing lookup and 404 caches. Web providers check their landing
+page; JavDB API and ThePornDB use their authenticated search endpoints. Results
+describe HTTP reachability, not scraping, authentication or metadata completeness.
+`status` is `ok` for 2xx, `http_error` for other HTTP responses, or `timeout`,
+`canceled`, `dns_error`, `tls_error`, `network_error`. Checks have a 20-second upper
+deadline (shorter provider/client timeouts still apply). The frontend runs at most
+three checks concurrently and cancels pending work when the panel closes or proxy
+settings change. Providers should implement `ConnectivityChecker` when added.

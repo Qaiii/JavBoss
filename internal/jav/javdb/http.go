@@ -116,3 +116,16 @@ func buildJavDBRequest(ctx context.Context, targetURL, referer string) (*http.Re
 	}
 	return req, nil
 }
+
+// CheckConnectivity requests the site using its normal headers and transport, without lookup caching.
+// The caller owns the response body.
+func (p *Client) CheckConnectivity(ctx context.Context) (*http.Response, error) {
+	req, err := buildJavDBRequest(ctx, p.ConnectivityURL()+"/", p.ConnectivityURL())
+	if err != nil {
+		return nil, err
+	}
+	return p.doJavDBRequest(req)
+}
+
+// ConnectivityURL identifies the origin used for connectivity checks.
+func (p *Client) ConnectivityURL() string { return javDBBaseURL }

@@ -16,14 +16,47 @@ import (
 
 const dockerHostGateway = "host.docker.internal"
 
+const (
+	ProxyModeAuto   = "auto"
+	ProxyModeDirect = "direct"
+	ProxyModeManual = "manual"
+)
+
+// A nil config means auto-detection; a config with a nil URL forces direct access.
+type proxyConfig struct{ url *url.URL }
+
 var (
 	proxyOnce     sync.Once
 	proxyFunc     func(*http.Request) (*url.URL, error)
-	proxyOverride atomic.Value // stores *url.URL
+	proxyOverride atomic.Pointer[proxyConfig]
+	proxyVersion  atomic.Uint64
+	proxyUpdateMu sync.Mutex
 )
 
-// DetectProxyFunc returns a proxy function that prefers manual override, then env/system
-// proxies provided by go-ieproxy (env has priority inside). The result is cached.
+// Updating the version invalidates every client's cached transport independently.
+// Identical settings keep their version so unrelated config saves preserve connections.
+func setProxyConfig(config *proxyConfig) {
+	proxyUpdateMu.Lock()
+	defer proxyUpdateMu.Unlock()
+	if proxyConfigKey(proxyOverride.Load()) == proxyConfigKey(config) {
+		return
+	}
+	proxyOverride.Store(config)
+	proxyVersion.Add(1)
+}
+
+func proxyConfigKey(config *proxyConfig) string {
+	if config == nil {
+		return ProxyModeAuto
+	}
+	if config.url == nil {
+		return ProxyModeDirect
+	}
+	return config.url.String()
+}
+
+// DetectProxyFunc returns a cached function honoring direct/manual settings before
+// env/system proxies provided by go-ieproxy (env has priority inside).
 func DetectProxyFunc() func(*http.Request) (*url.URL, error) {
 	proxyOnce.Do(func() {
 		proxyFunc = resolveProxy()
@@ -31,10 +64,10 @@ func DetectProxyFunc() func(*http.Request) (*url.URL, error) {
 	return proxyFunc
 }
 
-// SetProxy configures the manual HTTP proxy. Use port <= 0 to disable.
+// SetProxy configures the manual HTTP proxy. Use port <= 0 for auto-detection.
 func SetProxy(host string, port int) {
 	if port <= 0 {
-		proxyOverride.Store((*url.URL)(nil))
+		setProxyConfig(nil)
 		logging.Info("proxy: cleared configured proxy")
 		return
 	}
@@ -44,11 +77,41 @@ func SetProxy(host string, port int) {
 	}
 	u := &url.URL{Scheme: "http", Host: net.JoinHostPort(host, strconv.Itoa(port))}
 	u = mapProxyURLForContainer(u)
-	proxyOverride.Store(u)
+	setProxyConfig(&proxyConfig{url: u})
 	logging.Info("proxy: using configured proxy %s", u.Redacted())
 }
 
-// SetProxyPort configures the local proxy port. Use <=0 to disable.
+// ResolveProxyMode defaults to auto while preserving legacy port-only manual settings.
+func ResolveProxyMode(mode, portRaw string) string {
+	switch strings.ToLower(strings.TrimSpace(mode)) {
+	case ProxyModeAuto:
+		return ProxyModeAuto
+	case ProxyModeDirect:
+		return ProxyModeDirect
+	case ProxyModeManual:
+		return ProxyModeManual
+	case "":
+		if port, err := strconv.Atoi(strings.TrimSpace(portRaw)); err == nil && port > 0 && port <= 65535 {
+			return ProxyModeManual
+		}
+	}
+	return ProxyModeAuto
+}
+
+// SetProxySettings atomically switches the policy used by existing HTTP clients.
+func SetProxySettings(mode, host, port string) {
+	switch ResolveProxyMode(mode, port) {
+	case ProxyModeDirect:
+		setProxyConfig(&proxyConfig{})
+		logging.Info("proxy: using direct connections")
+	case ProxyModeManual:
+		SetProxyFromStrings(host, port)
+	default:
+		SetProxyPort(0)
+	}
+}
+
+// SetProxyPort configures the local proxy port. Use <=0 for auto-detection.
 func SetProxyPort(port int) {
 	SetProxy("127.0.0.1", port)
 }
@@ -74,10 +137,13 @@ func SetProxyPortFromString(raw string) {
 }
 
 func resolveProxy() func(*http.Request) (*url.URL, error) {
-	systemProxy := ieproxy.GetProxyFunc()
+	return configuredProxy(ieproxy.GetProxyFunc())
+}
+
+func configuredProxy(systemProxy func(*http.Request) (*url.URL, error)) func(*http.Request) (*url.URL, error) {
 	return func(req *http.Request) (*url.URL, error) {
-		if u := loadProxyOverride(); u != nil {
-			return u, nil
+		if config := proxyOverride.Load(); config != nil {
+			return config.url, nil
 		}
 		if systemProxy != nil {
 			u, err := systemProxy(req)
@@ -114,15 +180,4 @@ func isLoopbackProxyHost(host string) bool {
 	}
 	ip := net.ParseIP(host)
 	return ip != nil && ip.IsLoopback()
-}
-
-func loadProxyOverride() *url.URL {
-	val := proxyOverride.Load()
-	if val == nil {
-		return nil
-	}
-	if u, ok := val.(*url.URL); ok {
-		return u
-	}
-	return nil
 }

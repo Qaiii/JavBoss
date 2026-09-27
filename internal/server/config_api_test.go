@@ -3,17 +3,130 @@ package server
 import (
 	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"javboss/internal/common"
 	dbpkg "javboss/internal/db"
+	"javboss/internal/util"
 
 	"github.com/gin-gonic/gin"
 )
+
+func TestLANAccessConfigAppliesImmediatelyAndPreservesConfigOnFailure(t *testing.T) {
+	auth := testAuthService(t)
+	previousUpdate := updateLANAccess
+	t.Cleanup(func() { updateLANAccess = previousUpdate })
+	enabled, fail := false, false
+	updateLANAccess = func(next bool, save func() error) error {
+		if fail {
+			return errors.New("port in use")
+		}
+		if err := save(); err != nil {
+			return err
+		}
+		enabled = next
+		return nil
+	}
+	router := NewRouter("", auth)
+	login := performRequest(router, http.MethodPost, "/auth/login", []byte(`{"password":"admin"}`), "http://example.com", nil)
+	if login.Code != http.StatusOK {
+		t.Fatalf("login status=%d body=%s", login.Code, login.Body)
+	}
+	cookie := responseCookie(t, login, authSessionCookie)
+	update := func(enabled bool, wantStatus int) {
+		t.Helper()
+		body := `{"allow_lan_access":false}`
+		if enabled {
+			body = `{"allow_lan_access":true}`
+		}
+		req := httptest.NewRequest(http.MethodPatch, "/config", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		// An authenticated request on an existing remote connection is still handled.
+		req.RemoteAddr = "192.168.1.20:1234"
+		req.AddCookie(cookie)
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, req)
+		if response.Code != wantStatus {
+			t.Fatalf("status=%d body=%s", response.Code, response.Body)
+		}
+	}
+	for _, next := range []bool{true, false} {
+		update(next, http.StatusOK)
+		if enabled != next {
+			t.Fatalf("enabled=%v, want %v", enabled, next)
+		}
+	}
+	fail = true
+	update(true, http.StatusInternalServerError)
+	cfg, err := dbpkg.ListConfig(context.Background())
+	if err != nil || cfg["allow_lan_access"] != "false" || enabled {
+		t.Fatalf("saved=%s enabled=%v err=%v", cfg["allow_lan_access"], enabled, err)
+	}
+}
+
+func TestProxyModesPersistAndValidate(t *testing.T) {
+	testAuthService(t)
+	t.Cleanup(func() { util.SetProxyPort(0) })
+	router := gin.New()
+	RegisterRoutes(router)
+	request := func(method, body string, wantStatus int) map[string]string {
+		t.Helper()
+		recorder := httptest.NewRecorder()
+		req := httptest.NewRequest(method, "/config", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		router.ServeHTTP(recorder, req)
+		if recorder.Code != wantStatus {
+			t.Fatalf("config=%s status=%d body=%s", body, recorder.Code, recorder.Body)
+		}
+		var cfg map[string]string
+		if err := json.Unmarshal(recorder.Body.Bytes(), &cfg); err != nil {
+			t.Fatal(err)
+		}
+		return cfg
+	}
+	if cfg := request(http.MethodGet, "", http.StatusOK); cfg["proxy_mode"] != "auto" {
+		t.Fatalf("default mode=%q", cfg["proxy_mode"])
+	}
+	request(http.MethodPatch, `{"proxy_mode":"manual"}`, http.StatusBadRequest)
+	for _, tt := range []struct{ body, mode, port string }{
+		{`{"proxy_mode":"manual","proxy_host":"127.0.0.1","proxy_port":7890}`, "manual", "7890"},
+		{`{"proxy_mode":"direct"}`, "direct", "7890"},
+		{`{"proxy_mode":"auto"}`, "auto", "7890"},
+		{`{"proxy_mode":"manual"}`, "manual", "7890"},
+		{`{"proxy_port":0}`, "auto", ""},
+		{`{"proxy_port":7891}`, "manual", "7891"},
+		{`{"proxy_mode":"direct"}`, "direct", "7891"},
+	} {
+		cfg := request(http.MethodPatch, tt.body, http.StatusOK)
+		if cfg["proxy_mode"] != tt.mode || cfg["proxy_port"] != tt.port {
+			t.Fatalf("config=%s result=%v", tt.body, cfg)
+		}
+		stored, err := dbpkg.ListConfig(context.Background())
+		if err != nil || stored["proxy_mode"] != tt.mode {
+			t.Fatalf("persisted mode=%q err=%v", stored["proxy_mode"], err)
+		}
+		if tt.mode == "direct" {
+			req, _ := http.NewRequest(http.MethodGet, "https://example.com", nil)
+			proxy, err := util.DetectProxyFunc()(req)
+			if err != nil || proxy != nil {
+				t.Fatalf("direct mode proxy=%v err=%v", proxy, err)
+			}
+		}
+	}
+	for _, body := range []string{`{"proxy_mode":"invalid"}`, `{"proxy_mode":"manual","proxy_port":0}`} {
+		request(http.MethodPatch, body, http.StatusBadRequest)
+		if cfg := request(http.MethodGet, "", http.StatusOK); cfg["proxy_mode"] != "direct" || cfg["proxy_port"] != "7891" {
+			t.Fatalf("invalid update changed config: %v", cfg)
+		}
+	}
+}
 
 func TestUpdateConfigPersistsWaterfallDefaults(t *testing.T) {
 	gin.SetMode(gin.TestMode)

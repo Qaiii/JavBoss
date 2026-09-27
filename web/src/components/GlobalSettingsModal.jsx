@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Switch } from '@mui/material'
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded'
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined'
@@ -9,6 +10,7 @@ import DirectoryManager from '@/components/DirectoryManager'
 import AppModal from '@/components/AppModal'
 import PlayerSettingsModal from '@/components/PlayerSettingsModal'
 import WebHotkeySettings from '@/components/WebHotkeySettings'
+import ProviderConnectivityPanel from '@/components/ProviderConnectivityPanel'
 import { downloadFFmpeg, fetchTools } from '@/api'
 import { parsePlayerHotkeys } from '@/utils/playerHotkeys'
 import { zh } from '@/utils/i18n'
@@ -34,6 +36,11 @@ const SETTINGS_SECTIONS = [
     id: 'network',
     title: { zh: '网络与代理', en: 'Network & Proxy' },
     summary: { zh: '网络连接与代理设置', en: 'Network connection and proxy settings' },
+  },
+  {
+    id: 'jav-providers',
+    title: { zh: 'JAV 数据源', en: 'JAV Providers' },
+    summary: { zh: '数据源域名与连通性检测', en: 'Provider domains and connectivity checks' },
   },
   {
     id: 'tools',
@@ -86,6 +93,7 @@ export default function GlobalSettingsModal({
   onProcessDirectory,
   onScanDirectory,
   onRefreshDirectories,
+  proxyMode,
   proxyHost,
   proxyPort,
   onSaveProxySettings,
@@ -117,7 +125,12 @@ export default function GlobalSettingsModal({
   const [proxyError, setProxyError] = useState('')
   const [savingProxy, setSavingProxy] = useState(false)
   const [proxyEditing, setProxyEditing] = useState(false)
-  const [proxyEnabledInput, setProxyEnabledInput] = useState(false)
+  const currentProxyMode = ['auto', 'direct', 'manual'].includes(proxyMode)
+    ? proxyMode
+    : proxyPort
+      ? 'manual'
+      : 'auto'
+  const [proxyModeInput, setProxyModeInput] = useState('auto')
   const [allowLANAccessInput, setAllowLANAccessInput] = useState(false)
   const [allowLANAccessError, setAllowLANAccessError] = useState('')
   const [savingAllowLANAccess, setSavingAllowLANAccess] = useState(false)
@@ -192,7 +205,7 @@ export default function GlobalSettingsModal({
     if (open) {
       setProxyHostInput(proxyHost || DEFAULT_PROXY_HOST)
       setProxyInput(proxyPort ? String(proxyPort) : '')
-      setProxyEnabledInput(Boolean(proxyPort))
+      setProxyModeInput(currentProxyMode)
       setProxyEditing(false)
       setProxyError('')
       setAllowLANAccessInput(allowLANAccess === true)
@@ -226,6 +239,7 @@ export default function GlobalSettingsModal({
     open,
     proxyHost,
     proxyPort,
+    currentProxyMode,
     allowLANAccess,
     defaultPlayer,
     initialViewMode,
@@ -288,7 +302,7 @@ export default function GlobalSettingsModal({
     const raw = proxyInput.trim()
     let port = 0
     let nextHost = ''
-    if (proxyEnabledInput) {
+    if (proxyModeInput === 'manual') {
       if (host === '') {
         setProxyError(zh('请输入代理 IP 或主机名', 'Enter a proxy IP or host'))
         return
@@ -307,7 +321,7 @@ export default function GlobalSettingsModal({
     }
     setSavingProxy(true)
     try {
-      await onSaveProxySettings?.({ host: nextHost, port })
+      await onSaveProxySettings?.({ mode: proxyModeInput, host: nextHost, port })
       setProxyEditing(false)
     } catch (err) {
       setProxyError(getErrorMessage(err))
@@ -319,13 +333,16 @@ export default function GlobalSettingsModal({
   const currentProxyHost = proxyHost || DEFAULT_PROXY_HOST
   const proxyHostInputTrimmed = proxyHostInput.trim()
   const proxyInputTrimmed = proxyInput.trim()
-  const desiredHostText = proxyEnabledInput ? proxyHostInputTrimmed : ''
-  const desiredPortText = proxyEnabledInput ? proxyInputTrimmed : ''
-  const currentHostText = proxyPort ? currentProxyHost : ''
-  const currentPortText = proxyPort ? String(proxyPort) : ''
-  const proxyUnchanged = desiredHostText === currentHostText && desiredPortText === currentPortText
-  const proxyHostMissing = proxyEnabledInput && proxyHostInputTrimmed === ''
-  const proxyInputMissing = proxyEnabledInput && proxyInputTrimmed === ''
+  const desiredHostText = proxyModeInput === 'manual' ? proxyHostInputTrimmed : ''
+  const desiredPortText = proxyModeInput === 'manual' ? proxyInputTrimmed : ''
+  const currentHostText = currentProxyMode === 'manual' ? currentProxyHost : ''
+  const currentPortText = currentProxyMode === 'manual' ? String(proxyPort) : ''
+  const proxyUnchanged =
+    proxyModeInput === currentProxyMode &&
+    desiredHostText === currentHostText &&
+    desiredPortText === currentPortText
+  const proxyHostMissing = proxyModeInput === 'manual' && proxyHostInputTrimmed === ''
+  const proxyInputMissing = proxyModeInput === 'manual' && proxyInputTrimmed === ''
   const visibleSections = SETTINGS_SECTIONS
   const currentSection = visibleSections.some((section) => section.id === activeSection)
     ? activeSection
@@ -453,15 +470,17 @@ export default function GlobalSettingsModal({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h4 className="text-sm font-semibold text-zinc-800">
-              {zh('代理地址', 'Proxy Address')}
+              {zh('代理设置', 'Proxy Settings')}
             </h4>
             <p className="mt-1 text-sm text-zinc-500">
-              {proxyPort
+              {currentProxyMode === 'manual'
                 ? zh(
                     `当前使用 ${currentProxyHost}:${proxyPort}`,
                     `Currently using ${currentProxyHost}:${proxyPort}`
                   )
-                : zh('当前使用自动检测', 'Currently using auto-detection')}
+                : currentProxyMode === 'direct'
+                  ? zh('当前不使用代理', 'Currently using direct connections')
+                  : zh('当前使用自动检测', 'Currently using auto-detection')}
             </p>
           </div>
           {!proxyEditing && (
@@ -480,20 +499,31 @@ export default function GlobalSettingsModal({
 
         {proxyEditing ? (
           <div className="space-y-4 rounded-2xl bg-zinc-50 p-4">
-            <label className="flex items-center gap-2 text-sm text-zinc-700">
-              <input
-                type="checkbox"
-                checked={proxyEnabledInput}
-                onChange={(e) => {
-                  setProxyEnabledInput(e.target.checked)
-                  setProxyError('')
-                }}
-                className="h-4 w-4 rounded"
-              />
-              <span>{zh('手动设置代理', 'Set proxy manually')}</span>
-            </label>
+            <fieldset className="flex flex-wrap gap-x-6 gap-y-3" disabled={savingProxy}>
+              <legend className="sr-only">{zh('代理模式', 'Proxy mode')}</legend>
+              {[
+                { value: 'auto', label: zh('自动检测', 'Auto-detect') },
+                { value: 'direct', label: zh('不使用代理', 'No proxy') },
+                { value: 'manual', label: zh('手动设置', 'Manual') },
+              ].map((option) => (
+                <label key={option.value} className="flex items-center gap-2 text-sm text-zinc-700">
+                  <input
+                    type="radio"
+                    name="proxy-mode"
+                    value={option.value}
+                    checked={proxyModeInput === option.value}
+                    onChange={() => {
+                      setProxyModeInput(option.value)
+                      setProxyError('')
+                    }}
+                    className="h-4 w-4"
+                  />
+                  <span>{option.label}</span>
+                </label>
+              ))}
+            </fieldset>
 
-            {proxyEnabledInput && (
+            {proxyModeInput === 'manual' && (
               <div className="grid max-w-2xl gap-3 sm:grid-cols-[minmax(0,1fr)_160px]">
                 <div>
                   <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-zinc-500">
@@ -529,7 +559,7 @@ export default function GlobalSettingsModal({
                 onClick={() => {
                   setProxyHostInput(proxyHost || DEFAULT_PROXY_HOST)
                   setProxyInput(proxyPort ? String(proxyPort) : '')
-                  setProxyEnabledInput(Boolean(proxyPort))
+                  setProxyModeInput(currentProxyMode)
                   setProxyError('')
                   setProxyEditing(false)
                 }}
@@ -554,14 +584,17 @@ export default function GlobalSettingsModal({
 
   const renderLANAccessPanel = () => {
     if (containerMode) return null
-    const unchanged = allowLANAccessInput === (allowLANAccess === true)
 
-    const handleSave = async () => {
+    const handleToggle = async (enabled) => {
+      if (savingAllowLANAccess) return
+      const previous = allowLANAccessInput
+      setAllowLANAccessInput(enabled)
       setAllowLANAccessError('')
       setSavingAllowLANAccess(true)
       try {
-        await onSaveAllowLANAccess?.(allowLANAccessInput)
+        await onSaveAllowLANAccess?.(enabled)
       } catch (err) {
+        setAllowLANAccessInput(previous)
         setAllowLANAccessError(getErrorMessage(err))
       } finally {
         setSavingAllowLANAccess(false)
@@ -570,47 +603,35 @@ export default function GlobalSettingsModal({
 
     return (
       <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
-        <div className="space-y-4">
+        <div className="flex items-start justify-between gap-4">
           <div>
-            <h4 className="text-sm font-semibold text-zinc-800">
-              {zh('局域网访问', 'Local Network Access')}
+            <h4 id="lan-access-title" className="text-sm font-semibold text-zinc-800">
+              {zh('允许局域网设备访问', 'Allow access from local network devices')}
             </h4>
-            <p className="mt-1 text-sm text-zinc-500">
+            <p id="lan-access-description" className="mt-1 text-sm text-zinc-500">
               {zh(
-                '开启后，局域网设备可以通过本机 IP 地址访问 JavBoss。修改将在下次启动时生效。',
-                'When enabled, devices on your local network can access JavBoss through this computer’s IP address. Changes take effect after the next restart.'
+                '开启后，局域网设备可以通过本机 IP 地址访问 JavBoss，切换立即生效。',
+                'Allow devices on your local network to access JavBoss through this computer’s IP address. Changes take effect immediately.'
               )}
             </p>
           </div>
-
-          <label className="flex items-center gap-3 text-sm font-medium text-zinc-800">
-            <input
-              type="checkbox"
-              checked={allowLANAccessInput}
-              onChange={(event) => {
-                setAllowLANAccessInput(event.target.checked)
-                setAllowLANAccessError('')
-              }}
-              className="h-4 w-4 rounded"
-            />
-            <span>{zh('允许局域网设备访问', 'Allow access from local network devices')}</span>
-          </label>
-
-          {allowLANAccessError ? (
-            <div className="text-sm text-red-600">{allowLANAccessError}</div>
-          ) : null}
-
-          <div className="flex justify-end">
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={savingAllowLANAccess || unchanged}
-              className="rounded-xl bg-blue-600 px-3 py-1.5 text-sm text-white disabled:opacity-60"
-            >
-              {savingAllowLANAccess ? zh('保存中…', 'Saving...') : zh('保存', 'Save')}
-            </button>
-          </div>
+          <Switch
+            size="small"
+            checked={allowLANAccessInput}
+            onChange={(_, checked) => handleToggle(checked)}
+            disabled={savingAllowLANAccess || !onSaveAllowLANAccess}
+            inputProps={{
+              role: 'switch',
+              'aria-labelledby': 'lan-access-title',
+              'aria-describedby': 'lan-access-description',
+            }}
+          />
         </div>
+        {allowLANAccessError && (
+          <div className="mt-3 text-sm text-red-600" role="alert">
+            {allowLANAccessError}
+          </div>
+        )}
       </section>
     )
   }
@@ -1481,6 +1502,12 @@ export default function GlobalSettingsModal({
           {currentSection === 'display' && renderDisplayPanel()}
           {currentSection === 'shortcuts' && renderShortcutsPanel()}
           {currentSection === 'network' && renderNetworkPanel()}
+          {currentSection === 'jav-providers' && (
+            <ProviderConnectivityPanel
+              key={`${currentProxyMode}:${proxyHost || ''}:${proxyPort || 0}`}
+              disabled={proxyEditing || savingProxy}
+            />
+          )}
           {currentSection === 'tools' && renderToolsPanel()}
           {currentSection === 'player' && renderPlayerPanel()}
           {currentSection === 'directories' && renderDirectoriesPanel()}
