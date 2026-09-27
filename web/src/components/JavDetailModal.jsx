@@ -83,15 +83,6 @@ function normalizeSampleImages(images) {
   })
 }
 
-function sampleImagesNotFound(images) {
-  return (
-    Array.isArray(images) &&
-    images.length === 1 &&
-    images[0]?.thumbnail_url === ':not_found' &&
-    images[0]?.detail_url === ':not_found'
-  )
-}
-
 function JavFavoriteRatingEditor({ value, saving, error, onChange }) {
   const rating = Number(value) || 0
   const [editing, setEditing] = useState(false)
@@ -174,21 +165,29 @@ function JavFavoriteRatingEditor({ value, saving, error, onChange }) {
 }
 
 /* eslint-disable jsx-a11y/no-noninteractive-element-to-interactive-role */
-function JavSampleImageGrid({ images }) {
+function JavSampleImageGrid({ images, itemId }) {
   const [previewItem, setPreviewItem] = useState(null)
+  const displayImages = useMemo(
+    () =>
+      images.map((_, index) => ({
+        thumbnail_url: `/jav/items/${encodeURIComponent(itemId)}/sample-images/${index}/thumbnail`,
+        detail_url: `/jav/items/${encodeURIComponent(itemId)}/sample-images/${index}/detail`,
+      })),
+    [images, itemId]
+  )
   const previewItems = useMemo(
     () =>
-      images.map((image, index) => ({
+      displayImages.map((image, index) => ({
         name: zh(`样品图像 ${index + 1}`, `Sample image ${index + 1}`),
         url: image.detail_url,
       })),
-    [images]
+    [displayImages]
   )
 
   return (
     <>
       <div className="flex flex-wrap gap-2">
-        {images.map((image, index) => (
+        {displayImages.map((image, index) => (
           <img
             key={`${image.detail_url}-${index}`}
             src={image.thumbnail_url}
@@ -536,11 +535,6 @@ export default function JavDetailModal({
       setSampleImagesLoading(false)
       return undefined
     }
-    if (sampleImagesNotFound(itemSampleImages)) {
-      setSampleImagesLoading(false)
-      return undefined
-    }
-
     const resolvedImages = getResolvedJavSampleImages(itemId)
     if (resolvedImages) {
       setSampleImages(normalizeSampleImages(resolvedImages))
@@ -892,7 +886,7 @@ export default function JavDetailModal({
                   {zh('正在加载样品图像…', 'Loading sample images...')}
                 </div>
               ) : sampleImages.length > 0 ? (
-                <JavSampleImageGrid images={sampleImages} />
+                <JavSampleImageGrid images={sampleImages} itemId={itemId} />
               ) : (
                 <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
                   {sampleImagesError}
