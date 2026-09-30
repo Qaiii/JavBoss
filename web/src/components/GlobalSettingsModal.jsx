@@ -28,11 +28,6 @@ const SETTINGS_SECTIONS = [
     summary: { zh: '界面提示与交互行为', en: 'Interface hints and interactions' },
   },
   {
-    id: 'shortcuts',
-    title: { zh: '快捷键', en: 'Shortcuts' },
-    summary: { zh: '自定义网页操作快捷键', en: 'Customize web shortcuts' },
-  },
-  {
     id: 'network',
     title: { zh: '网络与代理', en: 'Network & Proxy' },
     summary: { zh: '网络连接与代理设置', en: 'Network connection and proxy settings' },
@@ -352,30 +347,37 @@ export default function GlobalSettingsModal({
     en: 'Global Settings',
   }
 
-  const handleSaveDefaultPlayer = async () => {
+  const handleChangeDefaultPlayer = async (player) => {
+    if (savingDefaultPlayer || !onSaveDefaultPlayer) return
     const next =
-      defaultPlayerInput === 'browser' ||
-      (defaultPlayerInput === 'system' && desktopIntegrationEnabled)
-        ? defaultPlayerInput
-        : 'mpv'
+      player === 'browser' || (player === 'system' && desktopIntegrationEnabled) ? player : 'mpv'
+    const previous = defaultPlayerInput
+    if (next === previous) return
+    setDefaultPlayerInput(next)
     setDefaultPlayerError('')
     setSavingDefaultPlayer(true)
     try {
       await onSaveDefaultPlayer?.(next)
     } catch (err) {
+      setDefaultPlayerInput(previous)
       setDefaultPlayerError(getErrorMessage(err))
     } finally {
       setSavingDefaultPlayer(false)
     }
   }
 
-  const handleSaveInitialViewMode = async () => {
-    const next = initialViewModeInput === 'jav' ? 'jav' : 'video'
+  const handleChangeInitialViewMode = async (mode) => {
+    if (savingInitialViewMode || !onSaveInitialViewMode) return
+    const next = mode === 'jav' ? 'jav' : 'video'
+    const previous = initialViewModeInput
+    if (next === previous) return
+    setInitialViewModeInput(next)
     setInitialViewModeError('')
     setSavingInitialViewMode(true)
     try {
       await onSaveInitialViewMode?.(next)
     } catch (err) {
+      setInitialViewModeInput(previous)
       setInitialViewModeError(getErrorMessage(err))
     } finally {
       setSavingInitialViewMode(false)
@@ -383,12 +385,6 @@ export default function GlobalSettingsModal({
   }
 
   const renderDefaultPlayerSettings = () => {
-    const currentDefaultPlayer =
-      defaultPlayer === 'browser' || (defaultPlayer === 'system' && desktopIntegrationEnabled)
-        ? defaultPlayer
-        : 'mpv'
-    const defaultPlayerUnchanged = defaultPlayerInput === currentDefaultPlayer
-
     return (
       <div className="space-y-4">
         {browserPlaybackOnly ? (
@@ -398,35 +394,28 @@ export default function GlobalSettingsModal({
             </h4>
             <p className="mt-1 text-sm text-zinc-500">
               {zh(
-                'Docker 模式下默认使用浏览器播放器，如需使用 MPV 请在本机安装 JavBoss 并开启 Client 模式',
-                'Docker mode uses the browser player by default. To use MPV, install JavBoss on your local machine and enable Client mode.'
+                'Docker 模式下默认使用网页播放器，如需使用 MPV 请在本机安装 JavBoss 并开启 Client 模式',
+                'Docker mode uses the web player by default. To use MPV, install JavBoss on your local machine and enable Client mode.'
               )}
             </p>
           </div>
         ) : (
           <>
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center justify-between gap-3">
               <h4 className="text-sm font-semibold text-zinc-800">
                 {zh('默认播放器', 'Default Player')}
               </h4>
               <span className="relative inline-block">
                 <select
                   value={defaultPlayerInput}
-                  onChange={(event) => {
-                    const next = event.target.value
-                    setDefaultPlayerInput(
-                      next === 'browser' || (next === 'system' && desktopIntegrationEnabled)
-                        ? next
-                        : 'mpv'
-                    )
-                    setDefaultPlayerError('')
-                  }}
+                  onChange={(event) => handleChangeDefaultPlayer(event.target.value)}
+                  disabled={savingDefaultPlayer || !onSaveDefaultPlayer}
                   className="w-auto appearance-none rounded-xl border border-zinc-200 bg-white py-1.5 pl-3 pr-7 text-sm text-zinc-800 outline-none focus:border-zinc-200 focus:outline-none focus:ring-0 focus-visible:outline-none"
                 >
                   <option value="mpv">MPV</option>
-                  <option value="browser">{zh('浏览器', 'Browser')}</option>
+                  <option value="browser">{zh('网页播放器', 'Web Player')}</option>
                   {desktopIntegrationEnabled ? (
-                    <option value="system">{zh('系统', 'System')}</option>
+                    <option value="system">{zh('系统播放器', 'System Player')}</option>
                   ) : null}
                 </select>
                 <span
@@ -446,113 +435,113 @@ export default function GlobalSettingsModal({
           </>
         )}
 
-        {defaultPlayerError && <div className="text-sm text-red-600">{defaultPlayerError}</div>}
-
-        {!browserPlaybackOnly ? (
-          <div className="flex justify-end">
-            <button
-              type="button"
-              onClick={handleSaveDefaultPlayer}
-              disabled={savingDefaultPlayer || defaultPlayerUnchanged}
-              className="rounded-xl bg-blue-600 px-3 py-1.5 text-sm text-white disabled:opacity-60"
-            >
-              {savingDefaultPlayer ? zh('保存中…', 'Saving...') : zh('保存', 'Save')}
-            </button>
+        {defaultPlayerError && (
+          <div className="text-sm text-red-600" role="alert">
+            {defaultPlayerError}
           </div>
-        ) : null}
+        )}
       </div>
     )
   }
 
   const renderProxyPanel = () => (
     <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
-      <div className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h4 className="text-sm font-semibold text-zinc-800">
-              {zh('代理设置', 'Proxy Settings')}
-            </h4>
-            <p className="mt-1 text-sm text-zinc-500">
-              {currentProxyMode === 'manual'
-                ? zh(
-                    `当前使用 ${currentProxyHost}:${proxyPort}`,
-                    `Currently using ${currentProxyHost}:${proxyPort}`
-                  )
-                : currentProxyMode === 'direct'
-                  ? zh('当前不使用代理', 'Currently using direct connections')
-                  : zh('当前使用自动检测', 'Currently using auto-detection')}
-            </p>
-          </div>
-          {!proxyEditing && (
-            <button
-              type="button"
-              onClick={() => {
-                setProxyEditing(true)
-                setProxyError('')
-              }}
-              className="rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50"
-            >
-              {zh('编辑', 'Edit')}
-            </button>
-          )}
+      <div className="flex flex-col gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h4 className="text-sm font-semibold text-zinc-800">
+            {zh('代理设置', 'Proxy Settings')}
+          </h4>
+          <button
+            type="button"
+            onClick={() => {
+              setProxyEditing(true)
+              setProxyError('')
+            }}
+            disabled={proxyEditing}
+            className={`rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50 ${proxyEditing ? 'invisible' : ''}`}
+          >
+            {zh('修改', 'Edit')}
+          </button>
         </div>
 
-        {proxyEditing ? (
-          <div className="space-y-4 rounded-2xl bg-zinc-50 p-4">
-            <fieldset className="flex flex-wrap gap-x-6 gap-y-3" disabled={savingProxy}>
-              <legend className="sr-only">{zh('代理模式', 'Proxy mode')}</legend>
-              {[
-                { value: 'auto', label: zh('自动检测', 'Auto-detect') },
-                { value: 'direct', label: zh('不使用代理', 'No proxy') },
-                { value: 'manual', label: zh('手动设置', 'Manual') },
-              ].map((option) => (
-                <label key={option.value} className="flex items-center gap-2 text-sm text-zinc-700">
-                  <input
-                    type="radio"
-                    name="proxy-mode"
-                    value={option.value}
-                    checked={proxyModeInput === option.value}
-                    onChange={() => {
-                      setProxyModeInput(option.value)
-                      setProxyError('')
-                    }}
-                    className="h-4 w-4"
-                  />
-                  <span>{option.label}</span>
+        <div className="space-y-3 rounded-2xl bg-zinc-50 px-4 py-3">
+          <fieldset
+            className="flex flex-wrap gap-x-6 gap-y-3"
+            disabled={!proxyEditing || savingProxy}
+          >
+            <legend className="sr-only">{zh('代理模式', 'Proxy mode')}</legend>
+            {[
+              { value: 'auto', label: zh('自动检测', 'Auto-detect') },
+              { value: 'manual', label: zh('手动设置', 'Manual') },
+              { value: 'direct', label: zh('不使用代理', 'No proxy') },
+            ].map((option) => (
+              <label key={option.value} className="flex items-center gap-2 text-sm text-zinc-700">
+                <input
+                  type="radio"
+                  name="proxy-mode"
+                  value={option.value}
+                  checked={proxyModeInput === option.value}
+                  onChange={() => {
+                    setProxyModeInput(option.value)
+                    setProxyError('')
+                  }}
+                  className="h-4 w-4"
+                />
+                <span>{option.label}</span>
+              </label>
+            ))}
+          </fieldset>
+
+          {proxyModeInput === 'auto' && (
+            <p className="text-sm text-zinc-500">
+              {zh(
+                '自动读取系统代理或环境变量配置。',
+                'Automatically use system proxy settings or environment variables.'
+              )}
+            </p>
+          )}
+          {proxyModeInput === 'direct' && (
+            <p className="text-sm text-zinc-500">
+              {zh(
+                '直接连接网络，忽略系统代理和环境变量中的代理配置。',
+                'Connect directly, ignoring system and environment proxy settings.'
+              )}
+            </p>
+          )}
+
+          {proxyModeInput === 'manual' && (
+            <div className="grid max-w-2xl gap-3 sm:grid-cols-[minmax(0,1fr)_160px]">
+              <div>
+                <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-zinc-500">
+                  {zh('代理IP', 'Proxy IP')}
                 </label>
-              ))}
-            </fieldset>
-
-            {proxyModeInput === 'manual' && (
-              <div className="grid max-w-2xl gap-3 sm:grid-cols-[minmax(0,1fr)_160px]">
-                <div>
-                  <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-zinc-500">
-                    {zh('代理IP', 'Proxy IP')}
-                  </label>
-                  <input
-                    value={proxyHostInput}
-                    onChange={(e) => setProxyHostInput(e.target.value)}
-                    placeholder={DEFAULT_PROXY_HOST}
-                    className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-zinc-500">
-                    {zh('端口号', 'Port')}
-                  </label>
-                  <input
-                    value={proxyInput}
-                    onChange={(e) => setProxyInput(e.target.value)}
-                    placeholder={zh('输入 1-65535', 'Enter 1-65535')}
-                    inputMode="numeric"
-                    className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm"
-                  />
-                </div>
+                <input
+                  value={proxyHostInput}
+                  onChange={(e) => setProxyHostInput(e.target.value)}
+                  disabled={!proxyEditing || savingProxy}
+                  placeholder={DEFAULT_PROXY_HOST}
+                  className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm"
+                />
               </div>
-            )}
+              <div>
+                <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-zinc-500">
+                  {zh('端口号', 'Port')}
+                </label>
+                <input
+                  value={proxyInput}
+                  onChange={(e) => setProxyInput(e.target.value)}
+                  disabled={!proxyEditing || savingProxy}
+                  placeholder={zh('输入 1-65535', 'Enter 1-65535')}
+                  inputMode="numeric"
+                  className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm"
+                />
+              </div>
+            </div>
+          )}
 
-            {proxyError && <div className="text-sm text-red-600">{proxyError}</div>}
+          {proxyError && <div className="text-sm text-red-600">{proxyError}</div>}
 
+          {proxyEditing && (
             <div className="flex flex-wrap justify-end gap-2">
               <button
                 type="button"
@@ -563,6 +552,7 @@ export default function GlobalSettingsModal({
                   setProxyError('')
                   setProxyEditing(false)
                 }}
+                disabled={savingProxy}
                 className="rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50"
               >
                 {zh('取消', 'Cancel')}
@@ -576,8 +566,8 @@ export default function GlobalSettingsModal({
                 {savingProxy ? zh('保存中…', 'Saving...') : zh('保存', 'Save')}
               </button>
             </div>
-          </div>
-        ) : null}
+          )}
+        </div>
       </div>
     </section>
   )
@@ -610,8 +600,8 @@ export default function GlobalSettingsModal({
             </h4>
             <p id="lan-access-description" className="mt-1 text-sm text-zinc-500">
               {zh(
-                '开启后，局域网设备可以通过本机 IP 地址访问 JavBoss，切换立即生效。',
-                'Allow devices on your local network to access JavBoss through this computer’s IP address. Changes take effect immediately.'
+                '开启后，局域网设备可以通过本机 IP 地址访问 JavBoss。',
+                'Allow devices on your local network to access JavBoss through this computer’s IP address.'
               )}
             </p>
           </div>
@@ -644,28 +634,23 @@ export default function GlobalSettingsModal({
   )
 
   const renderDisplayPanel = () => {
-    const currentInitialViewMode = initialViewMode === 'jav' ? 'jav' : 'video'
-    const initialViewModeUnchanged = initialViewModeInput === currentInitialViewMode
-
     return (
       <div className="space-y-5">
         <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
           <div className="space-y-4">
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center justify-between gap-3">
               <h4 className="text-sm font-semibold text-zinc-800">
                 {zh('初始页面', 'Initial Page')}
               </h4>
               <span className="relative inline-block">
                 <select
                   value={initialViewModeInput}
-                  onChange={(event) => {
-                    setInitialViewModeInput(event.target.value === 'jav' ? 'jav' : 'video')
-                    setInitialViewModeError('')
-                  }}
+                  onChange={(event) => handleChangeInitialViewMode(event.target.value)}
+                  disabled={savingInitialViewMode || !onSaveInitialViewMode}
                   className="w-auto appearance-none rounded-xl border border-zinc-200 bg-white py-1.5 pl-3 pr-7 text-sm text-zinc-800 outline-none focus:border-zinc-200 focus:outline-none focus:ring-0 focus-visible:outline-none"
                 >
-                  <option value="video">{zh('视频模式', 'Video Mode')}</option>
-                  <option value="jav">{zh('JAV模式', 'JAV Mode')}</option>
+                  <option value="video">{zh('视频', 'Video')}</option>
+                  <option value="jav">JAV</option>
                 </select>
                 <span
                   aria-hidden="true"
@@ -673,29 +658,14 @@ export default function GlobalSettingsModal({
                 />
               </span>
             </div>
-            <p className="text-sm text-zinc-500">
-              {zh(
-                '打开新页面，默认进入所选模式。',
-                'When opening a new page, use the selected mode by default.'
-              )}
-            </p>
-
             {initialViewModeError && (
-              <div className="text-sm text-red-600">{initialViewModeError}</div>
+              <div className="text-sm text-red-600" role="alert">
+                {initialViewModeError}
+              </div>
             )}
-
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={handleSaveInitialViewMode}
-                disabled={savingInitialViewMode || initialViewModeUnchanged}
-                className="rounded-xl bg-blue-600 px-3 py-1.5 text-sm text-white disabled:opacity-60"
-              >
-                {savingInitialViewMode ? zh('保存中…', 'Saving...') : zh('保存', 'Save')}
-              </button>
-            </div>
           </div>
         </section>
+        <WebHotkeySettings hotkeys={webHotkeys} onSave={onSaveWebHotkeys} />
       </div>
     )
   }
@@ -734,7 +704,7 @@ export default function GlobalSettingsModal({
                 : 'border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50'
             }`}
           >
-            {zh('浏览器播放器', 'Browser Player')}
+            {zh('网页播放器', 'Web Player')}
           </button>
           {showMPVSettings ? (
             <button
@@ -782,8 +752,8 @@ export default function GlobalSettingsModal({
                 </label>
                 <p className="text-xs text-zinc-500">
                   {zh(
-                    '在浏览器播放器打开视频时显示当前快捷键说明。',
-                    'Show the current shortcut guide when the browser player opens a video.'
+                    '在网页播放器打开视频时显示当前快捷键说明。',
+                    'Show the current shortcut guide when the web player opens a video.'
                   )}
                 </p>
               </section>
@@ -819,7 +789,7 @@ export default function GlobalSettingsModal({
                         browser_player_show_hotkey_hint: browserPlayerShowHotkeyHintInput,
                       })
                       setBrowserPlayerSuccess(
-                        zh('浏览器播放器设置保存成功', 'Browser player settings saved')
+                        zh('网页播放器设置保存成功', 'Web player settings saved')
                       )
                     } catch (err) {
                       setBrowserPlayerError(getErrorMessage(err))
@@ -1096,12 +1066,6 @@ export default function GlobalSettingsModal({
       </div>
     )
   }
-
-  const renderShortcutsPanel = () => (
-    <div className="space-y-5">
-      <WebHotkeySettings hotkeys={webHotkeys} onSave={onSaveWebHotkeys} />
-    </div>
-  )
 
   const renderDirectoriesPanel = () => (
     <div className="space-y-2">
@@ -1500,7 +1464,6 @@ export default function GlobalSettingsModal({
           }`}
         >
           {currentSection === 'display' && renderDisplayPanel()}
-          {currentSection === 'shortcuts' && renderShortcutsPanel()}
           {currentSection === 'network' && renderNetworkPanel()}
           {currentSection === 'jav-providers' && (
             <ProviderConnectivityPanel
