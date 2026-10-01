@@ -1,3 +1,5 @@
+import JavDetailRoute from '@/components/JavDetailRoute'
+import { JavDetailNavigationContext } from '@/hooks/javDetailNavigation'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { generateRandomSeed, normalizeUrlStateFromStore } from '@/utils/urlState'
 import { canOpenAlternatePlayer } from '@/utils/playbackCapabilities'
@@ -51,6 +53,8 @@ import GlobalSettingsModal from '@/components/GlobalSettingsModal'
 import DownloadView from '@/components/DownloadView'
 import JavFavoriteManageModal from '@/components/JavFavoriteManageModal'
 import JavFavoriteModal from '@/components/JavFavoriteModal'
+import JavStudioDetailModal from '@/components/JavStudioDetailModal'
+import { StudioDetailNavigationContext } from '@/hooks/studioDetailNavigation'
 import JavQueryEditorModal from '@/components/JavQueryEditorModal'
 import JavSettingsModal from '@/components/JavSettingsModal'
 import JavTagModal from '@/components/JavTagModal'
@@ -1361,6 +1365,23 @@ export default function App() {
   }, [])
 
   const {
+    javDetailId,
+    javDetailItem,
+    javDetailState,
+    cacheJavDetail,
+    openJavDetail,
+    closeJavDetail,
+    saveJavDetailState,
+    navigateFromJavDetail,
+    studioDetailId,
+    studioDetailKey,
+    studioDetailState,
+    studioDetailItem,
+    cacheStudioDetail,
+    openStudioDetail,
+    closeStudioDetail,
+    saveStudioDetailState,
+    navigateFromStudioDetail,
     browserNavigation,
     handleBrowserBack,
     handleBrowserForward,
@@ -3357,6 +3378,7 @@ export default function App() {
   const reloadFavoriteData = useCallback(
     async (entityType) => {
       const type = ['jav', 'idol', 'studio', 'series'].includes(entityType) ? entityType : 'idol'
+      useStore.getState().invalidateJavFavoriteCounts(type)
       const tabByType = { jav: 'list', idol: 'idol', studio: 'studio', series: 'series' }
       const reloadByType = {
         jav: loadJavs,
@@ -3464,57 +3486,9 @@ export default function App() {
   const patchFavoriteCountInCurrentList = useCallback(
     (entityType, entityID, groupIds) => {
       const type = ['jav', 'idol', 'studio', 'series'].includes(entityType) ? entityType : 'idol'
-      const id = Number(entityID)
-      if (!Number.isFinite(id) || id <= 0) return
-
-      const nextGroupIds = Array.from(
-        new Set((groupIds || []).map((value) => Number(value)).filter((value) => value > 0))
-      )
-      const nextGroupSet = new Set(nextGroupIds)
-      const activeGroupID = Number(activeFavoriteGroupId(type))
-      const removeFromCurrentList =
-        Number.isFinite(activeGroupID) && activeGroupID > 0
-          ? !nextGroupSet.has(activeGroupID)
-          : false
-      const listKey =
-        type === 'jav'
-          ? 'javItems'
-          : type === 'studio'
-            ? 'studioItems'
-            : type === 'series'
-              ? 'seriesItems'
-              : 'idolItems'
-      const totalKey =
-        type === 'jav'
-          ? 'javTotal'
-          : type === 'studio'
-            ? 'studioTotal'
-            : type === 'series'
-              ? 'seriesTotal'
-              : 'idolTotal'
-
-      useStore.setState((state) => {
-        const items = Array.isArray(state[listKey]) ? state[listKey] : []
-        let changed = false
-        const nextItems = removeFromCurrentList
-          ? items.filter((item) => {
-              const keep = Number(item?.id) !== id
-              if (!keep) changed = true
-              return keep
-            })
-          : items.map((item) => {
-              if (Number(item?.id) !== id) return item
-              changed = true
-              return { ...item, favorite_count: nextGroupIds.length }
-            })
-        if (!changed) return {}
-        return {
-          [listKey]: nextItems,
-          ...(removeFromCurrentList
-            ? { [totalKey]: Math.max(0, Number(state[totalKey] || 0) - 1) }
-            : {}),
-        }
-      })
+      useStore
+        .getState()
+        .patchJavFavoriteCount(type, entityID, groupIds, activeFavoriteGroupId(type))
     },
     [activeFavoriteGroupId]
   )
@@ -3644,31 +3618,7 @@ export default function App() {
       const id = Number(idol?.id ?? idol)
       if (!Number.isFinite(id) || id <= 0) return
       saveScrollBeforeUrlStateChange()
-      useStore.setState({
-        viewMode: 'jav',
-        videoTempSort: '',
-        javTab: 'list',
-        javTempSort: '',
-        idolTempSort: '',
-        javRandomMode: false,
-        javRandomSeed: null,
-        javIdolIds: [id],
-        javTags: [],
-        javStudioId: null,
-        javStudioName: '',
-        javSeriesId: null,
-        javSeriesName: '',
-        javSoloOnly: false,
-        javFavoriteRatingEnabled: false,
-        javFavoriteRatingMin: 0.5,
-        javFavoriteRatingMax: 5,
-        idolFavoriteGroupId: null,
-        javSearchTerm: '',
-        javPage: 1,
-        idolPage: 1,
-        studioPage: 1,
-        seriesPage: 1,
-      })
+      useStore.getState().selectJavIdol(id)
     },
     [saveScrollBeforeUrlStateChange]
   )
@@ -4124,6 +4074,34 @@ export default function App() {
   const activeFavoriteGroupsError = favoriteGroupsErrorByType?.[activeFavoriteEntityType] || null
   const activeSelectedFavoriteGroupId = activeFavoriteGroupId(activeFavoriteEntityType)
 
+  const javCardActions = {
+    onPlay: handleJavPlay,
+    onOpenFile: handleJavOpenFile,
+    alternatePlayerLabel,
+    onRevealFile: handleJavRevealFile,
+    onOpenScreenshots: handleJavOpenScreenshots,
+    onManageVideoPlay: handleOpenPlayer,
+    onManageVideoPlayAtTime: playVideoFromTime,
+    onManageVideoCoverChanged: handleVideoCoverChanged,
+    onManageVideoOpenFile: handleOpenAlternatePlayer,
+    onManageVideoRevealFile: handleRevealVideoFile,
+    onManageVideoOpenTagPicker: openTagEditor,
+    onManageVideoOpenScreenshots: openJavScreenshots,
+    onManageVideoOpenScrapeSettings: handleOpenScrapeSettings,
+    onManageVideoRename: handleRenameVideo,
+    onManageVideoDelete: handleDeleteVideo,
+    onManageVideoTagClick: handleVideoTagClick,
+    onIdolClick: handleJavIdolClick,
+    onOpenFavorites: handleOpenIdolFavoriteModal,
+    onOpenJavFavorites: (item) => handleOpenFavoriteModal('jav', item),
+    onOpenStudioFavorites: (studio) => handleOpenFavoriteModal('studio', studio),
+    onOpenSeriesFavorites: (series) => handleOpenFavoriteModal('series', series),
+    onStudioClick: handleSelectStudio,
+    onSeriesClick: handleSelectSeries,
+    onPrefixClick: handleSelectJavPrefix,
+    onTagClick: handleJavTagClick,
+  }
+
   return (
     <div className="app-shell min-h-screen">
       <SideTabs
@@ -4262,201 +4240,221 @@ export default function App() {
       />
 
       <main className="page-main w-full pb-6 pt-0">
-        {activeError && (
-          <div
-            role="alert"
-            className="mb-4 rounded border border-red-200 bg-red-50 p-3 text-red-700"
-          >
-            {String(activeError)}
-          </div>
-        )}
+        <StudioDetailNavigationContext.Provider value={openStudioDetail}>
+          <JavDetailNavigationContext.Provider value={openJavDetail}>
+            {activeError && (
+              <div
+                role="alert"
+                className="mb-4 rounded border border-red-200 bg-red-50 p-3 text-red-700"
+              >
+                {String(activeError)}
+              </div>
+            )}
 
-        {isJavMode ? (
-          <JavRoute
-            tab={javTab}
-            buildJavUrl={buildJavUrl}
-            onSelectStudio={handleSelectStudio}
-            idol={{
-              page: idolPage,
-              lastPage: idolLastPage,
-              totalItems: idolTotal,
-              hasPrev: idolHasPrev,
-              hasNext: idolHasNext,
-              loading: idolLoading,
-              idolTempSort,
-              idolGlobalSort: idolFavoriteGroupId ? IDOL_FAVORITE_ORDER_SORT : idolSort,
-              setIdolTempSort,
-              onFirst: () => setIdolPage(1),
-              onPrev: () => idolHasPrev && setIdolPage(idolPage - 1),
-              onGoToPage: (p) => setIdolPage(p),
-              onNext: () => idolHasNext && setIdolPage(idolPage + 1),
-              onLast: () => setIdolPage(idolLastPage),
-              items: idolItems,
-              config,
-              onSelectIdol: handleSelectIdol,
-              onOpenFavorites: handleOpenIdolFavoriteModal,
-              onMerged: () => {
-                loadJavIdols({ force: true })
-                loadJavFavoriteGroups('idol', { force: true })
-              },
-              waterfallMode: waterfallModes.idol,
-              onWaterfallModeChange: (enabled) => setWaterfallMode('idol', enabled),
-              onLoadMore: loadMoreJavIdols,
-              loadingMore: idolLoadingMore,
-              hasMore: idolWaterfallHasMore,
-            }}
-            studio={{
-              page: studioPage,
-              lastPage: studioLastPage,
-              totalItems: studioTotal,
-              hasPrev: studioHasPrev,
-              hasNext: studioHasNext,
-              loading: studioLoading,
-              onFirst: () => setStudioPage(1),
-              onPrev: () => studioHasPrev && setStudioPage(studioPage - 1),
-              onGoToPage: (p) => setStudioPage(p),
-              onNext: () => studioHasNext && setStudioPage(studioPage + 1),
-              onLast: () => setStudioPage(studioLastPage),
-              items: studioItems,
-              onSelectStudio: handleSelectStudio,
-              onSelectSeries: handleSelectSeries,
-              onSelectPrefix: handleSelectJavPrefix,
-              onOpenFavorites: (studio) => handleOpenFavoriteModal('studio', studio),
-              onOpenSeriesFavorites: (series) => handleOpenFavoriteModal('series', series),
-              onMerged: () => {
-                loadJavStudios({ force: true })
-                loadJavSeries({ force: true })
-                loadJavFavoriteGroups('studio', { force: true })
-              },
-              waterfallMode: waterfallModes.studio,
-              onWaterfallModeChange: (enabled) => setWaterfallMode('studio', enabled),
-              onLoadMore: loadMoreJavStudios,
-              loadingMore: studioLoadingMore,
-              hasMore: studioWaterfallHasMore,
-            }}
-            series={{
-              page: seriesPage,
-              lastPage: seriesLastPage,
-              totalItems: seriesTotal,
-              hasPrev: seriesHasPrev,
-              hasNext: seriesHasNext,
-              loading: seriesLoading,
-              onFirst: () => setSeriesPage(1),
-              onPrev: () => seriesHasPrev && setSeriesPage(seriesPage - 1),
-              onGoToPage: (p) => setSeriesPage(p),
-              onNext: () => seriesHasNext && setSeriesPage(seriesPage + 1),
-              onLast: () => setSeriesPage(seriesLastPage),
-              items: seriesItems,
-              onSelectSeries: handleSelectSeries,
-              onOpenFavorites: (series) => handleOpenFavoriteModal('series', series),
-              waterfallMode: waterfallModes.series,
-              onWaterfallModeChange: (enabled) => setWaterfallMode('series', enabled),
-              onLoadMore: loadMoreJavSeries,
-              loadingMore: seriesLoadingMore,
-              hasMore: seriesWaterfallHasMore,
-            }}
-            list={{
-              javPage,
-              javLastPage,
-              javHasPrev,
-              javHasNext,
-              activeJavLoading,
-              javRandomMode,
-              javResolvedSort: javSortResolution.sort,
-              javSortSource: javSortResolution.source,
-              javPrefix,
-              setJavPage,
-              setJavTempSort,
-              javItems,
-              javTotal,
-              javGridColumns,
-              javTitleMaxRows,
-              javIdolTagMaxRows,
-              javTagMaxRows,
-              selectedJavIds: javSelection.selectedIds,
-              onToggleSelect: javSelection.toggle,
-              onSelectAll: javSelection.selectAll,
-              onSelectPage: javSelection.selectPage,
-              onPlayPage: javSelection.playPage,
-              onPlayAll: javSelection.playAll,
-              bulkActionBusy: javSelection.busy,
-              mpvEnabled,
-              onPlay: handleJavPlay,
-              onOpenFile: handleJavOpenFile,
-              alternatePlayerLabel,
-              onRevealFile: handleJavRevealFile,
-              onOpenScreenshots: handleJavOpenScreenshots,
-              onManageVideoPlay: handleOpenPlayer,
-              onManageVideoPlayAtTime: playVideoFromTime,
-              onManageVideoCoverChanged: handleVideoCoverChanged,
-              onManageVideoOpenFile: handleOpenAlternatePlayer,
-              onManageVideoRevealFile: handleRevealVideoFile,
-              onManageVideoOpenTagPicker: openTagEditor,
-              onManageVideoOpenScreenshots: openJavScreenshots,
-              onManageVideoOpenScrapeSettings: handleOpenScrapeSettings,
-              onManageVideoRename: handleRenameVideo,
-              onManageVideoDelete: handleDeleteVideo,
-              onManageVideoTagClick: handleVideoTagClick,
-              onIdolClick: handleJavIdolClick,
-              onOpenFavorites: handleOpenIdolFavoriteModal,
-              onOpenJavFavorites: (item) => handleOpenFavoriteModal('jav', item),
-              onOpenStudioFavorites: (studio) => handleOpenFavoriteModal('studio', studio),
-              onOpenSeriesFavorites: (series) => handleOpenFavoriteModal('series', series),
-              onStudioClick: handleSelectStudio,
-              onSeriesClick: handleSelectSeries,
-              onPrefixClick: handleSelectJavPrefix,
-              onTagClick: handleJavTagClick,
-              waterfallMode: waterfallModes.jav,
-              onWaterfallModeChange: (enabled) => setWaterfallMode('jav', enabled),
-              onLoadMore: loadMoreJavs,
-              loadingMore: javLoadingMore,
-              hasMore: javWaterfallHasMore,
-            }}
-          />
-        ) : (
-          <VideoRoute
-            page={page}
-            lastPage={lastPage}
-            totalItems={total}
-            canPrev={canPrev}
-            canNext={canNext}
-            loading={loading}
-            randomMode={randomMode}
-            videoTempSort={videoTempSort}
-            videoGlobalSort={sortOrder}
-            buildVideoUrl={buildVideoUrl}
-            setPage={navigateVideoPage}
-            setVideoTempSort={setVideoTempSort}
-            goToLastPage={() => navigateVideoPage(lastPage)}
-            videos={videos}
-            selectedVideoIds={selectedVideoIds}
-            toggleSelectVideo={toggleSelectVideo}
-            onSelectAll={handleSelectAllVideos}
-            onSelectPage={handleSelectVideoPage}
-            onPlayPage={handlePlayVideoPage}
-            onPlayAll={handlePlayAllVideos}
-            bulkActionBusy={videoBulkActionBusy || selectionPlaying}
-            mpvEnabled={mpvEnabled}
-            openPlayer={handleOpenPlayer}
-            openAlternatePlayer={
-              containerMode || alternatePlayer ? handleOpenAlternatePlayer : null
-            }
-            revealFile={containerMode || desktopIntegrationEnabled ? handleRevealVideoFile : null}
-            alternatePlayerLabel={alternatePlayerLabel}
-            setTagPickerFor={openTagEditor}
-            onOpenScreenshots={openVideoScreenshots}
-            onOpenScrapeSettings={handleOpenScrapeSettings}
-            onRenameVideo={handleRenameVideo}
-            onDeleteVideo={handleDeleteVideo}
-            onTagClick={handleVideoTagClick}
-            waterfallMode={waterfallModes.video}
-            onWaterfallModeChange={(enabled) => setWaterfallMode('video', enabled)}
-            onLoadMore={loadMoreVideos}
-            loadingMore={videoLoadingMore}
-            hasMore={videoWaterfallHasMore}
-          />
-        )}
+            {isJavMode ? (
+              <JavRoute
+                tab={javTab}
+                buildJavUrl={buildJavUrl}
+                onSelectStudio={handleSelectStudio}
+                idol={{
+                  page: idolPage,
+                  lastPage: idolLastPage,
+                  totalItems: idolTotal,
+                  hasPrev: idolHasPrev,
+                  hasNext: idolHasNext,
+                  loading: idolLoading,
+                  idolTempSort,
+                  idolGlobalSort: idolFavoriteGroupId ? IDOL_FAVORITE_ORDER_SORT : idolSort,
+                  setIdolTempSort,
+                  onFirst: () => setIdolPage(1),
+                  onPrev: () => idolHasPrev && setIdolPage(idolPage - 1),
+                  onGoToPage: (p) => setIdolPage(p),
+                  onNext: () => idolHasNext && setIdolPage(idolPage + 1),
+                  onLast: () => setIdolPage(idolLastPage),
+                  items: idolItems,
+                  config,
+                  onSelectIdol: handleSelectIdol,
+                  onOpenFavorites: handleOpenIdolFavoriteModal,
+                  onMerged: () => {
+                    loadJavIdols({ force: true })
+                    loadJavFavoriteGroups('idol', { force: true })
+                  },
+                  waterfallMode: waterfallModes.idol,
+                  onWaterfallModeChange: (enabled) => setWaterfallMode('idol', enabled),
+                  onLoadMore: loadMoreJavIdols,
+                  loadingMore: idolLoadingMore,
+                  hasMore: idolWaterfallHasMore,
+                }}
+                studio={{
+                  page: studioPage,
+                  lastPage: studioLastPage,
+                  totalItems: studioTotal,
+                  hasPrev: studioHasPrev,
+                  hasNext: studioHasNext,
+                  loading: studioLoading,
+                  onFirst: () => setStudioPage(1),
+                  onPrev: () => studioHasPrev && setStudioPage(studioPage - 1),
+                  onGoToPage: (p) => setStudioPage(p),
+                  onNext: () => studioHasNext && setStudioPage(studioPage + 1),
+                  onLast: () => setStudioPage(studioLastPage),
+                  items: studioItems,
+                  onSelectStudio: handleSelectStudio,
+                  onSelectSeries: handleSelectSeries,
+                  onSelectPrefix: handleSelectJavPrefix,
+                  onOpenFavorites: (studio) => handleOpenFavoriteModal('studio', studio),
+                  onOpenSeriesFavorites: (series) => handleOpenFavoriteModal('series', series),
+                  onMerged: () => {
+                    loadJavStudios({ force: true })
+                    loadJavSeries({ force: true })
+                    loadJavFavoriteGroups('studio', { force: true })
+                  },
+                  waterfallMode: waterfallModes.studio,
+                  onWaterfallModeChange: (enabled) => setWaterfallMode('studio', enabled),
+                  onLoadMore: loadMoreJavStudios,
+                  loadingMore: studioLoadingMore,
+                  hasMore: studioWaterfallHasMore,
+                }}
+                series={{
+                  page: seriesPage,
+                  lastPage: seriesLastPage,
+                  totalItems: seriesTotal,
+                  hasPrev: seriesHasPrev,
+                  hasNext: seriesHasNext,
+                  loading: seriesLoading,
+                  onFirst: () => setSeriesPage(1),
+                  onPrev: () => seriesHasPrev && setSeriesPage(seriesPage - 1),
+                  onGoToPage: (p) => setSeriesPage(p),
+                  onNext: () => seriesHasNext && setSeriesPage(seriesPage + 1),
+                  onLast: () => setSeriesPage(seriesLastPage),
+                  items: seriesItems,
+                  onSelectSeries: handleSelectSeries,
+                  onOpenFavorites: (series) => handleOpenFavoriteModal('series', series),
+                  waterfallMode: waterfallModes.series,
+                  onWaterfallModeChange: (enabled) => setWaterfallMode('series', enabled),
+                  onLoadMore: loadMoreJavSeries,
+                  loadingMore: seriesLoadingMore,
+                  hasMore: seriesWaterfallHasMore,
+                }}
+                list={{
+                  javPage,
+                  javLastPage,
+                  javHasPrev,
+                  javHasNext,
+                  activeJavLoading,
+                  javRandomMode,
+                  javResolvedSort: javSortResolution.sort,
+                  javSortSource: javSortResolution.source,
+                  javPrefix,
+                  setJavPage,
+                  setJavTempSort,
+                  javItems,
+                  javTotal,
+                  javGridColumns,
+                  javTitleMaxRows,
+                  javIdolTagMaxRows,
+                  javTagMaxRows,
+                  selectedJavIds: javSelection.selectedIds,
+                  onToggleSelect: javSelection.toggle,
+                  onSelectAll: javSelection.selectAll,
+                  onSelectPage: javSelection.selectPage,
+                  onPlayPage: javSelection.playPage,
+                  onPlayAll: javSelection.playAll,
+                  bulkActionBusy: javSelection.busy,
+                  mpvEnabled,
+                  ...javCardActions,
+                  waterfallMode: waterfallModes.jav,
+                  onWaterfallModeChange: (enabled) => setWaterfallMode('jav', enabled),
+                  onLoadMore: loadMoreJavs,
+                  loadingMore: javLoadingMore,
+                  hasMore: javWaterfallHasMore,
+                }}
+              />
+            ) : (
+              <VideoRoute
+                page={page}
+                lastPage={lastPage}
+                totalItems={total}
+                canPrev={canPrev}
+                canNext={canNext}
+                loading={loading}
+                randomMode={randomMode}
+                videoTempSort={videoTempSort}
+                videoGlobalSort={sortOrder}
+                buildVideoUrl={buildVideoUrl}
+                setPage={navigateVideoPage}
+                setVideoTempSort={setVideoTempSort}
+                goToLastPage={() => navigateVideoPage(lastPage)}
+                videos={videos}
+                selectedVideoIds={selectedVideoIds}
+                toggleSelectVideo={toggleSelectVideo}
+                onSelectAll={handleSelectAllVideos}
+                onSelectPage={handleSelectVideoPage}
+                onPlayPage={handlePlayVideoPage}
+                onPlayAll={handlePlayAllVideos}
+                bulkActionBusy={videoBulkActionBusy || selectionPlaying}
+                mpvEnabled={mpvEnabled}
+                openPlayer={handleOpenPlayer}
+                openAlternatePlayer={
+                  containerMode || alternatePlayer ? handleOpenAlternatePlayer : null
+                }
+                revealFile={
+                  containerMode || desktopIntegrationEnabled ? handleRevealVideoFile : null
+                }
+                alternatePlayerLabel={alternatePlayerLabel}
+                setTagPickerFor={openTagEditor}
+                onOpenScreenshots={openVideoScreenshots}
+                onOpenScrapeSettings={handleOpenScrapeSettings}
+                onRenameVideo={handleRenameVideo}
+                onDeleteVideo={handleDeleteVideo}
+                onTagClick={handleVideoTagClick}
+                waterfallMode={waterfallModes.video}
+                onWaterfallModeChange={(enabled) => setWaterfallMode('video', enabled)}
+                onLoadMore={loadMoreVideos}
+                loadingMore={videoLoadingMore}
+                hasMore={videoWaterfallHasMore}
+              />
+            )}
+          </JavDetailNavigationContext.Provider>
+        </StudioDetailNavigationContext.Provider>
       </main>
+      {configLoaded && hydrated && javDetailId ? (
+        <StudioDetailNavigationContext.Provider value={openStudioDetail}>
+          <JavDetailRoute
+            key={javDetailId}
+            {...javCardActions}
+            openFileLabel={alternatePlayerLabel}
+            buildJavUrl={buildJavUrl}
+            itemId={javDetailId}
+            initialItem={javDetailItem}
+            onLoaded={cacheJavDetail}
+            initialState={javDetailState}
+            onStateChange={saveJavDetailState}
+            onClose={closeJavDetail}
+            onStudioClick={(item) => navigateFromJavDetail(() => handleSelectStudio(item))}
+            onSeriesClick={(item) => navigateFromJavDetail(() => handleSelectSeries(item))}
+            onPrefixClick={(item) => navigateFromJavDetail(() => handleSelectJavPrefix(item))}
+            onIdolClick={(item) => navigateFromJavDetail(() => handleJavIdolClick(item))}
+            onTagClick={(item) => navigateFromJavDetail(() => handleJavTagClick(item))}
+            onManageVideoTagClick={(item) => navigateFromJavDetail(() => handleVideoTagClick(item))}
+          />
+        </StudioDetailNavigationContext.Provider>
+      ) : null}
+      {configLoaded && hydrated && studioDetailId ? (
+        <JavStudioDetailModal
+          key={studioDetailKey}
+          studioId={studioDetailId}
+          initialItem={studioDetailItem}
+          onLoaded={cacheStudioDetail}
+          initialState={studioDetailState}
+          onStateChange={saveStudioDetailState}
+          onClose={closeStudioDetail}
+          onSelectStudio={(studio) => navigateFromStudioDetail(() => handleSelectStudio(studio))}
+          onSelectSeries={(series) => navigateFromStudioDetail(() => handleSelectSeries(series))}
+          onSelectPrefix={(prefix) => navigateFromStudioDetail(() => handleSelectJavPrefix(prefix))}
+          onOpenSeriesFavorites={(series) => handleOpenFavoriteModal('series', series)}
+          buildJavUrl={buildJavUrl}
+        />
+      ) : null}
 
       <DownloadView
         open={downloadOpen}
