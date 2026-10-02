@@ -145,17 +145,20 @@
       )
         .toLowerCase()
         .trim();
+      const isUncensored =
+        activeHref.includes("/uncensored") ||
+        activeSection.includes("無碼") ||
+        activeSection.includes("无码") ||
+        activeSection.includes("uncensored");
       return {
         code,
         title,
-        studio: fieldValue(document, [
-          "製作商",
-          "制作商",
-          "片商",
-          "メーカー",
-          "studio",
-          "maker",
-        ]),
+        studio: fieldValue(
+          document,
+          isUncensored
+            ? ["製作商", "制作商", "メーカー", "studio", "maker"]
+            : ["發行商", "发行商", "レーベル", "label"],
+        ),
         series: fieldValue(document, ["系列", "シリーズ", "series"]),
         release_date: parseDate(document),
         duration_min: parseDuration(document),
@@ -167,11 +170,7 @@
           ["img.cover", "src"],
           [".bigImage img", "src"],
         ]),
-        is_uncensored:
-          activeHref.includes("/uncensored") ||
-          activeSection.includes("無碼") ||
-          activeSection.includes("无码") ||
-          activeSection.includes("uncensored"),
+        is_uncensored: isUncensored,
         source_name: "JavBus",
         source_url: String(pageURL || ""),
       };
