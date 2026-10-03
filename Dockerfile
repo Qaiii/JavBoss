@@ -15,6 +15,7 @@ FROM golang:1.25-bookworm AS go-build
 
 ARG GOPROXY=https://goproxy.cn,direct
 ARG GOSUMDB=sum.golang.org
+ARG BUILD_MODE=release
 ENV GOPROXY=${GOPROXY} \
   GOSUMDB=${GOSUMDB}
 
@@ -24,7 +25,7 @@ RUN --mount=type=cache,target=/go/pkg/mod go mod download
 COPY . .
 RUN --mount=type=cache,target=/go/pkg/mod \
   --mount=type=cache,target=/root/.cache/go-build \
-  go build -trimpath -ldflags="-s -w" -o /out/javboss ./cmd/server
+  go build -trimpath -ldflags="-s -w -X main.buildMode=${BUILD_MODE}" -o /out/javboss ./cmd/server
 
 FROM --platform=$BUILDPLATFORM alpine:3.23 AS ffmpeg-build
 
@@ -64,9 +65,6 @@ COPY --from=go-build /out/javboss ./javboss
 COPY --from=web-build /src/web/dist ./web/dist
 
 ENV JAVBOSS_CONTAINER=1 \
-  JAVBOSS_DISABLE_DESKTOP_INTEGRATION=1 \
-  JAVBOSS_DISABLE_MPV=1 \
-  JAVBOSS_USE_FFMPEG_SCREENSHOTS=1 \
   JAVBOSS_HOST_PATH_PREFIX=1 \
   JAVBOSS_PROXY_HOST_GATEWAY=1
 
