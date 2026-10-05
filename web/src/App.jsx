@@ -246,9 +246,11 @@ export default function App() {
     locationPickerChoices,
     locationPickerAction,
     playerVideo,
-    setPlayerVideo,
+    playerPlaylist,
+    playerIndex,
+    selectPlayerVideo,
+    closePlayer,
     playerStartTime,
-    setPlayerStartTime,
     screenshotsVideo,
     setScreenshotsVideo,
     screenshotsAllowSetCover,
@@ -256,11 +258,11 @@ export default function App() {
     locationPickerItem,
     containerMode,
     desktopIntegrationEnabled,
-    mpvEnabled,
+    bulkPlaybackEnabled,
     defaultPlayer,
     alternatePlayer,
     alternatePlayerLabel,
-    ensureMPVPlaylistAvailable,
+    ensurePlaylistAvailable,
     isVideoOpenable,
     closeLocationPicker,
     playVideoFromTime,
@@ -268,7 +270,7 @@ export default function App() {
     handleOpenAlternatePlayer,
     handleRevealVideoFile,
     closeJavVideoPicker,
-    playVideosWithMPV,
+    playVideos,
     handleJavPlay,
     handleJavOpenFile,
     handleJavRevealFile,
@@ -315,11 +317,11 @@ export default function App() {
     handlePlayVideoPage,
     handlePlayAllVideos,
   } = useVideoSelection({
-    mpvEnabled,
-    ensureMPVPlaylistAvailable,
+    bulkPlaybackEnabled,
+    ensurePlaylistAvailable,
     showCenterToast,
     showToast,
-    playVideosWithMPV,
+    playVideos,
   })
 
   useEffect(() => {
@@ -439,9 +441,9 @@ export default function App() {
 
   const javSelection = useJavSelection({
     items: javItems,
-    mpvEnabled,
-    ensurePlayAvailable: ensureMPVPlaylistAvailable,
-    playVideos: playVideosWithMPV,
+    bulkPlaybackEnabled,
+    ensurePlayAvailable: ensurePlaylistAvailable,
+    playVideos: playVideos,
     showToast,
     showError: showCenterToast,
   })
@@ -664,7 +666,7 @@ export default function App() {
                 handleSelectJavPrefix={handleSelectJavPrefix}
                 handleOpenFavoriteModal={handleOpenFavoriteModal}
                 javSelection={javSelection}
-                mpvEnabled={mpvEnabled}
+                bulkPlaybackEnabled={bulkPlaybackEnabled}
                 javCardActions={javCardActions}
               />
             ) : (
@@ -678,7 +680,7 @@ export default function App() {
                 handlePlayAllVideos={handlePlayAllVideos}
                 videoBulkActionBusy={videoBulkActionBusy}
                 selectionPlaying={selectionPlaying}
-                mpvEnabled={mpvEnabled}
+                bulkPlaybackEnabled={bulkPlaybackEnabled}
                 handleOpenPlayer={handleOpenPlayer}
                 containerMode={containerMode}
                 alternatePlayer={alternatePlayer}
@@ -787,14 +789,17 @@ export default function App() {
 
       <PlayerModal
         video={playerVideo}
+        playlist={playerPlaylist}
+        currentIndex={playerIndex}
+        onSelectVideo={selectPlayerVideo}
+        // 浏览器播放器“选集”沿用 fork 的 props 名称
+        episodes={playerPlaylist}
+        onSwitchVideo={selectPlayerVideo}
         startTime={playerStartTime}
         hotkeys={config?.player_hotkeys}
         showHotkeyHint={configFlag(config?.browser_player_show_hotkey_hint, true)}
         onPlaybackError={showCenterToast}
-        onClose={() => {
-          setPlayerVideo(null)
-          setPlayerStartTime(0)
-        }}
+        onClose={closePlayer}
       />
 
       <VideoScrapeSettingsModal
@@ -903,7 +908,7 @@ export default function App() {
         busy={javSelection.busy}
         onClose={javSelection.closeOps}
         items={javSelection.selectedList}
-        mpvEnabled={mpvEnabled}
+        bulkPlaybackEnabled={bulkPlaybackEnabled}
         playing={javSelection.playing}
         onRemoveSelected={javSelection.remove}
         onPlaySelected={javSelection.playSelected}
@@ -944,7 +949,7 @@ export default function App() {
         selectedList={selectedList}
         selectedCount={selectedCount}
         selectedJavCount={selectedJavIds.length}
-        mpvEnabled={mpvEnabled}
+        bulkPlaybackEnabled={bulkPlaybackEnabled}
         playing={selectionPlaying}
         deleting={selectionDeleting}
         onRemoveSelected={handleRemoveSelectedVideo}

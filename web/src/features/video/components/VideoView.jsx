@@ -48,7 +48,7 @@ export default function VideoView({
   onPlayPage,
   onPlayAll,
   bulkActionBusy,
-  mpvEnabled,
+  bulkPlaybackEnabled,
   openPlayer,
   openAlternatePlayer,
   revealFile,
@@ -97,7 +97,7 @@ export default function VideoView({
       hasItems={hasVideos}
       pageSelectable={pageSelectable}
       busy={bulkActionBusy}
-      mpvEnabled={mpvEnabled}
+      bulkPlaybackEnabled={bulkPlaybackEnabled}
       onSelectAll={onSelectAll}
       onSelectPage={onSelectPage}
       onPlayPage={onPlayPage}

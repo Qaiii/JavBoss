@@ -45,7 +45,7 @@ export default function JavView({
   onPlayPage,
   onPlayAll,
   bulkActionBusy,
-  mpvEnabled,
+  bulkPlaybackEnabled,
   javGridColumns,
   javTitleMaxRows,
   javIdolTagMaxRows,
@@ -213,7 +213,7 @@ export default function JavView({
                 hasItems={Number(javRandomMode ? javItems.length : javTotal) > 0}
                 pageSelectable={javItems.some((item) => Number(item?.id) > 0)}
                 busy={bulkActionBusy || javLoading}
-                mpvEnabled={mpvEnabled}
+                bulkPlaybackEnabled={bulkPlaybackEnabled}
                 onSelectAll={onSelectAll}
                 onSelectPage={onSelectPage}
                 onPlayPage={onPlayPage}

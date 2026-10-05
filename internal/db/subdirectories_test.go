@@ -37,10 +37,8 @@ func TestListDirectorySubdirectories(t *testing.T) {
 		}
 		locations = append(locations, *loc)
 	}
-	if err := gdb.Model(&models.VideoLocation{}).
-		Where("id = ?", locations[4].ID).
-		Update("is_delete", true).Error; err != nil {
-		t.Fatalf("hide location: %v", err)
+	if err := DeleteVideoLocationsByIDs(ctx, []int64{locations[4].ID}); err != nil {
+		t.Fatalf("delete location: %v", err)
 	}
 
 	got, err := ListDirectorySubdirectories(ctx, dir.ID)

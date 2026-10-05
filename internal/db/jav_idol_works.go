@@ -633,7 +633,7 @@ func attachJavPlayCountsForSort(ctx context.Context, items []models.Jav, directo
 		Joins("JOIN directory d ON d.id = vl.directory_id").
 		Joins("JOIN video v ON v.id = vl.video_id").
 		Where("vl.jav_id IN ?", ids).
-		Where(activeLocationWhereSQL("vl", "d")).
+		Where(activeDirectoryWhereSQL("d")).
 		Group("vl.jav_id")
 	query = applyDirectoryFilter(query, "vl", directoryIDs)
 	query = applyClosedSubdirectoryFilter(query, "vl", closedSubdirs)

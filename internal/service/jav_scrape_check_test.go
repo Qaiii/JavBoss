@@ -30,7 +30,7 @@ func TestCheckAndRepairJavScrapeQueuesIncompleteRows(t *testing.T) {
 	})
 
 	coverDir := t.TempDir()
-	coverMgr := manager.NewCoverManager(coverDir, []jav.Provider{jav.ProviderJavBus})
+	coverMgr := manager.NewCoverManager(coverDir)
 	previousCover := common.CoverManager
 	common.CoverManager = coverMgr
 	t.Cleanup(func() { common.CoverManager = previousCover })
@@ -198,7 +198,7 @@ func TestCheckAndRepairJavScrapeQueuesUnimportedWorks(t *testing.T) {
 	}
 
 	coverDir := t.TempDir()
-	coverMgr := manager.NewCoverManager(coverDir, []jav.Provider{jav.ProviderJavBus})
+	coverMgr := manager.NewCoverManager(coverDir)
 	previousCover := common.CoverManager
 	common.CoverManager = coverMgr
 	t.Cleanup(func() { common.CoverManager = previousCover })
