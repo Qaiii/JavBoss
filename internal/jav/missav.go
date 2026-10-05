@@ -2,7 +2,6 @@ package jav
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,6 +13,7 @@ import (
 	"unicode"
 
 	"javboss/internal/common/logging"
+	"javboss/internal/jav/internal/htmlutil"
 	"javboss/internal/util"
 
 	"golang.org/x/net/html"
@@ -41,7 +41,7 @@ func LookupMissAVChineseTitle(code string) (title string, err error) {
 	}
 
 	cacheKey := missAVTitleCacheKey(code)
-	if cached, ok, cacheErr := lookupCacheGet[string](cacheKey); ok {
+	if cached, ok, cacheErr := lookupCacheGet[string](defaultMetadataClient, cacheKey); ok {
 		if cacheErr != nil {
 			return "", cacheErr
 		}
@@ -55,7 +55,7 @@ func LookupMissAVChineseTitle(code string) (title string, err error) {
 	if err == nil && strings.TrimSpace(title) == "" {
 		err = ResourceNotFonud
 	}
-	cacheableLookupResult(cacheKey, title, err)
+	cacheableLookupResult(defaultMetadataClient, cacheKey, title, err)
 	return title, err
 }
 
@@ -143,11 +143,8 @@ func fetchMissAVHTML(ctx context.Context, targetURL string) (*html.Node, int, er
 	}
 
 	logging.Info("missav request: %s", targetURL)
-	resp, err := util.DoRequest(req)
+	resp, err := util.DefaultCachedHTTPClient().Do(req)
 	if err != nil {
-		if errors.Is(err, util.ErrCachedNotFound) {
-			return nil, http.StatusNotFound, nil
-		}
 		return nil, 0, err
 	}
 	defer resp.Body.Close()
@@ -168,7 +165,7 @@ func fetchMissAVHTML(ctx context.Context, targetURL string) (*html.Node, int, er
 		return nil, resp.StatusCode, fmt.Errorf("missav: http %d", resp.StatusCode)
 	}
 
-	doc, err := parseHTMLDocument(body)
+	doc, err := htmlutil.ParseHTMLDocument(body)
 	if err != nil {
 		return nil, resp.StatusCode, fmt.Errorf("missav: parse html: %w", err)
 	}
@@ -216,15 +213,15 @@ func parseMissAVChineseTitle(root *html.Node, code string) string {
 	if root == nil {
 		return ""
 	}
-	sel := documentSelection(root)
+	sel := htmlutil.DocumentSelection(root)
 	candidates := []string{
-		cleanSelectionText(sel.Find("h1.text-base").First()),
-		cleanSelectionText(sel.Find("h1").First()),
+		htmlutil.CleanSelectionText(sel.Find("h1.text-base").First()),
+		htmlutil.CleanSelectionText(sel.Find("h1").First()),
 	}
 	if content, ok := sel.Find(`meta[property="og:title"]`).Attr("content"); ok {
 		candidates = append(candidates, strings.TrimSpace(content))
 	}
-	candidates = append(candidates, cleanSelectionText(sel.Find("title").First()))
+	candidates = append(candidates, htmlutil.CleanSelectionText(sel.Find("title").First()))
 	for _, raw := range candidates {
 		if title := cleanMissAVTitle(raw, code); title != "" {
 			return title

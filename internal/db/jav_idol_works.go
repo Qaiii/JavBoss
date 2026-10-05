@@ -480,7 +480,7 @@ func searchJavIncludingExternal(ctx context.Context, idolIDs []int64, tagIDs []i
 
 	var library []models.Jav
 	if err := buildJavFilter(ctx, idolIDs, tagIDs, search, prefix, directoryIDs, filters, closedSubdirs, subpaths).
-		Select("jav.id, jav.code, jav.title, jav.title_zh, jav.release_unix, jav.duration_min, jav.created_at, jav.favorite_rating, jav.studio_id, jav.series_id").
+		Select("jav.id, jav.code, jav.title, jav.zh_title, jav.release_unix, jav.duration_min, jav.created_at, jav.favorite_rating, jav.studio_id, jav.series_id").
 		Find(&library).Error; err != nil {
 		return nil, 0, fmt.Errorf("list jav for external merge: %w", err)
 	}
@@ -1028,7 +1028,7 @@ func javFromUnimportedIdolWork(work models.JavIdolWork, inLibrary *bool) models.
 	item := models.Jav{
 		Code:        work.Code,
 		Title:       work.Title,
-		TitleZH:     work.TitleZH,
+		ZhTitle:     work.TitleZH,
 		ReleaseUnix: work.ReleaseUnix,
 		DurationMin: work.DurationMin,
 		CreatedAt:   javExternalEpoch,
@@ -1417,7 +1417,7 @@ func ListCodesMissingTitleZH(ctx context.Context) ([]string, error) {
 	var codes []string
 	if err := common.DB.WithContext(ctx).Raw(`
 		SELECT DISTINCT code FROM jav
-		WHERE TRIM(COALESCE(code, '')) <> '' AND TRIM(COALESCE(title_zh, '')) = ''
+		WHERE TRIM(COALESCE(code, '')) <> '' AND TRIM(COALESCE(zh_title, '')) = ''
 		UNION
 		SELECT DISTINCT code FROM jav_idol_work
 		WHERE TRIM(COALESCE(code, '')) <> '' AND TRIM(COALESCE(title_zh, '')) = ''
@@ -1437,9 +1437,9 @@ func ApplyTitleZH(ctx context.Context, code, titleZH string) error {
 	}
 	if err := common.DB.WithContext(ctx).
 		Model(&models.Jav{}).
-		Where("UPPER(code) = ? AND TRIM(COALESCE(title_zh, '')) = ''", code).
-		Update("title_zh", titleZH).Error; err != nil {
-		return fmt.Errorf("update jav title_zh: %w", err)
+		Where("UPPER(code) = ? AND TRIM(COALESCE(zh_title, '')) = ''", code).
+		Update("zh_title", titleZH).Error; err != nil {
+		return fmt.Errorf("update jav zh_title: %w", err)
 	}
 	if err := common.DB.WithContext(ctx).
 		Model(&models.JavIdolWork{}).
@@ -1507,7 +1507,7 @@ func CodeNeedsTitleZH(ctx context.Context, code string) (bool, error) {
 	if err := common.DB.WithContext(ctx).Raw(`
 		SELECT COUNT(*) FROM (
 			SELECT 1 FROM jav
-			WHERE UPPER(code) = ? AND TRIM(COALESCE(title_zh, '')) = ''
+			WHERE UPPER(code) = ? AND TRIM(COALESCE(zh_title, '')) = ''
 			UNION ALL
 			SELECT 1 FROM jav_idol_work
 			WHERE UPPER(code) = ? AND TRIM(COALESCE(title_zh, '')) = ''

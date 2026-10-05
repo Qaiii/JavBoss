@@ -66,7 +66,7 @@ var (
 )
 
 // OverrideLookupActressURL replaces the JavDB profile-URL resolver (tests only).
-func OverrideLookupActressURL(fn func(code, name string, provider jav.Provider) (string, error)) {
+func OverrideLookupActressURL(fn func(ctx context.Context, code, name string, provider jav.Provider) (string, error)) {
 	if fn != nil {
 		lookupActressURLByCodeAndName = fn
 	}
@@ -665,7 +665,7 @@ func lookupJavDBProfileURL(ctx context.Context, item *models.JavIdol) (string, e
 
 	for _, code := range codes {
 		for _, name := range names {
-			profileURL, err := lookupActressURLByCodeAndName(code, name, jav.ProviderJavDB)
+			profileURL, err := lookupActressURLByCodeAndName(ctx, code, name, jav.ProviderJavDB)
 			if err == nil {
 				return profileURL, nil
 			}
@@ -698,7 +698,7 @@ func lookupJavDatabaseProfileURL(ctx context.Context, item *models.JavIdol) (str
 	}
 
 	for _, code := range codes {
-		actress, err := jav.LookupActressByCode(code, jav.ProviderJavDatabase)
+		actress, err := jav.LookupActressByCode(ctx, code, jav.ProviderJavDatabase)
 		if err != nil {
 			if errors.Is(err, jav.ResourceNotFonud) {
 				continue

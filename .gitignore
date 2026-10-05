@@ -1,4 +1,6 @@
 .gocache/
+.gomodcache/
+.merge-extract/
 data/
 docker-data/
 *.db

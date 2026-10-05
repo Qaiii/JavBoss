@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"javboss/internal/common/logging"
+	"javboss/internal/playback"
 )
 
 const playbackScreenshotTemplate = "mpv_%wH-%wM-%wS.%wT"
@@ -29,6 +30,7 @@ const (
 )
 
 type PlayOptions struct {
+	NewWatchReporter       func() *playback.Reporter
 	DataDir                string
 	VideoID                int64
 	StartTimeSec           float64
@@ -47,6 +49,7 @@ type PlaylistItem struct {
 type playerSession struct {
 	mu      sync.Mutex
 	cmd     *exec.Cmd
+	process *playerProcess
 	ipcPath string
 	events  *playlistEvents
 }
@@ -80,6 +83,9 @@ var (
 
 // PlayVideo launches mpv to play the given file path.
 func PlayVideo(path string, options PlayOptions) error {
+	if options.NewWatchReporter != nil {
+		return PlayPlaylist([]PlaylistItem{{Path: path, Options: options}})
+	}
 	cancelFocusRestoreAttempts()
 	rememberFocusRestoreOwner(0)
 	if !loadConfiguredPlayerReuseWindow() {
@@ -112,20 +118,15 @@ func ResetPlayerSession() {
 }
 
 func playVideoInNewProcess(path string, options PlayOptions) error {
-	cmd, err := buildOneShotCommand(path, options)
+	cmd, ipcPath, err := buildOneShotCommand(path, options)
 	if err != nil {
 		return err
 	}
 	logging.Info("play video command: %v", cmd.Args)
-	if err := cmd.Start(); err != nil {
+	if _, err := playerProcesses.start(cmd, ipcPath); err != nil {
 		return fmt.Errorf("play video: %w", err)
 	}
 	focusStartedProcessWindow(cmd.Process.Pid, "play video")
-	go func() {
-		if err := cmd.Wait(); err != nil {
-			logging.Error("play video command exited with error: %v", err)
-		}
-	}()
 	return nil
 }
 
@@ -218,7 +219,7 @@ func (s *playerSession) Reset() {
 }
 
 func (s *playerSession) ensureRunningLocked(options PlayOptions) error {
-	if s.cmd != nil && s.cmd.ProcessState == nil && s.ipcPath != "" {
+	if s.process != nil && s.process.running() && s.ipcPath != "" {
 		return nil
 	}
 
@@ -234,17 +235,19 @@ func (s *playerSession) ensureRunningLocked(options PlayOptions) error {
 	}
 
 	logging.Info("play video command: %v", cmd.Args)
-	if err := cmd.Start(); err != nil {
+	process, err := playerProcesses.start(cmd, ipcPath)
+	if err != nil {
 		return fmt.Errorf("play video: %w", err)
 	}
 
 	s.cmd = cmd
+	s.process = process
 	s.ipcPath = ipcPath
 	if runtime.GOOS != "darwin" {
 		focusStartedProcessWindow(cmd.Process.Pid, "play video")
 	}
 
-	go s.waitForExit(cmd)
+	go s.waitForExit(process)
 
 	if err := waitForIPCReady(ipcPath); err != nil {
 		s.stopLocked()
@@ -258,14 +261,12 @@ func (s *playerSession) ensureRunningLocked(options PlayOptions) error {
 	return nil
 }
 
-func (s *playerSession) waitForExit(cmd *exec.Cmd) {
-	if err := cmd.Wait(); err != nil {
-		logging.Error("play video command exited with error: %v", err)
-	}
+func (s *playerSession) waitForExit(process *playerProcess) {
+	<-process.done
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.cmd == cmd {
+	if s.process == process {
 		if s.events != nil {
 			s.events.close()
 			s.events = nil
@@ -274,6 +275,7 @@ func (s *playerSession) waitForExit(cmd *exec.Cmd) {
 			_ = os.Remove(s.ipcPath)
 		}
 		s.cmd = nil
+		s.process = nil
 		s.ipcPath = ""
 	}
 }
@@ -283,13 +285,14 @@ func (s *playerSession) stopLocked() {
 		s.events.close()
 		s.events = nil
 	}
-	cmd := s.cmd
+	process := s.process
 	ipcPath := s.ipcPath
 	s.cmd = nil
+	s.process = nil
 	s.ipcPath = ""
 
-	if cmd != nil && cmd.Process != nil && cmd.ProcessState == nil {
-		_ = cmd.Process.Kill()
+	if process != nil {
+		process.close(playerShutdownTimeout)
 	}
 	if runtime.GOOS != "windows" && ipcPath != "" {
 		_ = os.Remove(ipcPath)
@@ -378,14 +381,17 @@ func (s *playerSession) playPlaylistLocked(items []PlaylistItem) error {
 		return errors.New("playlist changed while loading")
 	}
 	callbacks := make(map[int64]func(), len(items))
+	reporters := make(map[int64]func() *playback.Reporter, len(items))
 	titles := make(map[string]string, len(items))
 	for index, entry := range entries {
 		callbacks[entry.ID] = items[index].OnStarted
+		reporters[entry.ID] = items[index].Options.NewWatchReporter
 		if title := strings.TrimSpace(items[index].Title); title != "" {
 			titles[strconv.FormatInt(entry.ID, 10)] = title
 		}
 	}
 	s.events.setCallbacks(callbacks)
+	s.events.setWatchReporters(reporters)
 	if err := runIPCCommand(s.ipcPath, []any{"set_property", "user-data/javboss/playlist-titles", titles}); err != nil {
 		return err
 	}
@@ -412,8 +418,13 @@ func buildCommand(path string, options PlayOptions) (*exec.Cmd, error) {
 	return cmd, err
 }
 
-func buildOneShotCommand(path string, options PlayOptions) (*exec.Cmd, error) {
-	return buildCommandArgs(path, options, "")
+func buildOneShotCommand(path string, options PlayOptions) (*exec.Cmd, string, error) {
+	ipcPath, err := playbackIPCPath()
+	if err != nil {
+		return nil, "", err
+	}
+	cmd, err := buildCommandArgs(path, options, ipcPath, false)
+	return cmd, ipcPath, err
 }
 
 func buildCommandWithIPC(path string, options PlayOptions) (*exec.Cmd, string, error) {
@@ -421,14 +432,14 @@ func buildCommandWithIPC(path string, options PlayOptions) (*exec.Cmd, string, e
 	if err != nil {
 		return nil, "", err
 	}
-	cmd, err := buildCommandArgs(path, options, ipcPath)
+	cmd, err := buildCommandArgs(path, options, ipcPath, true)
 	if err != nil {
 		return nil, "", err
 	}
 	return cmd, ipcPath, nil
 }
 
-func buildCommandArgs(path string, options PlayOptions, ipcPath string) (*exec.Cmd, error) {
+func buildCommandArgs(path string, options PlayOptions, ipcPath string, startIdle bool) (*exec.Cmd, error) {
 	mpvPath, err := ResolvePath()
 	if err != nil {
 		return nil, err
@@ -453,8 +464,10 @@ func buildCommandArgs(path string, options PlayOptions, ipcPath string) (*exec.C
 	args = append(args, "--load-scripts=no")
 	args = append(args, "--include="+mpvConfigPath)
 	if ipcPath != "" {
-		args = append(args, "--idle=yes")
-		args = append(args, "--force-window=yes")
+		if startIdle {
+			args = append(args, "--idle=yes")
+			args = append(args, "--force-window=yes")
+		}
 		args = append(args, "--input-ipc-server="+ipcPath)
 	}
 	args = append(args, buildThumbfastScriptArgs(mpvPath, options.EnableNetworkThumbnail)...)

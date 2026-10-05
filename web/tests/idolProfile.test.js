@@ -3,7 +3,6 @@ import fs from 'node:fs'
 import test from 'node:test'
 
 const css = fs.readFileSync(new URL('../src/index.css', import.meta.url), 'utf8')
-const urlSync = fs.readFileSync(new URL('../src/hooks/useUrlStateSync.js', import.meta.url), 'utf8')
 
 test('idol works sit below the hero instead of overlapping the first screen', () => {
   assert.match(
@@ -26,7 +25,21 @@ test('idol hero poster stays larger than the hero while shrinking', () => {
   )
 })
 
-test('forward URL changes start a new page at the top', () => {
-  assert.match(urlSync, /HISTORY_SCROLL_KEY\]:\s*\{\s*x:\s*0,\s*y:\s*0/)
-  assert.match(urlSync, /window\.scrollTo\(\{\s*left:\s*0,\s*top:\s*0,\s*behavior:\s*'auto'\s*\}\)/)
+// Upstream's navigation stack replaced the fork's `HISTORY_SCROLL_KEY: { x: 0, y: 0 }`
+// reset: section navigation now scrolls the new page to the top, and history
+// restoration clamps to the recorded position.
+test('navigation keeps pages anchored at a sane scroll position', () => {
+  const sectionNav = fs.readFileSync(
+    new URL('../src/navigation/useSectionNavigation.js', import.meta.url),
+    'utf8'
+  )
+  const history = fs.readFileSync(
+    new URL('../src/navigation/useBrowserHistory.js', import.meta.url),
+    'utf8'
+  )
+  assert.match(sectionNav, /window\.scrollTo\(\{\s*top:\s*0,\s*behavior:\s*'smooth'\s*\}\)/)
+  assert.match(
+    history,
+    /window\.scrollTo\(\{\s*left:\s*targetX,\s*top:\s*nextY,\s*behavior:\s*'auto'\s*\}\)/
+  )
 })

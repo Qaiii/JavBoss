@@ -311,13 +311,6 @@ function commandExists(cmd) {
   });
 }
 
-async function resolveDevBinaryPath(envKey, bundledPath, commandName) {
-  if (process.env[envKey]) return process.env[envKey];
-  if (await isExecutable(bundledPath)) return bundledPath;
-  if (await commandExists(commandName)) return commandName;
-  return "";
-}
-
 async function ensureNpmDeps(cwd) {
   if (process.env.SKIP_NPM_INSTALL === "1") return;
   const nodeModules = path.join(cwd, "node_modules");
@@ -380,23 +373,17 @@ async function startBackendDevChild() {
     return null;
   }
 
-  if (current.goos === "darwin") {
-    let ffmpegOk = await isFfmpegReady(ffmpegPath(current), current);
-    if (!ffmpegOk) {
-      if (await isBundledFfmpegReady(current)) {
-        const binFfmpeg = binFfmpegPath(current);
-        await fsp.mkdir(INTERNAL_BIN_DIR, { recursive: true });
-        await fsp.copyFile(binFfmpeg, ffmpegPath(current));
-        await fsp.chmod(ffmpegPath(current), 0o755);
-        ffmpegOk = true;
-      }
-    }
-    if (!ffmpegOk) {
-      console.error(
-        `[dev] internal/bin 缺少 ${current.label} 的 ffmpeg，请先选择 “download-dependencies” 下载到 bin/${current.label}。`,
-      );
-      process.exitCode = 1;
-      return null;
+  // Native Windows/Linux installations obtain FFmpeg only through Tools.
+  // Refresh the optional macOS development bundle when a download is available.
+  if (
+    current.goos === "darwin" &&
+    !(await isFfmpegReady(ffmpegPath(current), current)) &&
+    (await isBundledFfmpegReady(current))
+  ) {
+    await fsp.mkdir(INTERNAL_BIN_DIR, { recursive: true });
+    await fsp.copyFile(binFfmpegPath(current), ffmpegPath(current));
+    if (current.goos !== "windows") {
+      await fsp.chmod(ffmpegPath(current), 0o755);
     }
   }
 
@@ -410,21 +397,6 @@ async function startBackendDevChild() {
   };
   if (envBool("DOCKER_MODE")) {
     env.JAVBOSS_CONTAINER = env.JAVBOSS_CONTAINER || "1";
-    env.JAVBOSS_DISABLE_DESKTOP_INTEGRATION =
-      env.JAVBOSS_DISABLE_DESKTOP_INTEGRATION || "1";
-    env.JAVBOSS_DISABLE_MPV = env.JAVBOSS_DISABLE_MPV || "1";
-    env.JAVBOSS_USE_FFMPEG_SCREENSHOTS = env.JAVBOSS_USE_FFMPEG_SCREENSHOTS || "1";
-    env.FFPROBE_PATH =
-      (await resolveDevBinaryPath("FFPROBE_PATH", ffprobePath(current), "ffprobe")) ||
-      env.FFPROBE_PATH;
-    env.FFMPEG_PATH =
-      (await resolveDevBinaryPath("FFMPEG_PATH", ffmpegPath(current), "ffmpeg")) ||
-      env.FFMPEG_PATH;
-    if (!env.FFMPEG_PATH) {
-      console.error("[dev] DOCKER_MODE=1 需要 ffmpeg，请设置 FFMPEG_PATH 或安装 ffmpeg。");
-      process.exitCode = 1;
-      return null;
-    }
     console.log("[dev] Docker 模式配置已启用");
   }
   const child = spawn("go", ["run", ...args], { cwd: ROOT_DIR, env, stdio: "inherit" });
@@ -499,12 +471,14 @@ async function buildBackendRelease(choice, outDir) {
     CGO_ENABLED: "1",
   };
   console.log(`[release] 构建后端 (${choice.goos}/${choice.goarch})`);
+  const ldflags = "-s -w -X main.buildMode=release" +
+    (choice.goos === "windows" ? " -H windowsgui" : "");
   await runCommand(
     "go",
     [
       "build",
       "-ldflags",
-      "-s -w -X main.buildMode=release",
+      ldflags,
       "-o",
       binPath,
       "./cmd/server",
@@ -604,6 +578,8 @@ async function createZip(outDir, zipPath) {
   }
   const baseDir = path.dirname(outDir);
   const baseName = path.basename(outDir);
+  // zip updates existing archives and otherwise retains removed bundled files.
+  await fsp.rm(zipPath, { force: true });
   await runCommand("zip", ["-rq", zipPath, baseName], { cwd: baseDir });
 }
 

@@ -2,7 +2,10 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import test from 'node:test'
 
-const hook = fs.readFileSync(new URL('../src/hooks/useOverlayHistory.js', import.meta.url), 'utf8')
+const hook = fs.readFileSync(
+  new URL('../src/navigation/useOverlayHistory.js', import.meta.url),
+  'utf8'
+)
 
 test('overlay history closes on popstate and pops the dummy entry when dismissed', () => {
   assert.match(hook, /pushOverlayHistory\(\)/)

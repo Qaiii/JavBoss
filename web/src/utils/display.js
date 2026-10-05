@@ -1,5 +1,5 @@
-import { zh } from './i18n.js'
-import { resolveJavMetadataTitle } from './javTitle.js'
+import { zh } from '@/utils/i18n.js'
+import { resolveJavMetadataTitle } from '@/utils/javTitle.js'
 
 export const getVideoDisplayName = (video) => {
   if (!video) return ''

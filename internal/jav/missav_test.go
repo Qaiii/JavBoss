@@ -3,6 +3,8 @@ package jav
 import (
 	"strings"
 	"testing"
+
+	"javboss/internal/jav/internal/htmlutil"
 )
 
 func TestCleanMissAVTitle(t *testing.T) {
@@ -59,7 +61,7 @@ func TestParseMissAVChineseTitle(t *testing.T) {
 	</head><body>
 		<h1 class="text-base lg:text-lg">IPX-228 中年父亲与制服美少女</h1>
 	</body></html>`
-	doc, err := parseHTMLDocument([]byte(html))
+	doc, err := htmlutil.ParseHTMLDocument([]byte(html))
 	if err != nil {
 		t.Fatalf("parse html: %v", err)
 	}

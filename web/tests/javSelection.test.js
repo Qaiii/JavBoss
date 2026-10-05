@@ -1,8 +1,22 @@
 import assert from 'node:assert/strict'
-import test from 'node:test'
-import { collectJavVideos, fetchAllJavItems, javBulkQuery } from '../src/utils/javSelection.js'
+import test, { after } from 'node:test'
+import { createServer } from 'vite'
 
-test('bulk selection retains every JAV filter and the resolved sort', () => {
+// src/utils/javSelection.js imports sibling modules through the `@/` alias
+// (enforced by no-restricted-imports), so it has to be loaded with Vite's resolver.
+// One server is shared by the whole file: starting one per test makes Node crash
+// while tearing down the extra native handles.
+const server = await createServer({
+  server: { middlewareMode: true },
+  appType: 'custom',
+  logLevel: 'silent',
+})
+after(() => server.close())
+const { collectJavVideos, fetchAllJavItems, javBulkQuery } = await server.ssrLoadModule(
+  '/src/utils/javSelection.js'
+)
+
+test('bulk selection retains every JAV filter and the resolved sort', async () => {
   assert.deepEqual(
     javBulkQuery(
       {
@@ -103,7 +117,7 @@ test('does not return a partial selection when a later page fails', async () => 
   )
 })
 
-test('collects every linked file in order and deduplicates locations without merging distinct files', () => {
+test('collects every linked file in order and deduplicates locations without merging distinct files', async () => {
   const first = { id: 1, location_id: 10, filename: 'part-a.mp4' }
   const second = { id: 1, location_id: 11, filename: 'part-b.mp4' }
   const third = { id: 2, filename: 'other.mp4' }

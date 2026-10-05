@@ -251,7 +251,7 @@ func TestRepairJavScrapeSavesLookupResult(t *testing.T) {
 	}
 
 	originalLookup := lookupJavForScrapeRepair
-	lookupJavForScrapeRepair = func(code string, provider jav.Provider) (*jav.JavInfo, error) {
+	lookupJavForScrapeRepair = func(_ context.Context, code string, provider jav.Provider) (*jav.JavInfo, error) {
 		if provider != jav.ProviderJavBus {
 			return nil, jav.ResourceNotFonud
 		}
@@ -279,7 +279,10 @@ func TestRepairJavScrapeSavesLookupResult(t *testing.T) {
 	if err != nil || stored == nil {
 		t.Fatalf("load repaired jav: %v %#v", err, stored)
 	}
-	if stored.Title != "补全标题" || stored.StudioID == nil || stored.SeriesID == nil || stored.DurationMin != 80 {
+	// Studio and series are no longer written by provider scrapes: the background
+	// enrichment service fills them, so only the scanned scalar fields are
+	// asserted here.
+	if stored.Title != "补全标题" || stored.DurationMin != 80 || stored.IsUncensored == nil {
 		t.Fatalf("repaired jav = %#v", stored)
 	}
 }

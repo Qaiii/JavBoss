@@ -108,6 +108,7 @@ type playbackSource struct {
 
 type playbackInfo struct {
 	VideoID       int64            `json:"video_id"`
+	LocationID    int64            `json:"location_id"`
 	PreferredKind string           `json:"preferred_kind"`
 	VideoCodec    string           `json:"video_codec,omitempty"`
 	AudioCodec    string           `json:"audio_codec,omitempty"`
@@ -195,6 +196,7 @@ func getVideoStreams(c *gin.Context) {
 func buildPlaybackInfo(video *models.Video, locationID int64, probe *util.PlaybackProbeResult) playbackInfo {
 	info := playbackInfo{
 		VideoID:       video.ID,
+		LocationID:    locationID,
 		PreferredKind: "hls",
 		Sources:       []playbackSource{},
 	}
@@ -457,7 +459,7 @@ func serveVideoFile(c *gin.Context, fullPath string) {
 }
 
 func openVideoFile(c *gin.Context) {
-	if runtimeconfig.DisableDesktopIntegration() {
+	if runtimeconfig.ContainerMode() {
 		respondLocalizedError(c, http.StatusNotImplemented, "当前部署模式已禁用系统播放器", "Desktop file opening is disabled")
 		return
 	}
@@ -479,7 +481,7 @@ func openVideoFile(c *gin.Context) {
 }
 
 func playVideoFile(c *gin.Context) {
-	if runtimeconfig.DisableMPVPlayback() {
+	if runtimeconfig.ContainerMode() {
 		respondLocalizedError(c, http.StatusNotImplemented, "当前部署模式已禁用 MPV 播放", "MPV playback is disabled")
 		return
 	}
@@ -497,9 +499,10 @@ func playVideoFile(c *gin.Context) {
 		dataDir = filepath.Dir(common.AppConfig.DatabasePath)
 	}
 	if err := mpv.PlayVideo(fullPath, mpv.PlayOptions{
-		DataDir:      dataDir,
-		VideoID:      videoID,
-		StartTimeSec: req.StartTimeSec,
+		NewWatchReporter: localPlaybackReporter(videoID, 0, dirPath, fullPath),
+		DataDir:          dataDir,
+		VideoID:          videoID,
+		StartTimeSec:     req.StartTimeSec,
 	}); err != nil {
 		logging.Error("play video file error: %v", err)
 		if strings.Contains(err.Error(), "mpv not found") {
@@ -518,7 +521,7 @@ func playVideoFile(c *gin.Context) {
 }
 
 func playVideoPlaylist(c *gin.Context) {
-	if runtimeconfig.DisableMPVPlayback() {
+	if runtimeconfig.ContainerMode() {
 		respondLocalizedError(c, http.StatusNotImplemented, "当前部署模式已禁用 MPV 播放", "MPV playback is disabled")
 		return
 	}
@@ -584,8 +587,9 @@ func playVideoPlaylist(c *gin.Context) {
 				}
 			},
 			Options: mpv.PlayOptions{
-				DataDir: dataDir,
-				VideoID: requested.VideoID,
+				NewWatchReporter: localPlaybackReporter(videoID, location.ID, "", ""),
+				DataDir:          dataDir,
+				VideoID:          requested.VideoID,
 			},
 		})
 	}
@@ -607,7 +611,7 @@ func revealVideoLocation(c *gin.Context) {
 		respondLocalizedError(c, http.StatusForbidden, "通过局域网访问时无法打开文件所在位置", "Cannot reveal file locations when accessing over the local network")
 		return
 	}
-	if runtimeconfig.DisableDesktopIntegration() {
+	if runtimeconfig.ContainerMode() {
 		respondLocalizedError(c, http.StatusNotImplemented, "当前部署模式已禁用打开文件位置", "Desktop file revealing is disabled")
 		return
 	}
@@ -837,9 +841,9 @@ func lookupVideoJavScrapeByProvider(c *gin.Context, provider jav.Provider) {
 	}
 
 	providerLabel := videoJavScrapeLookupProviderLabel(provider)
-	info, err := jav.LookupJavByCode(code, provider)
+	info, err := jav.LookupJavByCode(c.Request.Context(), code, provider)
 	if err != nil {
-		if errors.Is(err, jav.ResourceNotFonud) {
+		if errors.Is(err, jav.ErrNotFound) {
 			respondLocalizedError(
 				c,
 				http.StatusNotFound,

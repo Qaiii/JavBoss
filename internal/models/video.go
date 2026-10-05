@@ -20,13 +20,14 @@ type Video struct {
 	CoverScreenshotName string    `json:"cover_screenshot_name"`
 	// Format is the actual container format detected by ffprobe (e.g. ts/mkv),
 	// independent of the file extension, so renamed streams are still labeled correctly.
-	Format       string          `json:"format"`
-	Tags         []Tag           `json:"tags,omitempty" gorm:"many2many:video_tag"`
-	JavID        *int64          `json:"jav_id" gorm:"-"`
-	Jav          *Jav            `json:"jav,omitempty" gorm:"-"`
-	DirectoryRef Directory       `json:"directory,omitempty" gorm:"-"`
-	Locations    []VideoLocation `json:"locations,omitempty" gorm:"foreignKey:VideoID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
-	Hidden       bool            `json:"hidden" gorm:"-"`
+	Format    string          `json:"format"`
+	WatchedMS int64           `json:"watched_ms" gorm:"not null;default:0"`
+	Tags      []Tag           `json:"tags,omitempty" gorm:"many2many:video_tag"`
+	JavID     *int64          `json:"jav_id" gorm:"-"`
+	Jav       *Jav            `json:"jav,omitempty" gorm:"-"`
+	DirectoryRef Directory    `json:"directory,omitempty" gorm:"-"`
+	Locations []VideoLocation `json:"locations,omitempty" gorm:"foreignKey:VideoID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	Hidden    bool            `json:"hidden" gorm:"-"`
 }
 
 const JavScrapeOverrideSkip = ":skip"

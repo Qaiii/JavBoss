@@ -214,7 +214,7 @@ func enrichIdolWorkMetadata(ctx context.Context, code string) error {
 				if err := ctx.Err(); err != nil {
 					return err
 				}
-				info, lookupErr := lookupJavForIdolWorkMetadata(code, provider)
+				info, lookupErr := lookupJavForIdolWorkMetadata(ctx, code, provider)
 				didHTTP = true
 				if lookupErr != nil {
 					lastErr = lookupErr

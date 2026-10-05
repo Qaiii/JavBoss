@@ -1,6 +1,18 @@
 package jav
 
-import "time"
+import (
+	"time"
+
+	"javboss/internal/jav/avmoo"
+	"javboss/internal/jav/avsox"
+	"javboss/internal/jav/javbus"
+	"javboss/internal/jav/javdatabase"
+	"javboss/internal/jav/javdb"
+	"javboss/internal/jav/javmenu"
+	"javboss/internal/jav/javmodel"
+	"javboss/internal/jav/minnanoav"
+	"javboss/internal/jav/theporndb"
+)
 
 // ScrapeSource describes one outbound metadata fetch used by JavBoss.
 type ScrapeSource struct {
@@ -21,7 +33,7 @@ func ScrapeSources() []ScrapeSource {
 				"https://www.javbus.com/uncensored/genre",
 			},
 			Data:       []string{"title", "code", "series", "release", "duration", "tags", "actors", "cover", "samples", "uncensored", "genres"},
-			IntervalMS: scrapeIntervalMS(javBusRequestInterval),
+			IntervalMS: scrapeIntervalMS(javbus.RequestInterval()),
 		},
 		{
 			ID: "javdatabase",
@@ -30,7 +42,7 @@ func ScrapeSources() []ScrapeSource {
 				"https://www.javdatabase.com/idols/{slug}/?ipage={n}",
 			},
 			Data:       []string{"title", "code", "studio", "series", "release", "duration", "tags", "actors", "cover", "samples", "actress_profile", "idol_works"},
-			IntervalMS: scrapeIntervalMS(javDatabaseRequestInterval),
+			IntervalMS: scrapeIntervalMS(javdatabase.RequestInterval()),
 		},
 		{
 			ID: "javdb",
@@ -40,7 +52,7 @@ func ScrapeSources() []ScrapeSource {
 				"https://javdb.com/actors/{id}?page={n}",
 			},
 			Data:       []string{"title", "code", "studio", "series", "release", "duration", "tags", "actors", "male_actors", "cover", "samples", "idol_works"},
-			IntervalMS: scrapeIntervalMS(javDBRequestInterval),
+			IntervalMS: scrapeIntervalMS(javdb.RequestInterval()),
 		},
 		{
 			ID: "avmoo",
@@ -50,7 +62,7 @@ func ScrapeSources() []ScrapeSource {
 				"https://avmoo.shop/jav/data/api/getMovie",
 			},
 			Data:       []string{"title", "code", "series", "release", "duration", "tags", "actors", "cover", "samples"},
-			IntervalMS: scrapeIntervalMS(avmooRequestInterval),
+			IntervalMS: scrapeIntervalMS(avmoo.RequestInterval()),
 		},
 		{
 			ID: "avsox",
@@ -60,7 +72,7 @@ func ScrapeSources() []ScrapeSource {
 				"https://avsox.click/javu/data/api/getMovie",
 			},
 			Data:       []string{"title", "code", "series", "release", "duration", "tags", "actors", "cover", "samples", "uncensored"},
-			IntervalMS: scrapeIntervalMS(avsoxRequestInterval),
+			IntervalMS: scrapeIntervalMS(avsox.RequestInterval()),
 		},
 		{
 			ID: "javmenu",
@@ -68,7 +80,7 @@ func ScrapeSources() []ScrapeSource {
 				"https://javmenu.com/{CODE}",
 			},
 			Data:       []string{"title", "code", "studio", "series", "release", "duration", "tags", "actors", "samples"},
-			IntervalMS: scrapeIntervalMS(javMenuRequestInterval),
+			IntervalMS: scrapeIntervalMS(javmenu.RequestInterval()),
 		},
 		{
 			ID: "missav",
@@ -85,7 +97,7 @@ func ScrapeSources() []ScrapeSource {
 				"https://www.minnano-av.com/actress{id}.html",
 			},
 			Data:       []string{"actress_profile"},
-			IntervalMS: scrapeIntervalMS(minnanoAVRequestInterval),
+			IntervalMS: scrapeIntervalMS(minnanoav.RequestInterval()),
 		},
 		{
 			ID: "javmodel",
@@ -94,7 +106,7 @@ func ScrapeSources() []ScrapeSource {
 				"https://javmodel.com/jav/{slug}",
 			},
 			Data:       []string{"actress_profile"},
-			IntervalMS: scrapeIntervalMS(javModelRequestInterval),
+			IntervalMS: scrapeIntervalMS(javmodel.RequestInterval()),
 		},
 		{
 			ID: "avdanyuwiki",
@@ -110,7 +122,7 @@ func ScrapeSources() []ScrapeSource {
 				"https://api.theporndb.net/jav?external_id={code}",
 			},
 			Data:       []string{"title", "code", "release", "duration", "tags", "actors", "cover"},
-			IntervalMS: scrapeIntervalMS(thePornDBRequestInterval),
+			IntervalMS: scrapeIntervalMS(theporndb.RequestInterval()),
 		},
 	}
 }

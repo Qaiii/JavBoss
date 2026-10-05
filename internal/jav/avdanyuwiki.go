@@ -2,7 +2,6 @@ package jav
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -17,6 +16,8 @@ import (
 	"golang.org/x/net/html"
 
 	"javboss/internal/common/logging"
+	"javboss/internal/jav/internal/htmlutil"
+	"javboss/internal/jav/internal/parseutil"
 	"javboss/internal/util"
 )
 
@@ -110,11 +111,8 @@ func fetchAVDanyuWikiHTML(ctx context.Context, targetURL string) (*html.Node, in
 	}
 
 	logging.Info("avdanyuwiki request: %s", targetURL)
-	resp, err := util.DoRequest(req)
+	resp, err := util.DefaultCachedHTTPClient().Do(req)
 	if err != nil {
-		if errors.Is(err, util.ErrCachedNotFound) {
-			return nil, http.StatusNotFound, nil
-		}
 		return nil, 0, err
 	}
 	defer resp.Body.Close()
@@ -134,7 +132,7 @@ func fetchAVDanyuWikiHTML(ctx context.Context, targetURL string) (*html.Node, in
 		return nil, resp.StatusCode, fmt.Errorf("avdanyuwiki: http %d", resp.StatusCode)
 	}
 
-	doc, err := parseHTMLDocument(body)
+	doc, err := htmlutil.ParseHTMLDocument(body)
 	if err != nil {
 		return nil, resp.StatusCode, fmt.Errorf("avdanyuwiki: parse html: %w", err)
 	}
@@ -179,7 +177,7 @@ func parseAVDanyuWikiWorks(root *html.Node) []avdanyuWikiWork {
 	if root == nil {
 		return nil
 	}
-	doc := documentSelection(root)
+	doc := htmlutil.DocumentSelection(root)
 	posts := doc.Find("article, .post, .hentry, .type-post")
 	if posts.Length() == 0 {
 		if work, ok := parseAVDanyuWikiWork(doc); ok {
@@ -276,7 +274,7 @@ func parseAVDanyuWikiActors(scope *goquery.Selection, text string) []string {
 			names = filtered
 		}
 	}
-	return dedupeNonEmpty(names)
+	return parseutil.DedupeNonEmpty(names)
 }
 
 func collectAVDanyuTagLinkNames(scope *goquery.Selection) []string {
@@ -285,7 +283,7 @@ func collectAVDanyuTagLinkNames(scope *goquery.Selection) []string {
 	}
 	var names []string
 	scope.Find(`a[href*="/tag/"]`).Each(func(_ int, link *goquery.Selection) {
-		name := cleanAVDanyuActorName(cleanSelectionText(link))
+		name := cleanAVDanyuActorName(htmlutil.CleanSelectionText(link))
 		if name != "" {
 			names = append(names, name)
 		}

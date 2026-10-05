@@ -5,8 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"sync"
 	"time"
+
+	"javboss/internal/jav/internal/parseutil"
 )
 
 const (
@@ -19,9 +20,10 @@ const (
 )
 
 var lookupJavCacheKeyVersionByProvider = map[Provider]string{
-	ProviderJavBus:      "v5",
+	ProviderJavBus:      "v8", // Use the producer for uncensored studios and the publisher for censored studios.
 	ProviderJavDatabase: "v4",
 	ProviderJavDB:       "v5",
+	ProviderJavDBAPI:    "v5", // Preserve separators when validating movie numbers.
 	ProviderAvmoo:       "v6",
 	ProviderAvsox:       "v3",
 	ProviderJavMenu:     "v2",
@@ -30,6 +32,7 @@ var lookupJavCacheKeyVersionByProvider = map[Provider]string{
 
 var lookupActressNameCacheKeyVersionByProvider = map[Provider]string{
 	ProviderMinnanoAV: "v3",
+	ProviderAVWiki:    "v2", // Normalize RomanName to given-name-first order.
 }
 
 // LookupCache is a persistent key-value store for provider lookup results.
@@ -43,22 +46,19 @@ type lookupCacheEnvelope struct {
 	Data   json.RawMessage `json:"data,omitempty"`
 }
 
-var lookupCacheState = struct {
-	sync.RWMutex
-	store LookupCache
-}{}
+// SetCache configures the default client's lookup cache. Nil disables caching.
+func SetCache(store LookupCache) { defaultMetadataClient.SetCache(store) }
 
-// SetCache configures the process-wide JAV lookup cache. Passing nil disables caching.
-func SetCache(store LookupCache) {
-	lookupCacheState.Lock()
-	lookupCacheState.store = store
-	lookupCacheState.Unlock()
+// SetCache changes this client's lookup cache safely while lookups are running.
+func (c *MetadataClient) SetCache(store LookupCache) {
+	c.cacheMu.Lock()
+	c.cache = store
+	c.cacheMu.Unlock()
 }
-
-func currentLookupCache() LookupCache {
-	lookupCacheState.RLock()
-	defer lookupCacheState.RUnlock()
-	return lookupCacheState.store
+func (c *MetadataClient) currentLookupCache() LookupCache {
+	c.cacheMu.RLock()
+	defer c.cacheMu.RUnlock()
+	return c.cache
 }
 
 type lookupCacheJanitor interface {
@@ -68,7 +68,7 @@ type lookupCacheJanitor interface {
 
 // CountExpiredLookupCache reports expired provider lookup cache entries.
 func CountExpiredLookupCache(now time.Time) (int, error) {
-	janitor, ok := currentLookupCache().(lookupCacheJanitor)
+	janitor, ok := defaultMetadataClient.currentLookupCache().(lookupCacheJanitor)
 	if !ok || janitor == nil {
 		return 0, nil
 	}
@@ -81,7 +81,7 @@ func CountExpiredLookupCache(now time.Time) (int, error) {
 
 // DeleteExpiredLookupCache removes expired provider lookup cache entries.
 func DeleteExpiredLookupCache(now time.Time) (int, error) {
-	janitor, ok := currentLookupCache().(lookupCacheJanitor)
+	janitor, ok := defaultMetadataClient.currentLookupCache().(lookupCacheJanitor)
 	if !ok || janitor == nil {
 		return 0, nil
 	}
@@ -92,8 +92,8 @@ func DeleteExpiredLookupCache(now time.Time) (int, error) {
 	return n, nil
 }
 
-func lookupCacheGet[T any](key string) (*T, bool, error) {
-	store := currentLookupCache()
+func lookupCacheGet[T any](c *MetadataClient, key string) (*T, bool, error) {
+	store := c.currentLookupCache()
 	if store == nil {
 		return nil, false, nil
 	}
@@ -107,7 +107,7 @@ func lookupCacheGet[T any](key string) (*T, bool, error) {
 	}
 	switch envelope.Status {
 	case lookupCacheStatusMiss:
-		return nil, true, ResourceNotFonud
+		return nil, true, ErrNotFound
 	case lookupCacheStatusHit:
 		if len(envelope.Data) == 0 {
 			return nil, false, nil
@@ -122,16 +122,16 @@ func lookupCacheGet[T any](key string) (*T, bool, error) {
 	}
 }
 
-func lookupCacheSetHit(key string, value any) {
+func lookupCacheSetHit(c *MetadataClient, key string, value any) {
 	if value == nil {
 		return
 	}
-	store := currentLookupCache()
+	store := c.currentLookupCache()
 	if store == nil {
 		return
 	}
 	data, err := json.Marshal(value)
-	if err != nil {
+	if err != nil || string(data) == "null" {
 		return
 	}
 	raw, err := json.Marshal(lookupCacheEnvelope{
@@ -144,8 +144,8 @@ func lookupCacheSetHit(key string, value any) {
 	_ = store.Set(key, raw, time.Now().Add(lookupCacheSuccessTTL))
 }
 
-func lookupCacheSetNotFound(key string) {
-	store := currentLookupCache()
+func lookupCacheSetNotFound(c *MetadataClient, key string) {
+	store := c.currentLookupCache()
 	if store == nil {
 		return
 	}
@@ -158,13 +158,13 @@ func lookupCacheSetNotFound(key string) {
 	_ = store.Set(key, raw, time.Now().Add(lookupCacheNotFoundTTL))
 }
 
-func cacheableLookupResult(key string, value any, err error) {
+func cacheableLookupResult(c *MetadataClient, key string, value any, err error) {
 	if err == nil {
-		lookupCacheSetHit(key, value)
+		lookupCacheSetHit(c, key, value)
 		return
 	}
-	if errors.Is(err, ResourceNotFonud) {
-		lookupCacheSetNotFound(key)
+	if errors.Is(err, ErrNotFound) {
+		lookupCacheSetNotFound(c, key)
 	}
 }
 
@@ -180,6 +180,12 @@ func lookupCacheKey(provider Provider, method, input string) string {
 
 func lookupCacheKeyVersion(provider Provider, method string) string {
 	provider = ParseProvider(int(provider))
+	if provider == ProviderJavDBAPI {
+		switch method {
+		case "lookup_actress_url_code_name", "lookup_series_url", "lookup_studio_url":
+			return "v2" // These links also depend on strict movie-number matching.
+		}
+	}
 	if provider == ProviderJavDB && method == "lookup_actress_url_code_name" {
 		return "v3"
 	}
@@ -234,7 +240,7 @@ func CachedJavInfo(code string) *JavInfo {
 	}
 	var out *JavInfo
 	for _, provider := range cachedJavInfoProviders {
-		cached, ok, err := lookupCacheGet[JavInfo](lookupCacheKey(provider, "lookup_jav", code))
+		cached, ok, err := lookupCacheGet[JavInfo](defaultMetadataClient, lookupCacheKey(provider, "lookup_jav", code))
 		if !ok || err != nil || cached == nil {
 			continue
 		}
@@ -274,7 +280,7 @@ func firstJapaneseOrNonEmpty(primary, fallback string) string {
 	if primary == "" {
 		return fallback
 	}
-	if ContainsJapaneseRunes(fallback) && !ContainsJapaneseRunes(primary) {
+	if parseutil.ContainsJapaneseRunes(fallback) && !parseutil.ContainsJapaneseRunes(primary) {
 		return fallback
 	}
 	return primary

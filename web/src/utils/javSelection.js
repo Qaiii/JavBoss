@@ -1,4 +1,4 @@
-import { javLibraryScopeQueryFlags } from './javLibrary.js'
+import { javLibraryScopeQueryFlags } from '@/utils/javLibrary.js'
 
 export function javBulkQuery(state, sort) {
   const { includeExternal, unimportedOnly } = javLibraryScopeQueryFlags(state.javLibraryScope, {

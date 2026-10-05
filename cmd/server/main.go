@@ -26,9 +26,11 @@ import (
 	"javboss/internal/db"
 	"javboss/internal/jav"
 	"javboss/internal/models"
+	"javboss/internal/mpv"
 	"javboss/internal/runtimeconfig"
 	"javboss/internal/server"
 	"javboss/internal/service"
+	"javboss/internal/service/enrichment"
 	"javboss/internal/util"
 
 	"javboss/internal/manager"
@@ -73,6 +75,14 @@ func main() {
 	logging.SetLogger(logger)
 	logging.SetColorEnabled(false)
 
+	background, err := startReleaseInBackground(baseDir)
+	if err != nil {
+		log.Fatalf("start background process: %v", err)
+	}
+	if background {
+		return
+	}
+
 	bootstrapCfg, err := clientpkg.LoadBootstrapConfig(baseDir)
 	if err != nil {
 		logger.Fatalf("load bootstrap config: %v", err)
@@ -83,6 +93,7 @@ func main() {
 	}
 	serverURL := resolveClientServerURL(*serverURLFlag, bootstrapCfg.ServerURL)
 	if shouldRunClientMode(serverURL) {
+		defer mpv.Shutdown()
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
 		clientPort := configuredPortWithOverride(bootstrapCfg.Port, portOverride)
@@ -97,7 +108,9 @@ func main() {
 		logger.Fatalf("load config: %v", err)
 	}
 
-	if buildMode == "release" {
+	// Desktop releases own a single-instance lock; containers are managed by
+	// their runtime and must not enter interactive duplicate-instance controls.
+	if buildMode == "release" && !runtimeconfig.ContainerMode() {
 		dataDir := filepath.Dir(cfg.DatabasePath)
 		lockPath := filepath.Join(dataDir, "javboss.lock")
 		lock, ok := acquireSingleInstanceLock(lockPath, logger)
@@ -131,6 +144,8 @@ func main() {
 		logger.Fatalf("database handle: %v", err)
 	}
 	defer sqlDB.Close()
+	// Flush final playback checkpoints while the database is still open.
+	defer mpv.Shutdown()
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -199,11 +214,15 @@ func main() {
 		case <-timer.C:
 			service.StartAutomaticDirectoryScanScheduler(ctx, 30*time.Second)
 			service.StartDownloadManager(ctx)
-			service.StartJavMetadataScanner(ctx, 5*time.Minute)
-			service.StartJavSeriesMetadataScanner(ctx, 5*time.Minute)
-			service.StartUncensoredJavMetadataScanner(ctx, 5*time.Minute)
-			service.StartIdolProfileScanner(ctx, 5*time.Minute)
+			enrichment.StartCensoredStudioEnrichment(ctx, time.Minute)
+			enrichment.StartCensoredSeriesEnrichment(ctx, time.Minute)
+			enrichment.StartCensoredIdolEnrichment(ctx, time.Minute)
+			enrichment.StartUncensoredStudioEnrichment(ctx, time.Minute)
+			enrichment.StartUncensoredSeriesEnrichment(ctx, time.Minute)
+			enrichment.StartUncensoredIdolEnrichment(ctx, time.Minute)
+			enrichment.StartIdolProfileEnrichment(ctx, time.Minute)
 			service.StartIdolWorksRefreshScheduler(ctx, time.Hour)
+			service.StartMaleActorScanner(ctx, 5*time.Minute)
 		}
 	}()
 
@@ -212,16 +231,16 @@ func main() {
 		logger.Fatalf("initialize authentication: %v", err)
 	}
 
-	router := server.NewRouter(resolveStaticDir(defaultStaticDir), authService)
-	serverPort := defaultDevelopmentPort
-	if portOverride > 0 {
-		serverPort = portOverride
+	listenAddr, err := serverListenAddr(baseDir, allowLANAccess, portOverride)
+	if err != nil {
+		logger.Fatalf("resolve listen address: %v", err)
 	}
-	listenAddr := configuredListenAddr(
-		serverPort,
-		allowLANAccess,
-		runtimeconfig.ContainerMode(),
-	)
+	listener, err := net.Listen("tcp", listenAddr)
+	if err != nil {
+		logger.Fatalf("listen on %s: %v", listenAddr, err)
+	}
+	defer listener.Close()
+	router := server.NewRouter(resolveStaticDir(defaultStaticDir), authService)
 
 	srv := &http.Server{
 		Addr:         listenAddr,
@@ -231,41 +250,12 @@ func main() {
 		IdleTimeout:  120 * time.Second,
 	}
 
-	go func() {
-		<-ctx.Done()
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		if err := srv.Shutdown(shutdownCtx); err != nil {
-			logger.Printf("server shutdown error: %v", err)
-		}
-	}()
-
-	if buildMode == "release" {
-		listenAddr, err := releaseListenAddr(baseDir, allowLANAccess, portOverride)
-		if err != nil {
-			logger.Fatalf("resolve release listen address: %v", err)
-		}
-		listener, err := net.Listen("tcp", listenAddr)
-		if err != nil {
-			logger.Fatalf("listen on %s: %v", listenAddr, err)
-		}
-		actualPort := listener.Addr().(*net.TCPAddr).Port
-		displayURL := fmt.Sprintf("http://localhost:%d", actualPort)
-		openURL := displayURL
-		printReleaseStartupHint(displayURL)
-		if err := util.OpenFile(openURL); err != nil {
-			logger.Printf("open browser failed: %v", err)
-		}
-		startReleaseKeyboardControls(ctx, stop, openURL, logger)
-		logger.Printf("server listening on %s", listener.Addr().String())
-		if err := srv.Serve(listener); err != nil && err != http.ErrServerClosed {
-			logger.Fatalf("server error: %v", err)
-		}
-		return
-	}
-
-	logger.Printf("server listening on %s", listenAddr)
-	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+	actualPort := listener.Addr().(*net.TCPAddr).Port
+	displayURL := fmt.Sprintf("http://localhost:%d", actualPort)
+	logger.Printf("server listening on %s", listener.Addr().String())
+	if err := serveWithReleaseControls(ctx, stop, displayURL, "", logger, func() error {
+		return server.ServeHTTP(ctx, srv, listener, allowLANAccess, !runtimeconfig.ContainerMode())
+	}); err != nil {
 		logger.Fatalf("server error: %v", err)
 	}
 }
@@ -284,7 +274,7 @@ func resolveClientServerURL(flagValue, configuredValue string) string {
 func runClientMode(ctx context.Context, stop context.CancelFunc, baseDir, serverURL string, configuredPort int, logger *log.Logger) error {
 	port := configuredPort
 	if port == 0 {
-		if buildMode == "release" {
+		if buildMode == "release" && !runtimeconfig.ContainerMode() {
 			port = defaultReleasePort
 		} else {
 			port = defaultDevelopmentPort
@@ -321,25 +311,11 @@ func runClientMode(ctx context.Context, stop context.CancelFunc, baseDir, server
 		return fmt.Errorf("listen on %s: %w", listenAddr, err)
 	}
 	defer listener.Close()
-	go func() {
-		<-ctx.Done()
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		if err := srv.Shutdown(shutdownCtx); err != nil {
-			logger.Printf("client server shutdown error: %v", err)
-		}
-	}()
-
 	displayURL := fmt.Sprintf("http://localhost:%d", port)
-	if buildMode == "release" {
-		printReleaseClientStartupHint(displayURL, serverURL)
-		if err := util.OpenFile(displayURL); err != nil {
-			logger.Printf("open browser failed: %v", err)
-		}
-		startReleaseKeyboardControls(ctx, stop, displayURL, logger)
-	}
 	logger.Printf("client mode listening on %s, remote server %s", listenAddr, strings.TrimSpace(serverURL))
-	if err := srv.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	if err := serveWithReleaseControls(ctx, stop, displayURL, serverURL, logger, func() error {
+		return server.ServeHTTP(ctx, srv, listener, false, false)
+	}); err != nil {
 		return fmt.Errorf("client server: %w", err)
 	}
 	return nil
@@ -351,12 +327,13 @@ func applyRuntimeConfig(ctx context.Context) map[string]string {
 		logging.Error("load runtime config failed: %v", err)
 		return nil
 	}
-	util.SetProxyFromStrings(cfg["proxy_host"], cfg["proxy_port"])
+	util.SetProxySettings(cfg["proxy_mode"], cfg["proxy_host"], cfg["proxy_port"])
 	return cfg
 }
 
 func buildLogger(baseDir string) (*log.Logger, func(), error) {
-	if gin.Mode() != gin.ReleaseMode {
+	// Container logs belong to the runtime, even for release builds.
+	if runtimeconfig.ContainerMode() || gin.Mode() != gin.ReleaseMode {
 		logger := log.New(os.Stdout, "", log.LstdFlags|log.Lmicroseconds)
 		return logger, func() {}, nil
 	}
@@ -385,6 +362,18 @@ func configuredListenAddr(port int, allowLANAccess bool, containerMode bool) str
 		host = "0.0.0.0"
 	}
 	return net.JoinHostPort(host, strconv.Itoa(port))
+}
+
+func serverListenAddr(baseDir string, allowLANAccess bool, portOverride int) (string, error) {
+	if runtimeconfig.ContainerMode() {
+		port := configuredPortWithOverride(defaultDevelopmentPort, portOverride)
+		return configuredListenAddr(port, false, true), nil
+	}
+	if buildMode == "release" {
+		return releaseListenAddr(baseDir, allowLANAccess, portOverride)
+	}
+	port := configuredPortWithOverride(defaultDevelopmentPort, portOverride)
+	return configuredListenAddr(port, allowLANAccess, false), nil
 }
 
 func normalizePortOverride(value int) (int, error) {
@@ -529,10 +518,13 @@ func startReleaseKeyboardControls(ctx context.Context, cancel context.CancelFunc
 }
 
 func resolveBaseDir() (string, error) {
-	if buildMode == "release" {
-		if execPath, err := os.Executable(); err == nil {
-			return filepath.Dir(execPath), nil
+	// Containers keep data relative to their configured working directory.
+	if buildMode == "release" && !runtimeconfig.ContainerMode() {
+		execPath, err := os.Executable()
+		if err != nil {
+			return "", fmt.Errorf("resolve executable directory: %w", err)
 		}
+		return filepath.Dir(execPath), nil
 	}
 	if wd, err := os.Getwd(); err == nil {
 		return wd, nil
@@ -577,8 +569,7 @@ func acquireSingleInstanceLock(path string, logger *log.Logger) (*util.FileLock,
 	lock, err := util.AcquireFileLock(path)
 	if err != nil {
 		if errors.Is(err, util.ErrLockHeld) {
-			fmt.Println("JavBoss 已在运行，无法重复启动。")
-			waitForUserExit()
+			notifyAlreadyRunning("JavBoss 已在运行，无法重复启动。")
 			return nil, false
 		}
 		logger.Fatalf("acquire lock %s: %v", path, err)
@@ -593,8 +584,7 @@ func acquireExistingSingleInstanceLock(path string, logger *log.Logger) (*util.F
 			return nil, true
 		}
 		if errors.Is(err, util.ErrLockHeld) {
-			fmt.Println("PornBoss 已在运行，无法重复启动。")
-			waitForUserExit()
+			notifyAlreadyRunning("PornBoss 已在运行，无法重复启动。")
 			return nil, false
 		}
 		logger.Fatalf("acquire lock %s: %v", path, err)

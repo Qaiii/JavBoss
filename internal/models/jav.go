@@ -234,14 +234,13 @@ type Jav struct {
 	IsUncensored   *bool           `json:"is_uncensored"`
 	SampleImages   JavSampleImages `json:"sample_images" gorm:"type:text;not null;default:'[]'"`
 	FavoriteRating float64         `json:"favorite_rating" gorm:"not null;default:0"`
-	// TitleZH is appended after favorite_rating so the column order matches
-	// the ALTER TABLE that adds it to databases created before this field.
-	TitleZH       string     `json:"title_zh" gorm:"column:title_zh;type:text"`
-	Tags          []JavTag   `json:"tags,omitempty" gorm:"-"`
-	Idols         []JavIdol  `json:"idols,omitempty" gorm:"many2many:jav_idol_map"`
-	Actors        []JavActor `json:"actors,omitempty" gorm:"many2many:jav_actor_map"`
-	Videos        []Video    `json:"videos,omitempty" gorm:"-"`
-	FavoriteCount int64      `json:"favorite_count" gorm:"-"`
+	ZhTitle        string          `json:"zh_title" gorm:"not null;default:''"`
+	WatchedMS      int64           `json:"watched_ms" gorm:"not null;default:0"`
+	Tags           []JavTag        `json:"tags,omitempty" gorm:"-"`
+	Idols          []JavIdol       `json:"idols,omitempty" gorm:"many2many:jav_idol_map"`
+	Actors         []JavActor      `json:"actors,omitempty" gorm:"many2many:jav_actor_map"`
+	Videos         []Video         `json:"videos,omitempty" gorm:"-"`
+	FavoriteCount  int64           `json:"favorite_count" gorm:"-"`
 	// InLibrary is omitted for normal library rows. Unimported idol works set
 	// it to false so the actress page can badge and gray out those cards.
 	InLibrary *bool  `json:"in_library,omitempty" gorm:"-"`

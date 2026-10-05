@@ -314,6 +314,9 @@ export function activeJavSortFilters(state) {
 }
 
 export function resolveJavSort(state) {
+  if (state?.javRandomMode) {
+    return { sort: 'random', source: 'random', rule: null }
+  }
   const temporary = normalizeJavSort(state?.javTempSort, '')
   if (temporary) {
     return { sort: temporary, source: 'temporary', rule: null }

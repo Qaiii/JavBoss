@@ -19,6 +19,7 @@ import (
 	"javboss/internal/common/logging"
 	dbpkg "javboss/internal/db"
 	"javboss/internal/jav"
+	"javboss/internal/jav/javdb"
 	"javboss/internal/manager"
 	"javboss/internal/models"
 	"javboss/internal/service"
@@ -193,9 +194,9 @@ func getJavJavDBURL(c *gin.Context) {
 		return
 	}
 
-	javdbURL, err := jav.LookupJavDBURLByCode(code)
+	javdbURL, err := jav.LookupJavDBURLByCode(c.Request.Context(), code)
 	if err != nil {
-		if errors.Is(err, jav.ResourceNotFonud) {
+		if errors.Is(err, jav.ErrNotFound) {
 			respondLocalizedError(c, http.StatusNotFound, "未找到对应的 JavDB 页面", "JavDB page was not found")
 			return
 		}
@@ -213,9 +214,9 @@ func redirectJavAvsox(c *gin.Context) {
 		return
 	}
 
-	detailURL, err := jav.LookupAvsoxURLByCode(code)
+	detailURL, err := jav.LookupAvsoxURLByCode(c.Request.Context(), code)
 	if err != nil {
-		if errors.Is(err, jav.ResourceNotFonud) {
+		if errors.Is(err, jav.ErrNotFound) {
 			respondLocalizedError(c, http.StatusNotFound, "未找到对应的 Avsox 详情页", "Avsox detail page was not found")
 			return
 		}
@@ -224,6 +225,26 @@ func redirectJavAvsox(c *gin.Context) {
 		return
 	}
 	c.Redirect(http.StatusFound, detailURL)
+}
+
+// getJavItem returns the detail used by reloads and direct detail links.
+func getJavItem(c *gin.Context) {
+	id, err := strconv.ParseInt(strings.TrimSpace(c.Param("id")), 10, 64)
+	if err != nil || id <= 0 {
+		respondLocalizedError(c, http.StatusBadRequest, "JAV 作品 ID 无效", "Invalid JAV item ID")
+		return
+	}
+	item, err := dbpkg.GetJav(c.Request.Context(), id, nil)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			respondLocalizedError(c, http.StatusNotFound, "JAV 作品不存在", "JAV item was not found")
+			return
+		}
+		logging.Error("get JAV item id=%d: %v", id, err)
+		respondLocalizedError(c, http.StatusInternalServerError, "加载 JAV 详情失败", "Failed to load JAV details")
+		return
+	}
+	c.JSON(http.StatusOK, item)
 }
 
 func resolveJavSampleImages(c *gin.Context) {
@@ -243,7 +264,7 @@ func resolveJavSampleImages(c *gin.Context) {
 		respondLocalizedError(c, http.StatusInternalServerError, "加载样品图失败", "Failed to load sample images")
 		return
 	}
-	if len(item.SampleImages) > 0 {
+	if len(item.SampleImages) > 0 && !item.SampleImages.IsNotFound() {
 		c.JSON(http.StatusOK, gin.H{"sample_images": item.SampleImages})
 		return
 	}
@@ -278,8 +299,12 @@ func resolveJavSampleImages(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"sample_images": stored})
 }
 
-type javSampleImageLookupFunc func(string, jav.Provider) (*jav.JavInfo, error)
+type javSampleImageLookupFunc func(context.Context, string, jav.Provider) (*jav.JavInfo, error)
 type javSampleImageURLValidator func(context.Context, string) (bool, error)
+
+func isFC2Code(code string) bool {
+	return strings.HasPrefix(strings.ToUpper(strings.TrimSpace(code)), "FC2-PPV-")
+}
 
 func lookupJavSampleImagesByProvider(
 	ctx context.Context,
@@ -292,10 +317,14 @@ func lookupJavSampleImagesByProvider(
 	}
 
 	var lookupErrors []error
-	for _, provider := range []jav.Provider{jav.ProviderJavMenu, jav.ProviderJavBus} {
-		info, err := lookup(code, provider)
+	providers := []jav.Provider{jav.ProviderJavMenu, jav.ProviderJavBus}
+	if isFC2Code(code) {
+		providers = []jav.Provider{jav.ProviderJavDBAPI, jav.ProviderAvsox}
+	}
+	for _, provider := range providers {
+		info, err := lookup(ctx, code, provider)
 		if err != nil {
-			if !errors.Is(err, jav.ResourceNotFonud) {
+			if !errors.Is(err, jav.ErrNotFound) {
 				lookupErrors = append(lookupErrors, fmt.Errorf("%s: %w", provider.String(), err))
 			}
 			continue
@@ -343,17 +372,10 @@ func validateJavSampleImageDetailURL(ctx context.Context, detailURL string) (boo
 	if err != nil {
 		return false, fmt.Errorf("build request: %w", err)
 	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-	req.Header.Set("Accept", "image/avif,image/webp,image/apng,image/*,*/*;q=0.8")
-	if host := strings.ToLower(parsed.Hostname()); host == "pics.dmm.co.jp" || strings.HasSuffix(host, ".dmm.co.jp") {
-		req.Header.Set("Referer", "https://www.dmm.co.jp/")
-	}
+	util.SetJavImageRequestHeaders(req)
 
-	resp, err := util.DoRequest(req)
+	resp, err := util.DefaultCachedHTTPClient().Do(req)
 	if err != nil {
-		if errors.Is(err, util.ErrCachedNotFound) {
-			return false, nil
-		}
 		return false, fmt.Errorf("request image: %w", err)
 	}
 	defer resp.Body.Close()
@@ -366,7 +388,8 @@ func validateJavSampleImageDetailURL(ctx context.Context, detailURL string) (boo
 		return false, fmt.Errorf("image returned %s", resp.Status)
 	}
 
-	header, err := io.ReadAll(io.LimitReader(resp.Body, 512))
+	body, _ := javdb.DecodeImageBody(resp.Body)
+	header, err := io.ReadAll(io.LimitReader(body, 512))
 	if err != nil {
 		return false, fmt.Errorf("read image header: %w", err)
 	}

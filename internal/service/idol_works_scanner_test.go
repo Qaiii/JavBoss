@@ -79,7 +79,7 @@ func stubWorksSources(t *testing.T) (javdbResolveCalls, javdbListCalls, jdbResol
 	jdbResolve := 0
 	jdbList := 0
 
-	lookupActressURLByCodeAndName = func(code, name string, provider jav.Provider) (string, error) {
+	lookupActressURLByCodeAndName = func(_ context.Context, code, name string, provider jav.Provider) (string, error) {
 		javdbResolve++
 		return "https://javdb.com/actors/scrape-test", nil
 	}
@@ -251,7 +251,7 @@ func TestScrapeIdolWorksFallsBackToJavDatabaseWhenJavDBProfileMissing(t *testing
 
 	_, _, _, _ = stubWorksSources(t)
 	// JavDB cannot resolve a profile URL for this idol.
-	lookupActressURLByCodeAndName = func(code, name string, provider jav.Provider) (string, error) {
+	lookupActressURLByCodeAndName = func(_ context.Context, code, name string, provider jav.Provider) (string, error) {
 		return "", jav.ResourceNotFonud
 	}
 	listJavDatabaseWorksByActressURL = func(ctx context.Context, profileURL string, page int) ([]*jav.JavInfo, bool, error) {
@@ -410,7 +410,7 @@ func TestScrapeIdolWorksRecordsErrorWhenAllSourcesFail(t *testing.T) {
 	idol := seedScrapeIdol(t, gdb, "No Profile Idol", "IPX-003")
 
 	_, _, _, _ = stubWorksSources(t)
-	lookupActressURLByCodeAndName = func(code, name string, provider jav.Provider) (string, error) {
+	lookupActressURLByCodeAndName = func(_ context.Context, code, name string, provider jav.Provider) (string, error) {
 		return "", jav.ResourceNotFonud
 	}
 	resolveJavDatabaseProfileURL = func(ctx context.Context, item *models.JavIdol) (string, error) {
@@ -445,7 +445,7 @@ func TestEnrichIdolWorkMetadataWritesStudioSeriesTags(t *testing.T) {
 	}
 
 	prevLookup := lookupJavForIdolWorkMetadata
-	lookupJavForIdolWorkMetadata = func(code string, provider jav.Provider) (*jav.JavInfo, error) {
+	lookupJavForIdolWorkMetadata = func(_ context.Context, code string, provider jav.Provider) (*jav.JavInfo, error) {
 		if provider != jav.ProviderJavBus {
 			t.Fatalf("provider = %s, want javbus first", provider.String())
 		}

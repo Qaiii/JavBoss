@@ -1,0 +1,39 @@
+# Repository Guidelines
+
+## Project Structure & Module Organization
+- `cmd/server`: Go entrypoint that loads config, opens the DB, starts background scanners, and serves the Gin API plus optional static frontend.
+- `cmd/javprovider`: small Go utility for exercising JAV provider lookups outside the main server.
+- `internal/`: application packages; key folders include `common` (shared config/globals/logging), `db` (GORM setup and stores), `models` (domain structs), `server` (Gin router and handlers), `service` (directory/video/JAV scanners), `jav` (metadata providers), `manager` (cover and screenshot helpers), `mpv` (player integration), and `util` (filesystem, locale, proxy, playback, and platform helpers).
+- `web/`: React + Tailwind frontend (Vite). Business components live in `web/src/features/<domain>/components`, domain-independent UI in `web/src/shared/ui`, and application layout in `web/src/app/layout`. Shared state is composed in `web/src/store.js` from `web/src/state`, and API helpers live in `web/src/features/<domain>/api.js` (`web/src/api.js` remains a compatibility barrel). Constants live in `web/src/constants`, utilities in `web/src/utils`, and static icons in `web/public/ico`.
+- Place components by business ownership, including components reused across domains. `shared/ui` must not import feature modules, application state, or API clients; pass business data and callbacks through props. Route composition belongs in `web/src/routes`; do not recreate a top-level `web/src/components` directory.
+- Place business hooks in `web/src/features/<domain>/hooks`. Navigation, history, scroll restoration, and page navigation shortcuts belong in `web/src/navigation`; data loading coordination belongs in `web/src/query`. Put only domain-independent hooks in `web/src/shared/hooks`, which must not import business modules, application state, or API clients. Keep navigation contexts beside their navigation hooks; do not recreate a top-level `web/src/hooks` directory.
+- `scripts/`: development/release helpers. `scripts/cli.sh` wraps common workflows, while `scripts/cli/` contains the Node CLI source and generated `scripts/cli/build/` output.
+- `bin/`, `internal/bin/`, and `modernz/`: bundled runtime player/tool assets used by releases and mpv integration.
+- `data/`, `web/dist/`, `release/`, `screenshot/`, `temp/`, `.gocache/`, and other scratch/build output directories are generated or runtime artifacts; keep them out of commits unless a release workflow explicitly requires them.
+
+## Build, Test, and Development Commands
+- Backend: `go run ./cmd/server` to serve API on port 17654 (and `web/dist` when present).
+- Dev helper: `scripts/cli.sh dev backend|frontend` (flags: `SKIP_NPM_INSTALL=1`, etc.).
+- Tests: `GOCACHE=$(pwd)/.gocache go test ./...` (no Go tests yet—keep it green).
+- Frontend (in `web/`): `npm install`; `npm run dev` for Vite, `npm run lint`, `npm run build` for prod bundle.
+- CLI build: `cd scripts/cli && npm install && npm run build` (outputs `scripts/cli/build/javboss-cli.cjs`).
+- Release: `scripts/cli.sh release linux-x86_64 v0.1.0` builds backend + `web/dist` and archives to `release/`.
+
+## Coding Style & Naming Conventions
+- Go: run `gofmt -w` and keep imports/go mod tidy; use context as first arg, return wrapped errors with lower-case messages, and log via `internal/common/logging`. Keep package names lowercase and files scoped to their package.
+- Frontend: functional React components in PascalCase (`VideoGrid.jsx`), hooks/helpers camelCase. Keep styles in Tailwind/`index.css`; prefer colocated component styles. Format with `npm run format` / `npm run format:check`; lint with `npm run lint`.
+- Naming: API routes are RESTful (`/videos`, `/tags`, `/directories`); keep new endpoints consistent and document query params.
+
+## README Guidelines
+- `README.md` is for end users. Keep edits concise and restrained, focusing on installation, configuration, usage, and limitations that affect user decisions.
+- Update it only when a change materially affects users; routine implementation changes do not need a README entry. Prefer small edits to existing sections and preserve the document's language and style.
+- Avoid implementation details, API field inventories, debugging notes, and exhaustive technical explanations. Put necessary developer documentation elsewhere and link to it only when useful to users.
+
+## Database Migration Guidance
+- Do not modify existing DB migration files. Add a new migration for every schema or data migration change, and use that new migration to reconcile schema details such as column order when needed.
+- After every DB migration, verify that the actual database schema exactly matches the structs and GORM tags in `internal/models`, including tables, columns, column types, nullability/defaults, indexes, unique constraints, foreign keys, and join tables.
+- Treat any drift between migrated schema and model definitions as a migration bug. Update the migration or model definitions until they are fully aligned before considering the change complete.
+
+## Testing Guidelines
+- Go: add table-driven `_test.go` files near the code under test; prefer integration tests around `internal/db` and handler tests via `httptest`. Use the repo-local `GOCACHE` path.
+- Frontend: keep all frontend tests under `web/tests/`; Mirror the source organization and names under `web/tests/` when practical (for example, `web/src/utils/javEdit.js` should be tested by `web/tests/utils/javEdit.test.js`). Run `npm test`, `npm run lint`, `npm run format:check`, and `npm run build` before PRs.

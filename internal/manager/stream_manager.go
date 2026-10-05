@@ -305,7 +305,7 @@ func (sm *StreamManager) startTranscode(stream *runningStream, segment int, done
 
 	lockCtx, cancel := context.WithCancel(sm.context)
 	args := stream.makeStreamArgs(segment)
-	cmd := exec.CommandContext(lockCtx, ffmpegPath, args...)
+	cmd := util.BackgroundCommandContext(lockCtx, ffmpegPath, args...)
 
 	stderr, err := cmd.StderrPipe()
 	if err != nil {

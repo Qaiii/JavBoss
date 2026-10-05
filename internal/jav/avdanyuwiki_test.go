@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	"javboss/internal/jav/internal/htmlutil"
+
 	"golang.org/x/net/html"
 )
 
@@ -116,7 +118,7 @@ func TestParseAVDanyuWikiSkipsPlaceholderActors(t *testing.T) {
 
 func mustParseAVDanyuHTML(t *testing.T, raw string) *html.Node {
 	t.Helper()
-	doc, err := parseHTMLDocument([]byte(raw))
+	doc, err := htmlutil.ParseHTMLDocument([]byte(raw))
 	if err != nil {
 		t.Fatalf("parse html: %v", err)
 	}

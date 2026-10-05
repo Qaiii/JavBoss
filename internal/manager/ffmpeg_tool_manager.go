@@ -11,7 +11,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -121,8 +120,14 @@ func NewFFmpegToolManager(ctx context.Context, baseDir string) *FFmpegToolManage
 		downloadSHA:   download.downloadSHA,
 		binarySHA:     download.binarySHA256,
 		httpClient:    util.NewHTTPClient(0),
-		containerMode: runtimeconfig.ContainerMode(),
 		resolveFFmpeg: util.ResolveFFmpegPath,
+		containerMode: runtimeconfig.ContainerMode(),
+	}
+	if manager.containerMode {
+		manager.displayPath = util.ContainerFFBinaryDir + "/ffmpeg"
+		manager.bundledDir = util.ContainerFFBinaryDir
+		manager.downloadURL = ""
+		return manager
 	}
 	if manager.managedFFmpegNeedsUpgrade() {
 		logging.Info("managed FFmpeg at %s does not match release %s and can be upgraded", manager.displayPath, manager.version)
@@ -166,6 +171,9 @@ func (m *FFmpegToolManager) StartDownload() (bool, error) {
 	if m.downloading || installed {
 		return false, nil
 	}
+	if m.containerMode {
+		return false, errors.New("FFmpeg must be provided by the Docker image at /app/internal/bin/ffmpeg; rebuild the image to restore it")
+	}
 	if m.downloadURL == "" {
 		return false, errors.New("automatic FFmpeg download is not supported on this platform")
 	}
@@ -180,11 +188,18 @@ func (m *FFmpegToolManager) StartDownload() (bool, error) {
 }
 
 func (m *FFmpegToolManager) detectInstallation() (bool, string, bool) {
+	if m.containerMode {
+		if m.resolveFFmpeg != nil {
+			resolvedPath, err := m.resolveFFmpeg()
+			if err == nil && resolvedPath == util.ContainerFFBinaryDir+"/ffmpeg" {
+				return true, "builtin", false
+			}
+		}
+		return false, "", false
+	}
 	if m.resolveFFmpeg != nil {
 		if resolvedPath, err := m.resolveFFmpeg(); err == nil && isUsableFFmpegFile(resolvedPath) {
 			switch {
-			case m.containerMode:
-				return true, "builtin", false
 			case sameFilePath(resolvedPath, m.targetPath):
 				if m.managedFFmpegIsCurrent() {
 					return true, "downloaded", false
@@ -192,8 +207,6 @@ func (m *FFmpegToolManager) detectInstallation() (bool, string, bool) {
 				return false, "", true
 			case pathWithinDirectory(resolvedPath, m.bundledDir):
 				return true, "builtin", false
-			default:
-				return true, "system", false
 			}
 		}
 	}
@@ -461,7 +474,7 @@ func pathWithinDirectory(path string, directory string) bool {
 func validateFFmpeg(path string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	output, err := exec.CommandContext(ctx, path, "-version").CombinedOutput()
+	output, err := util.BackgroundCommandContext(ctx, path, "-version").CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("validate FFmpeg: %w", err)
 	}

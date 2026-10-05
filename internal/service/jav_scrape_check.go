@@ -203,7 +203,7 @@ func repairJavScrape(ctx context.Context, code string) error {
 	}
 
 	for _, provider := range providers {
-		info, lookupErr := lookupJavForScrapeRepair(code, provider)
+		info, lookupErr := lookupJavForScrapeRepair(ctx, code, provider)
 		if lookupErr != nil {
 			if !errors.Is(lookupErr, jav.ResourceNotFonud) {
 				logging.Error("jav scrape repair lookup failed provider=%s code=%s err=%v", provider.String(), code, lookupErr)

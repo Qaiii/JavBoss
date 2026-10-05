@@ -16,7 +16,7 @@ export function normalizeJavTitleLanguage(value) {
 
 export function resolveJavMetadataTitle(item, preferChinese = false) {
   const original = String(item?.title || '').trim()
-  const chinese = String(item?.title_zh || '').trim()
+  const chinese = String(item?.zh_title || item?.title_zh || '').trim()
   return preferChinese ? chinese || original : original || chinese
 }
 

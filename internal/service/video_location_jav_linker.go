@@ -156,20 +156,26 @@ func processVideoLocationJavLink(ctx context.Context, locationID int64) error {
 		return nil
 	}
 
-	for _, code := range possibleCodes {
-		for _, provider := range javLinkProvidersForCode(code) {
-			if linked, err := lookupAndLinkVideoLocationJav(ctx, v, filename, []string{code}, provider); err != nil || linked {
-				return err
-			}
-		}
-	}
-
 	uncensoredPossibleCodes := util.ExtractUncensoredCodesFromName(filename)
 	if forcedCode != "" {
 		uncensoredPossibleCodes = possibleCodes
 	}
-	if linked, err := lookupAndLinkVideoLocationJav(ctx, v, filename, uncensoredPossibleCodes, jav.ProviderAvsox); err != nil || linked {
+	info, err := jav.ResolveJavByCodes(ctx, possibleCodes, uncensoredPossibleCodes)
+	if errors.Is(err, jav.ErrNotFound) {
+		return nil
+	}
+	if err != nil {
 		return err
+	}
+	if rec, err := db.SaveJavInfoAndLinkLocationForVideo(ctx, info, v.LocationID, v.VideoID, v.UpdatedAt); err != nil {
+		logging.Error("link video location->jav failed provider=%s location=%s code=%s err=%v", info.Provider.String(), filename, info.Code, err)
+	} else {
+		logging.Info("link video location->jav success provider=%s location=%s code=%s", info.Provider.String(), filename, info.Code)
+		enqueueCover(info.Code)
+		EnqueueIdolWorksForActors(ctx, info.Actors)
+		if rec != nil && len(info.MaleActors) == 0 {
+			EnqueueMaleActorLookup(ctx, rec.ID, info.Code)
+		}
 	}
 	return nil
 }
@@ -202,20 +208,6 @@ func javScrapeCodesForVideo(filename, forcedCode string) []string {
 	return util.ExtractCodeFromName(filename)
 }
 
-func javLinkProvidersForCode(code string) []jav.Provider {
-	code = strings.ToUpper(strings.TrimSpace(code))
-	switch {
-	case strings.HasPrefix(code, "GANA-"):
-		return []jav.Provider{jav.ProviderJavMenu, jav.ProviderJavBus}
-	case strings.HasPrefix(code, "STARS-"):
-		return []jav.Provider{jav.ProviderJavBus, jav.ProviderAvmoo}
-	case strings.HasPrefix(code, "AP-"):
-		return []jav.Provider{jav.ProviderAvmoo}
-	default:
-		return []jav.Provider{jav.ProviderJavBus}
-	}
-}
-
 func normalizeJavScrapeOverride(raw string) string {
 	raw = strings.TrimSpace(raw)
 	if strings.EqualFold(raw, models.JavScrapeOverrideSkip) {
@@ -240,35 +232,6 @@ func forcedJavScrapeCode(override string) string {
 		return strings.TrimSpace(override[len(models.JavScrapeOverrideManualPrefix):])
 	}
 	return override
-}
-
-func lookupAndLinkVideoLocationJav(ctx context.Context, v *db.JavScanVideo, filename string, possibleCodes []string, provider jav.Provider) (bool, error) {
-	for _, code := range possibleCodes {
-		info, err := jav.LookupJavByCode(code, provider)
-		if err != nil {
-			if errors.Is(err, jav.ResourceNotFonud) {
-				continue
-			}
-			logging.Error("jav lookup failed provider=%s location=%s code=%s err=%v", provider.String(), filename, code, err)
-			continue
-		}
-		if info == nil {
-			continue
-		}
-
-		if rec, err := db.SaveJavInfoAndLinkLocationForVideo(ctx, info, v.LocationID, v.VideoID, v.UpdatedAt); err != nil {
-			logging.Error("link video location->jav failed provider=%s location=%s code=%s err=%v", provider.String(), filename, info.Code, err)
-		} else {
-			logging.Info("link video location->jav success provider=%s location=%s code=%s", provider.String(), filename, info.Code)
-			enqueueCover(info.Code)
-			EnqueueIdolWorksForActors(ctx, info.Actors)
-			if rec != nil && len(info.MaleActors) == 0 {
-				EnqueueMaleActorLookup(ctx, rec.ID, info.Code)
-			}
-		}
-		return true, nil
-	}
-	return false, nil
 }
 
 func enqueueCover(code string) {

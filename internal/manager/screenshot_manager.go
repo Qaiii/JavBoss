@@ -271,7 +271,7 @@ func (m *ScreenshotManager) capture(ctx context.Context, videoPath string, secon
 	defer func() { _ = os.RemoveAll(tempDir) }()
 	shotPath := filepath.Join(tempDir, "00000001.jpg")
 
-	if runtime.GOOS == "darwin" || runtimeconfig.UseFFmpegScreenshots() {
+	if runtime.GOOS == "darwin" || runtimeconfig.ContainerMode() {
 		ffmpegPath, err := util.ResolveFFmpegPath()
 		if err != nil {
 			return fmt.Errorf("resolve ffmpeg path: %w", err)
@@ -288,8 +288,9 @@ func (m *ScreenshotManager) capture(ctx context.Context, videoPath string, secon
 	}
 	args := buildMPVScreenshotArgs(second, tempDir, videoPath)
 
-	cmd := exec.CommandContext(ctx, mpvPath, args...)
-	out, err := cmd.CombinedOutput()
+	// Suppress Windows' startup busy cursor when background screenshots repeatedly
+	// launch the GUI mpv.exe; hiding the console alone does not disable that feedback.
+	out, err := util.BackgroundCombinedOutput(ctx, mpvPath, args...)
 	if err != nil {
 		_ = os.Remove(shotPath)
 		if errors.Is(err, exec.ErrNotFound) {
@@ -316,7 +317,7 @@ func (m *ScreenshotManager) capture(ctx context.Context, videoPath string, secon
 
 func runFFmpegScreenshot(ctx context.Context, ffmpegPath string, videoPath string, second float64, outputPath string) error {
 	args := buildFFmpegScreenshotArgs(second, outputPath, videoPath)
-	cmd := exec.CommandContext(ctx, ffmpegPath, args...)
+	cmd := util.BackgroundCommandContext(ctx, ffmpegPath, args...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		_ = os.Remove(outputPath)

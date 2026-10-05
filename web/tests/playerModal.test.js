@@ -3,13 +3,13 @@ import fs from 'node:fs'
 import test from 'node:test'
 
 const player = fs.readFileSync(
-  new URL('../src/components/PlayerModal.jsx', import.meta.url),
+  new URL('../src/features/playback/components/PlayerModal.jsx', import.meta.url),
   'utf8'
 )
 
 test('fullscreen player owns the next browser back action', () => {
   assert.match(player, /useOverlayHistory\(Boolean\(video\) && !isPiP, handleClose\)/)
-  assert.match(player, /@\/hooks\/useOverlayHistory/)
+  assert.match(player, /@\/navigation\/useOverlayHistory/)
 })
 
 test('player host stays mounted while loading or error overlays show', () => {

@@ -3,21 +3,31 @@ package jav
 import (
 	"testing"
 	"time"
+
+	"javboss/internal/jav/avmoo"
+	"javboss/internal/jav/avsox"
+	"javboss/internal/jav/javbus"
+	"javboss/internal/jav/javdatabase"
+	"javboss/internal/jav/javdb"
+	"javboss/internal/jav/javmenu"
+	"javboss/internal/jav/javmodel"
+	"javboss/internal/jav/minnanoav"
+	"javboss/internal/jav/theporndb"
 )
 
 func TestScrapeSourcesUseLiveRequestIntervals(t *testing.T) {
 	want := map[string]time.Duration{
-		"javbus":      javBusRequestInterval,
-		"javdatabase": javDatabaseRequestInterval,
-		"javdb":       javDBRequestInterval,
-		"avmoo":       avmooRequestInterval,
-		"avsox":       avsoxRequestInterval,
-		"javmenu":     javMenuRequestInterval,
+		"javbus":      javbus.RequestInterval(),
+		"javdatabase": javdatabase.RequestInterval(),
+		"javdb":       javdb.RequestInterval(),
+		"avmoo":       avmoo.RequestInterval(),
+		"avsox":       avsox.RequestInterval(),
+		"javmenu":     javmenu.RequestInterval(),
 		"missav":      missAVRequestInterval,
-		"minnanoav":   minnanoAVRequestInterval,
-		"javmodel":    javModelRequestInterval,
+		"minnanoav":   minnanoav.RequestInterval(),
+		"javmodel":    javmodel.RequestInterval(),
 		"avdanyuwiki": avdanyuWikiRequestInterval,
-		"theporndb":   thePornDBRequestInterval,
+		"theporndb":   theporndb.RequestInterval(),
 	}
 
 	got := map[string]ScrapeSource{}

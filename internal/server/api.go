@@ -16,6 +16,7 @@ func RegisterRoutes(router gin.IRoutes) {
 
 	router.GET("/config", getConfig)
 	router.PATCH("/config", updateConfig)
+	router.GET("/system/resources", getResources)
 	router.GET("/tools", getTools)
 	router.POST("/tools/ffmpeg/download", downloadFFmpeg)
 	router.GET("/tools/jav-scrape-check", getJavScrapeCheck)
@@ -53,6 +54,8 @@ func RegisterRoutes(router gin.IRoutes) {
 	router.GET("/videos/:id/subtitles/search", searchJavSubtitles)
 	router.GET("/videos/:id/subtitles/detail", getJavSubtitleDetail)
 	router.POST("/videos/:id/subtitles/save", saveJavSubtitle)
+	router.POST("/videos/:id/playback-sessions", createPlaybackSession)
+	router.PUT("/videos/:id/playback-sessions/:session_id", reportPlaybackSession)
 	router.POST("/videos/play", playVideoFile)
 	router.POST("/videos/playlist", playVideoPlaylist)
 	router.POST("/videos/open", openVideoFile)
@@ -83,6 +86,9 @@ func RegisterRoutes(router gin.IRoutes) {
 	router.POST("/videos/tags/replace", replaceTagsForVideos)
 
 	router.GET("/jav", searchJav)
+	router.GET("/jav/providers", listAvailabilityProviders)
+	router.POST("/jav/providers/:provider/availability", checkProviderAvailability)
+	router.POST("/jav/providers/:provider/connectivity", checkProviderAvailability) // Legacy route, same availability check.
 	router.GET("/jav/filter-options", listJavFilterOptions)
 	router.GET("/jav/avsox-redirect", redirectJavAvsox)
 	router.GET("/jav/javdb-url", getJavJavDBURL)
@@ -114,6 +120,8 @@ func RegisterRoutes(router gin.IRoutes) {
 	router.POST("/downloads/:id/reveal", revealDownloadLocation)
 	router.DELETE("/downloads/:id", deleteDownloadJob)
 	router.POST("/jav/items/:id/sample-images", resolveJavSampleImages)
+	router.GET("/jav/items/:id/sample-images/:index/:variant", getJavSampleImage)
+	router.GET("/jav/items/:id", getJavItem)
 	router.PUT("/jav/items/:id", updateJavItem)
 	router.POST("/jav/tags", createJavTag)
 	router.POST("/jav/tags/scraped", createJavScrapedTag)

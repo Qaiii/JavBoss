@@ -356,8 +356,8 @@ func TestSearchJavMergesUnimportedIdolWorks(t *testing.T) {
 		t.Fatalf("create studio: %v", err)
 	}
 
-	libraryHighPlay := models.Jav{Code: "LIB-HIGH", Title: "High plays", StudioID: &studio.ID, CreatedAt: now, FetchedAt: now}
-	libraryLowPlay := models.Jav{Code: "LIB-LOW", Title: "Low plays", StudioID: &studio.ID, CreatedAt: older, FetchedAt: older}
+	libraryHighPlay := models.Jav{Code: "LIB-HIGH", Title: "High plays", ZhTitle: "高播放", StudioID: &studio.ID, CreatedAt: now, FetchedAt: now}
+	libraryLowPlay := models.Jav{Code: "LIB-LOW", Title: "Low plays", ZhTitle: "低播放", StudioID: &studio.ID, CreatedAt: older, FetchedAt: older}
 	if err := gdb.Create(&libraryHighPlay).Error; err != nil {
 		t.Fatalf("create high play jav: %v", err)
 	}
@@ -425,6 +425,14 @@ func TestSearchJavMergesUnimportedIdolWorks(t *testing.T) {
 	}
 	if len(items[0].Videos) == 0 || items[0].Videos[0].PlayCount != 12 {
 		t.Fatalf("LIB-HIGH videos = %+v, want hydrated play count 12", items[0].Videos)
+	}
+	// The merged external path projects the library rows from the jav table, so
+	// the Chinese title has to travel through jav.zh_title (upstream's column).
+	if items[0].ZhTitle != "高播放" || items[1].ZhTitle != "低播放" {
+		t.Fatalf("library zh_title = %q, %q, want 高播放, 低播放", items[0].ZhTitle, items[1].ZhTitle)
+	}
+	if items[2].ZhTitle != "" {
+		t.Fatalf("EXT-NEW zh_title = %q, want empty", items[2].ZhTitle)
 	}
 
 	byCode, _, err := SearchJavWithPrefixFilters(ctx, []int64{idol.ID}, nil, "", "", "code", 20, 0, nil, nil, filters, nil, nil)
@@ -698,6 +706,7 @@ func TestSearchJavUnimportedAttachesStudioSeriesTags(t *testing.T) {
 			ReleaseUnix: 100,
 			StudioName:  "アイデアポケット",
 			SeriesName:  "中年オヤジ",
+			TitleZH:     "中年父亲与制服美少女",
 			Tags:        models.JavStringList{"美少女", "Unknown Tag"},
 		},
 	}); err != nil {
@@ -727,6 +736,11 @@ func TestSearchJavUnimportedAttachesStudioSeriesTags(t *testing.T) {
 	}
 	if named.Series == nil || named.Series.ID != series.ID || named.Series.Name != "中年オヤジ" {
 		t.Fatalf("IPX-228 series = %+v, want 中年オヤジ", named.Series)
+	}
+	// The merged external page rebuilds models.Jav from jav_idol_work.TitleZH,
+	// which still lives in the fork's jav_idol_work.title_zh column.
+	if named.ZhTitle != "中年父亲与制服美少女" {
+		t.Fatalf("IPX-228 zh_title = %q, want 中年父亲与制服美少女", named.ZhTitle)
 	}
 	if len(named.Tags) != 2 {
 		t.Fatalf("IPX-228 tags = %+v, want 2", named.Tags)
@@ -868,8 +882,8 @@ func TestApplyTitleZHAndKeepOnReplace(t *testing.T) {
 	if err := gdb.Where("code = ?", "IPX-001").First(&javRow).Error; err != nil {
 		t.Fatalf("reload jav: %v", err)
 	}
-	if javRow.TitleZH != "中年父亲与制服美少女" {
-		t.Fatalf("jav title_zh = %q", javRow.TitleZH)
+	if javRow.ZhTitle != "中年父亲与制服美少女" {
+		t.Fatalf("jav zh_title = %q", javRow.ZhTitle)
 	}
 	var work models.JavIdolWork
 	if err := gdb.Where("code = ?", "IPX-001").First(&work).Error; err != nil {
@@ -900,8 +914,8 @@ func TestApplyTitleZHAndKeepOnReplace(t *testing.T) {
 		t.Fatalf("kept title_zh = %q", reloaded.TitleZH)
 	}
 	item := javFromUnimportedIdolWork(reloaded, nil)
-	if item.TitleZH != reloaded.TitleZH {
-		t.Fatalf("unimported title_zh = %q, want %q", item.TitleZH, reloaded.TitleZH)
+	if item.ZhTitle != reloaded.TitleZH {
+		t.Fatalf("unimported zh_title = %q, want %q", item.ZhTitle, reloaded.TitleZH)
 	}
 }
 

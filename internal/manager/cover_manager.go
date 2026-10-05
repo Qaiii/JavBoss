@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"image"
+	_ "image/jpeg"
+	_ "image/png"
 	"io"
 	"net/http"
 	"net/url"
@@ -16,6 +19,7 @@ import (
 
 	"javboss/internal/common/logging"
 	"javboss/internal/jav"
+	"javboss/internal/jav/javdb"
 	"javboss/internal/util"
 )
 
@@ -33,6 +37,7 @@ const minValidCoverSizeBytes int64 = 30 * 1024
 const posterFileSuffix = "-poster"
 
 var errInvalidCover = errors.New("invalid cover")
+var errCoverNotFound = errors.New("cover not found")
 
 var lookupJavByCode = jav.LookupJavByCode
 
@@ -186,18 +191,31 @@ func (m *CoverManager) handleTask(parent context.Context, code string) error {
 
 	ctx, cancel := context.WithTimeout(parent, 45*time.Second)
 	defer cancel()
-	return m.downloadCoverFromProviders(ctx, code)
+
+	if err := m.downloadCoverFromProviders(ctx, code); err != nil {
+		if errors.Is(err, errCoverNotFound) {
+			return nil
+		}
+		return err
+	}
+	return nil
 }
 
 func (m *CoverManager) downloadCoverFromProviders(ctx context.Context, code string) error {
 	if m == nil {
 		return errors.New("cover manager not configured")
 	}
+	providers := m.providers
+	if strings.HasPrefix(strings.ToUpper(strings.TrimSpace(code)), "FC2-PPV-") {
+		// FC2 metadata (including the cover URL) comes from JavDB API. The
+		// general cover sources do not resolve these numbers.
+		providers = []jav.Provider{jav.ProviderJavDBAPI, jav.ProviderAvsox}
+	}
 	var lastErr error
-	for _, provider := range m.providers {
-		info, err := lookupJavByCode(code, provider)
+	for _, provider := range providers {
+		info, err := lookupJavByCode(ctx, code, provider)
 		if err != nil {
-			if errors.Is(err, jav.ResourceNotFonud) {
+			if errors.Is(err, jav.ErrNotFound) {
 				continue
 			}
 			lastErr = err
@@ -213,7 +231,7 @@ func (m *CoverManager) downloadCoverFromProviders(ctx context.Context, code stri
 			continue
 		}
 		if err := m.downloadCover(ctx, code, coverURL); err != nil {
-			if errors.Is(err, util.ErrCachedNotFound) || errors.Is(err, errInvalidCover) {
+			if errors.Is(err, errCoverNotFound) || errors.Is(err, errInvalidCover) {
 				lastErr = err
 				continue
 			}
@@ -226,7 +244,7 @@ func (m *CoverManager) downloadCoverFromProviders(ctx context.Context, code stri
 	if lastErr != nil {
 		return fmt.Errorf("download cover from providers: %w", lastErr)
 	}
-	return util.ErrCachedNotFound
+	return errCoverNotFound
 }
 
 func (m *CoverManager) downloadCover(ctx context.Context, code, coverURL string) error {
@@ -239,18 +257,15 @@ func (m *CoverManager) downloadCover(ctx context.Context, code, coverURL string)
 		return fmt.Errorf("build cover request: %w", err)
 	}
 	setCoverDownloadHeaders(req)
-	resp, err := util.DoRequest(req)
+	resp, err := util.DefaultCachedHTTPClient().Do(req)
 	if err != nil {
-		if errors.Is(err, util.ErrCachedNotFound) {
-			return err
-		}
 		return fmt.Errorf("download cover: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		if resp.StatusCode == http.StatusNotFound {
-			return util.ErrCachedNotFound
+			return errCoverNotFound
 		}
 		return fmt.Errorf("download cover: status %s", resp.Status)
 	}
@@ -271,7 +286,8 @@ func (m *CoverManager) downloadCover(ctx context.Context, code, coverURL string)
 	if err != nil {
 		return fmt.Errorf("create temp: %w", err)
 	}
-	written, err := io.Copy(out, resp.Body)
+	body, encoded := javdb.DecodeImageBody(resp.Body)
+	written, err := io.Copy(out, body)
 	if err != nil {
 		out.Close()
 		_ = os.Remove(tmp)
@@ -281,9 +297,13 @@ func (m *CoverManager) downloadCover(ctx context.Context, code, coverURL string)
 		_ = os.Remove(tmp)
 		return fmt.Errorf("close cover: %w", err)
 	}
-	if written < minValidCoverSizeBytes {
+	if written < minValidCoverSizeBytes && !strings.HasPrefix(code, "fc2-ppv-") {
 		_ = os.Remove(tmp)
 		return fmt.Errorf("%w: size %d below minimum %d", errInvalidCover, written, minValidCoverSizeBytes)
+	}
+	if (encoded || written < minValidCoverSizeBytes) && !isDecodableCoverFile(tmp) {
+		_ = os.Remove(tmp)
+		return fmt.Errorf("%w: file (%d bytes) is not a decodable image", errInvalidCover, written)
 	}
 	target := filepath.Join(m.coverDir, code+ext)
 	removeCoverFiles(m.coverDir, code)
@@ -306,18 +326,7 @@ func removeCoverFiles(coverDir, code string) {
 }
 
 func setCoverDownloadHeaders(req *http.Request) {
-	if req == nil || req.URL == nil {
-		return
-	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; JavCoverBot/1.0)")
-	host := strings.ToLower(req.URL.Hostname())
-	if host == "javbus.com" || strings.HasSuffix(host, ".javbus.com") {
-		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-		req.Header.Set("Accept", "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8")
-		req.Header.Set("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
-		req.Header.Set("Referer", "https://www.javbus.com/")
-		req.Header.Set("Cookie", "age=verified; existmag=mag")
-	}
+	util.SetJavImageRequestHeaders(req)
 }
 
 var knownExts = []string{".jpg", ".jpeg", ".png", ".webp"}
@@ -360,8 +369,7 @@ func FindCoverPath(dir, code string) (string, bool) {
 	}
 	for _, ext := range knownExts {
 		p := filepath.Join(dir, code+ext)
-		info, err := os.Stat(p)
-		if err == nil && info.Size() >= minValidCoverSizeBytes {
+		if isValidCoverFile(p) {
 			return p, true
 		}
 	}
@@ -472,6 +480,29 @@ func listUnusedCoverFiles(coverDir string, keepCodes map[string]struct{}) ([]str
 		unused = append(unused, path)
 	}
 	return unused, nil
+}
+
+func isValidCoverFile(path string) bool {
+	info, err := os.Stat(path)
+	if err != nil || !info.Mode().IsRegular() {
+		return false
+	}
+	// FC2 covers are validated when downloaded. Loading them only checks the
+	// filename and file metadata, avoiding another image decode for small files.
+	if strings.HasPrefix(strings.ToLower(filepath.Base(path)), "fc2-ppv-") {
+		return info.Size() > 0
+	}
+	return info.Size() >= minValidCoverSizeBytes
+}
+
+func isDecodableCoverFile(path string) bool {
+	f, err := os.Open(path)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+	img, _, err := image.Decode(f)
+	return err == nil && !img.Bounds().Empty()
 }
 
 func guessExt(ct string) string {

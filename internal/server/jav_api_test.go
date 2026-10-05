@@ -162,7 +162,7 @@ func acceptJavSampleImageURL(_ context.Context, _ string) (bool, error) {
 
 func TestLookupJavSampleImagesByProviderFallsBackFromJavMenuToJavBus(t *testing.T) {
 	var calls []jav.Provider
-	images, err := lookupJavSampleImagesByProvider(context.Background(), "IPX-228", func(code string, provider jav.Provider) (*jav.JavInfo, error) {
+	images, err := lookupJavSampleImagesByProvider(context.Background(), "IPX-228", func(_ context.Context, code string, provider jav.Provider) (*jav.JavInfo, error) {
 		if code != "IPX-228" {
 			t.Fatalf("unexpected code: %q", code)
 		}
@@ -205,7 +205,7 @@ func TestLookupJavSampleImagesByProviderFallsBackFromJavMenuToJavBus(t *testing.
 
 func TestLookupJavSampleImagesByProviderStopsAfterJavMenuSuccess(t *testing.T) {
 	var calls []jav.Provider
-	images, err := lookupJavSampleImagesByProvider(context.Background(), "IPX-228", func(_ string, provider jav.Provider) (*jav.JavInfo, error) {
+	images, err := lookupJavSampleImagesByProvider(context.Background(), "IPX-228", func(_ context.Context, _ string, provider jav.Provider) (*jav.JavInfo, error) {
 		calls = append(calls, provider)
 		if provider != jav.ProviderJavMenu {
 			return nil, errors.New("JavBus must not be called after JavMenu succeeds")
@@ -227,14 +227,53 @@ func TestLookupJavSampleImagesByProviderStopsAfterJavMenuSuccess(t *testing.T) {
 	}
 }
 
+func TestLookupFC2SampleImagesProviderOrder(t *testing.T) {
+	for _, tc := range []struct {
+		name           string
+		apiErr         error
+		empty, invalid bool
+		want           []jav.Provider
+	}{
+		{name: "api success", want: []jav.Provider{jav.ProviderJavDBAPI}},
+		{name: "api not found", apiErr: jav.ErrNotFound, want: []jav.Provider{jav.ProviderJavDBAPI, jav.ProviderAvsox}},
+		{name: "api failed", apiErr: errors.New("timeout"), want: []jav.Provider{jav.ProviderJavDBAPI, jav.ProviderAvsox}},
+		{name: "api empty", empty: true, want: []jav.Provider{jav.ProviderJavDBAPI, jav.ProviderAvsox}},
+		{name: "api image invalid", invalid: true, want: []jav.Provider{jav.ProviderJavDBAPI, jav.ProviderAvsox}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var calls []jav.Provider
+			images, err := lookupJavSampleImagesByProvider(context.Background(), " fc2-ppv-1234567 ", func(_ context.Context, _ string, provider jav.Provider) (*jav.JavInfo, error) {
+				calls = append(calls, provider)
+				if provider == jav.ProviderJavDBAPI {
+					if tc.apiErr != nil {
+						return nil, tc.apiErr
+					}
+					if tc.empty {
+						return &jav.JavInfo{}, nil
+					}
+				}
+				return &jav.JavInfo{SampleImages: []jav.SampleImage{{DetailURL: provider.String()}}}, nil
+			}, func(_ context.Context, url string) (bool, error) {
+				return !tc.invalid || url != jav.ProviderJavDBAPI.String(), nil
+			})
+			if err != nil || len(images) != 1 || images[0].DetailURL != tc.want[len(tc.want)-1].String() {
+				t.Fatalf("images = %v, err = %v", images, err)
+			}
+			if !reflect.DeepEqual(calls, tc.want) {
+				t.Fatalf("providers = %v, want %v", calls, tc.want)
+			}
+		})
+	}
+}
+
 func TestLookupJavSampleImagesByProviderPreservesTemporaryErrors(t *testing.T) {
 	temporaryErr := errors.New("network timeout")
-	images, err := lookupJavSampleImagesByProvider(context.Background(), "IPX-228", func(_ string, provider jav.Provider) (*jav.JavInfo, error) {
+	images, err := lookupJavSampleImagesByProvider(context.Background(), "IPX-228", func(_ context.Context, _ string, provider jav.Provider) (*jav.JavInfo, error) {
 		switch provider {
 		case jav.ProviderJavMenu:
 			return nil, temporaryErr
 		case jav.ProviderJavBus:
-			return nil, jav.ResourceNotFonud
+			return nil, jav.ErrNotFound
 		default:
 			t.Fatalf("unexpected provider: %s", provider.String())
 			return nil, nil
@@ -249,8 +288,8 @@ func TestLookupJavSampleImagesByProviderPreservesTemporaryErrors(t *testing.T) {
 }
 
 func TestLookupJavSampleImagesByProviderTreatsConfirmedMissAsNotFound(t *testing.T) {
-	images, err := lookupJavSampleImagesByProvider(context.Background(), "IPX-228", func(_ string, _ jav.Provider) (*jav.JavInfo, error) {
-		return nil, jav.ResourceNotFonud
+	images, err := lookupJavSampleImagesByProvider(context.Background(), "IPX-228", func(_ context.Context, _ string, _ jav.Provider) (*jav.JavInfo, error) {
+		return nil, jav.ErrNotFound
 	}, acceptJavSampleImageURL)
 	if err != nil {
 		t.Fatalf("confirmed miss returned error: %v", err)
@@ -266,7 +305,7 @@ func TestLookupJavSampleImagesByProviderValidatesLastDetailURLAndFallsBack(t *te
 	images, err := lookupJavSampleImagesByProvider(
 		context.Background(),
 		"IPX-228",
-		func(_ string, provider jav.Provider) (*jav.JavInfo, error) {
+		func(_ context.Context, _ string, provider jav.Provider) (*jav.JavInfo, error) {
 			calls = append(calls, provider)
 			return &jav.JavInfo{SampleImages: []jav.SampleImage{
 				{ThumbnailURL: "thumb-1", DetailURL: provider.String() + "-detail-1"},
@@ -327,6 +366,54 @@ func TestValidateJavSampleImageDetailURL(t *testing.T) {
 			}
 			if got != test.want {
 				t.Fatalf("valid = %v, want %v", got, test.want)
+			}
+		})
+	}
+}
+
+func TestGetJavItemDetail(t *testing.T) {
+	database, err := dbpkg.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	previousDB := common.DB
+	common.DB = database
+	t.Cleanup(func() {
+		common.DB = previousDB
+		if sqlDB, err := database.DB(); err == nil {
+			_ = sqlDB.Close()
+		}
+	})
+	studio := models.JavStudio{ID: 2, Name: "Detail studio"}
+	if err := database.Create(&studio).Error; err != nil {
+		t.Fatal(err)
+	}
+	item := models.Jav{ID: 1, Code: "ABC-001", Title: "Detail title", StudioID: &studio.ID}
+	if err := database.Create(&item).Error; err != nil {
+		t.Fatal(err)
+	}
+	router := gin.New()
+	router.GET("/jav/items/:id", getJavItem)
+	for _, tc := range []struct {
+		id     string
+		status int
+	}{
+		{"1", http.StatusOK}, {"99", http.StatusNotFound}, {"invalid", http.StatusBadRequest}, {"0", http.StatusBadRequest}, {"-1", http.StatusBadRequest},
+	} {
+		t.Run(tc.id, func(t *testing.T) {
+			response := httptest.NewRecorder()
+			router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/jav/items/"+tc.id, nil))
+			if response.Code != tc.status {
+				t.Fatalf("status = %d, want %d: %s", response.Code, tc.status, response.Body.String())
+			}
+			if tc.status == http.StatusOK {
+				var loaded models.Jav
+				if err := json.Unmarshal(response.Body.Bytes(), &loaded); err != nil {
+					t.Fatal(err)
+				}
+				if loaded.ID != item.ID || loaded.Code != item.Code || loaded.Title != item.Title || loaded.Studio == nil || loaded.Studio.Name != studio.Name {
+					t.Fatalf("unexpected detail: %+v", loaded)
+				}
 			}
 		})
 	}

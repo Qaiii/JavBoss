@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	"javboss/internal/common/logging"
 	"javboss/internal/db"
@@ -48,6 +49,24 @@ func EnqueueMaleActorLookup(ctx context.Context, javID int64, code string) {
 		return
 	}
 	go EnrichJavMaleActors(context.WithoutCancel(ctx), javID, code)
+}
+
+// StartMaleActorScanner periodically fills missing male performers.
+func StartMaleActorScanner(ctx context.Context, interval time.Duration) {
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			if err := scanMissingJavMaleActors(ctx); err != nil {
+				logging.Error("jav male actor scan failed: %v", err)
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
+		}
+	}()
 }
 
 func scanMissingJavMaleActors(ctx context.Context) error {

@@ -1,6 +1,7 @@
 package jav
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
@@ -8,21 +9,17 @@ import (
 
 func TestLookupJavByCodeUsesCache(t *testing.T) {
 	cache := newMemoryLookupCache()
-	SetCache(cache)
-	t.Cleanup(func() { SetCache(nil) })
 
-	original := lookupProvidersByProvider[ProviderJavBus]
 	provider := &countingLookupProvider{
 		javInfo: &JavInfo{Code: "ABC-001", Title: "Cached Title", Provider: ProviderJavBus},
 	}
-	lookupProvidersByProvider[ProviderJavBus] = provider
-	t.Cleanup(func() { lookupProvidersByProvider[ProviderJavBus] = original })
+	client := NewMetadataClient(map[Provider]any{ProviderJavBus: provider}, cache)
 
-	first, err := LookupJavByCode("abc-001", ProviderJavBus)
+	first, err := client.LookupJavByCode(context.Background(), "abc-001", ProviderJavBus)
 	if err != nil {
 		t.Fatalf("first lookup: %v", err)
 	}
-	second, err := LookupJavByCode("ABC-001", ProviderJavBus)
+	second, err := client.LookupJavByCode(context.Background(), "ABC-001", ProviderJavBus)
 	if err != nil {
 		t.Fatalf("second lookup: %v", err)
 	}
@@ -36,18 +33,14 @@ func TestLookupJavByCodeUsesCache(t *testing.T) {
 
 func TestLookupJavByCodeCachesNotFound(t *testing.T) {
 	cache := newMemoryLookupCache()
-	SetCache(cache)
-	t.Cleanup(func() { SetCache(nil) })
 
-	original := lookupProvidersByProvider[ProviderJavBus]
-	provider := &countingLookupProvider{err: ResourceNotFonud}
-	lookupProvidersByProvider[ProviderJavBus] = provider
-	t.Cleanup(func() { lookupProvidersByProvider[ProviderJavBus] = original })
+	provider := &countingLookupProvider{err: ErrNotFound}
+	client := NewMetadataClient(map[Provider]any{ProviderJavBus: provider}, cache)
 
 	for i := 0; i < 2; i++ {
-		_, err := LookupJavByCode("MISS-001", ProviderJavBus)
-		if !errors.Is(err, ResourceNotFonud) {
-			t.Fatalf("lookup %d err=%v want ResourceNotFonud", i, err)
+		_, err := client.LookupJavByCode(context.Background(), "MISS-001", ProviderJavBus)
+		if !errors.Is(err, ErrNotFound) {
+			t.Fatalf("lookup %d err=%v want ErrNotFound", i, err)
 		}
 	}
 	if provider.javCalls != 1 {
@@ -57,22 +50,61 @@ func TestLookupJavByCodeCachesNotFound(t *testing.T) {
 
 func TestLookupJavByCodeDoesNotCacheTemporaryErrors(t *testing.T) {
 	cache := newMemoryLookupCache()
-	SetCache(cache)
-	t.Cleanup(func() { SetCache(nil) })
 
-	original := lookupProvidersByProvider[ProviderJavBus]
 	provider := &countingLookupProvider{err: errors.New("temporary")}
-	lookupProvidersByProvider[ProviderJavBus] = provider
-	t.Cleanup(func() { lookupProvidersByProvider[ProviderJavBus] = original })
+	client := NewMetadataClient(map[Provider]any{ProviderJavBus: provider}, cache)
 
 	for i := 0; i < 2; i++ {
-		_, err := LookupJavByCode("TMP-001", ProviderJavBus)
+		_, err := client.LookupJavByCode(context.Background(), "TMP-001", ProviderJavBus)
 		if err == nil {
 			t.Fatalf("lookup %d expected error", i)
 		}
 	}
 	if provider.javCalls != 2 {
 		t.Fatalf("unexpected provider calls: got %d want 2", provider.javCalls)
+	}
+}
+
+type actressNameLookupFunc func(context.Context, string) (*ActressInfo, error)
+
+func (f actressNameLookupFunc) LookupActressByName(ctx context.Context, name string) (*ActressInfo, error) {
+	return f(ctx, name)
+}
+
+func TestAVWikiActressLookupCache(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		err       error
+		wantCalls int
+	}{
+		{"profile", nil, 1},
+		{"missing actress", ErrNotFound, 1},
+		{"unavailable API", errors.New("avwiki: http 403"), 2},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			calls := 0
+			provider := actressNameLookupFunc(func(_ context.Context, name string) (*ActressInfo, error) {
+				calls++
+				if tc.err != nil {
+					return nil, tc.err
+				}
+				return &ActressInfo{JapaneseName: name, HeightCM: 160, ProfileURL: "https://av-wiki.net/av-actress/test/"}, nil
+			})
+			client := NewMetadataClient(map[Provider]any{ProviderAVWiki: provider}, newMemoryLookupCache())
+			for range 2 {
+				info, err := client.LookupActressByJapaneseName(context.Background(), "女優名", ProviderAVWiki)
+				if tc.err == nil {
+					if err != nil || info == nil || info.HeightCM != 160 || info.JapaneseName != "女優名" {
+						t.Fatalf("info=%+v error=%v", info, err)
+					}
+				} else if !errors.Is(err, tc.err) {
+					t.Fatalf("error=%v, want %v", err, tc.err)
+				}
+			}
+			if calls != tc.wantCalls {
+				t.Fatalf("calls=%d, want %d", calls, tc.wantCalls)
+			}
+		})
 	}
 }
 
@@ -89,7 +121,7 @@ func TestLookupCacheKeyVersionIsProviderSpecific(t *testing.T) {
 			provider: ProviderJavBus,
 			method:   "lookup_jav",
 			input:    "abc-001",
-			want:     "v5:jav:javbus:lookup_jav:ABC-001",
+			want:     "v8:jav:javbus:lookup_jav:ABC-001",
 		},
 		{
 			name:     "javdatabase lookup jav uses provider version",
@@ -104,6 +136,34 @@ func TestLookupCacheKeyVersionIsProviderSpecific(t *testing.T) {
 			method:   "lookup_jav",
 			input:    "abc-001",
 			want:     "v5:jav:javdb:lookup_jav:ABC-001",
+		},
+		{
+			name:     "javdb-api lookup jav uses strict number version",
+			provider: ProviderJavDBAPI,
+			method:   "lookup_jav",
+			input:    "abc-001",
+			want:     "v5:jav:javdb-api:lookup_jav:ABC-001",
+		},
+		{
+			name:     "javdb-api studio link uses strict number version",
+			provider: ProviderJavDBAPI,
+			method:   "lookup_studio_url",
+			input:    "053026_001",
+			want:     "v2:jav:javdb-api:lookup_studio_url:053026_001",
+		},
+		{
+			name:     "javdb-api series link uses strict number version",
+			provider: ProviderJavDBAPI,
+			method:   "lookup_series_url",
+			input:    "053026_001",
+			want:     "v2:jav:javdb-api:lookup_series_url:053026_001",
+		},
+		{
+			name:     "javdb-api actress link uses strict number version",
+			provider: ProviderJavDBAPI,
+			method:   "lookup_actress_url_code_name",
+			input:    "053026_001|Actress",
+			want:     "v2:jav:javdb-api:lookup_actress_url_code_name:053026_001|Actress",
 		},
 		{
 			name:     "avmoo lookup jav uses provider version",
@@ -146,6 +206,13 @@ func TestLookupCacheKeyVersionIsProviderSpecific(t *testing.T) {
 			method:   "lookup_actress_name",
 			input:    "倉沢裕美",
 			want:     "v3:jav:minnanoav:lookup_actress_name:倉沢裕美",
+		},
+		{
+			name:     "avwiki actress lookup uses normalized roman name version",
+			provider: ProviderAVWiki,
+			method:   "lookup_actress_name",
+			input:    "九井スナオ",
+			want:     "v2:jav:avwiki:lookup_actress_name:九井スナオ",
 		},
 	}
 
@@ -195,28 +262,16 @@ type countingLookupProvider struct {
 	javCalls int
 }
 
-func (p *countingLookupProvider) LookupActressByCode(string) (*ActressInfo, error) {
-	return p.actress, p.err
-}
-
-func (p *countingLookupProvider) LookupActressByName(string) (*ActressInfo, error) {
-	return p.actress, p.err
-}
-
-func (p *countingLookupProvider) LookupActressURLByCodeAndName(string, string) (string, error) {
-	return p.profileURL, p.err
-}
-
-func (p *countingLookupProvider) LookupJavByCode(string) (*JavInfo, error) {
+func (p *countingLookupProvider) LookupJavByCode(_ context.Context, _ string) (*JavInfo, error) {
 	p.javCalls++
 	return p.javInfo, p.err
 }
 
-func (p *countingLookupProvider) LookupSeriesURLByCode(string) (string, error) {
+func (p *countingLookupProvider) LookupSeriesURLByCode(context.Context, string) (string, error) {
 	return p.seriesURL, p.err
 }
 
-func (p *countingLookupProvider) LookupStudioURLByCode(string) (string, error) {
+func (p *countingLookupProvider) LookupStudioURLByCode(context.Context, string) (string, error) {
 	return p.studioURL, p.err
 }
 
@@ -225,12 +280,12 @@ func TestCachedJavInfoPrefersJapaneseSourceThenFillsGaps(t *testing.T) {
 	SetCache(cache)
 	t.Cleanup(func() { SetCache(nil) })
 
-	lookupCacheSetHit(lookupCacheKey(ProviderJavBus, "lookup_jav", "IPX-001"), JavInfo{
+	lookupCacheSetHit(defaultMetadataClient, lookupCacheKey(ProviderJavBus, "lookup_jav", "IPX-001"), JavInfo{
 		Code:   "IPX-001",
 		Studio: "IDEA POCKET",
 		Tags:   []string{"美少女"},
 	})
-	lookupCacheSetHit(lookupCacheKey(ProviderJavDatabase, "lookup_jav", "IPX-001"), JavInfo{
+	lookupCacheSetHit(defaultMetadataClient, lookupCacheKey(ProviderJavDatabase, "lookup_jav", "IPX-001"), JavInfo{
 		Code:   "IPX-001",
 		Studio: "Idea Pocket English",
 		Series: "Middle-aged Man",
