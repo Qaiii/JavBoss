@@ -5,7 +5,6 @@ import JavGrid from '@/features/jav/components/JavGrid'
 import JavIdolHero from '@/features/jav/components/JavIdolHero'
 import { JavDetailHeader } from '@/features/jav/components/JavSeriesDetailHeader'
 import BulkActionsMenu from '@/features/playback/components/BulkActionsMenu'
-import Pagination from '@/shared/ui/Pagination'
 import WaterfallLoader from '@/shared/ui/WaterfallLoader'
 import { JAV_SORT_OPTIONS, findSortOption, reverseSortValue, sortLabelParts } from '@/constants/jav'
 import { useStore } from '@/store'
@@ -25,17 +24,12 @@ function SortText({ option, value, className = '' }) {
 }
 
 export default function JavView({
-  javPage,
-  javLastPage,
   javTotal,
-  javHasPrev,
-  javHasNext,
   javLoading,
   javRandomMode,
   javResolvedSort,
   javSortSource,
   buildJavUrl,
-  setJavPage,
   setJavTempSort,
   javItems,
   selectedJavIds,
@@ -75,8 +69,6 @@ export default function JavView({
   onManageVideoRename,
   onManageVideoDelete,
   onManageVideoTagClick,
-  waterfallMode,
-  onWaterfallModeChange,
   onLoadMore,
   loadingMore,
   hasMore,
@@ -120,7 +112,6 @@ export default function JavView({
   const dislikeWork = onDislikeWork || storeDislike
   const effectiveSort = javResolvedSort
   const currentOption = findSortOption(JAV_SORT_OPTIONS, effectiveSort) || JAV_SORT_OPTIONS[0]
-  const activeWaterfallMode = waterfallMode && !javRandomMode
 
   const isOptionActive = (option) => {
     return findSortOption([option], effectiveSort)
@@ -183,63 +174,35 @@ export default function JavView({
           )
         })}
       </div>
-      <div className="sticky-pagination pagination-toolbar-grid mb-4 grid md:grid-cols-[1fr_auto_1fr] md:items-center">
-        <div className="hidden md:block" />
-        <div className="flex justify-center overflow-x-auto">
-          <Pagination
-            page={javRandomMode ? 1 : javPage}
-            lastPage={javRandomMode ? 1 : javLastPage}
-            totalItems={javRandomMode ? javItems.length : javTotal}
-            hasPrev={!javRandomMode && javHasPrev}
-            hasNext={!javRandomMode && javHasNext}
-            loading={javLoading}
-            buildPageUrl={({ page: targetPage }) =>
-              buildJavUrl({ page: targetPage, random: false })
-            }
-            onFirst={() => setJavPage(1)}
-            onPrev={() => {
-              if (javHasPrev) setJavPage(javPage - 1)
-            }}
-            onGoToPage={(p) => setJavPage(p)}
-            onNext={() => {
-              if (javHasNext) setJavPage(javPage + 1)
-            }}
-            onLast={() => setJavPage(javLastPage)}
-            waterfallMode={waterfallMode}
-            onWaterfallModeChange={onWaterfallModeChange}
-            totalItemsAction={
-              <BulkActionsMenu
-                label={zh('JAV 批量操作', 'JAV bulk actions')}
-                hasItems={Number(javRandomMode ? javItems.length : javTotal) > 0}
-                pageSelectable={javItems.some((item) => Number(item?.id) > 0)}
-                busy={bulkActionBusy || javLoading}
-                bulkPlaybackEnabled={bulkPlaybackEnabled}
-                onSelectAll={onSelectAll}
-                onSelectPage={onSelectPage}
-                onPlayPage={onPlayPage}
-                onPlayAll={onPlayAll}
-              />
-            }
-          />
-        </div>
-        <div className="flex justify-end">
-          {!javRandomMode && (
-            <div className="pagination-sort-group flex items-center">
-              <span className="pagination-sort-label text-gray-500">{zh('排序', 'Sort')}</span>
-              <button
-                type="button"
-                onClick={openSortMenu}
-                aria-haspopup="dialog"
-                aria-expanded={Boolean(sortAnchorEl)}
-                aria-label={zh('修改当前 JAV 排序方式', 'Change current JAV sort')}
-                className="pagination-sort-button"
-              >
-                <SortText option={currentOption} value={effectiveSort} />
-                <span aria-hidden="true" className="pagination-sort-caret" />
-              </button>
-            </div>
-          )}
-          <Popover
+      <div className="sticky-pagination mb-4 flex flex-wrap items-center justify-end gap-3">
+        <BulkActionsMenu
+          label={zh('JAV 批量操作', 'JAV bulk actions')}
+          hasItems={Number(javRandomMode ? javItems.length : javTotal) > 0}
+          pageSelectable={javItems.some((item) => Number(item?.id) > 0)}
+          busy={bulkActionBusy || javLoading}
+          bulkPlaybackEnabled={bulkPlaybackEnabled}
+          onSelectAll={onSelectAll}
+          onSelectPage={onSelectPage}
+          onPlayPage={onPlayPage}
+          onPlayAll={onPlayAll}
+        />
+        {!javRandomMode && (
+          <div className="pagination-sort-group flex items-center">
+            <span className="pagination-sort-label text-gray-500">{zh('排序', 'Sort')}</span>
+            <button
+              type="button"
+              onClick={openSortMenu}
+              aria-haspopup="dialog"
+              aria-expanded={Boolean(sortAnchorEl)}
+              aria-label={zh('修改当前 JAV 排序方式', 'Change current JAV sort')}
+              className="pagination-sort-button"
+            >
+              <SortText option={currentOption} value={effectiveSort} />
+              <span aria-hidden="true" className="pagination-sort-caret" />
+            </button>
+          </div>
+        )}
+        <Popover
             open={Boolean(sortAnchorEl)}
             anchorEl={sortAnchorEl}
             onClose={closeSortMenu}
@@ -302,7 +265,6 @@ export default function JavView({
               })}
             </div>
           </Popover>
-        </div>
       </div>
       {javLoading ? (
         <div className="flex min-h-[200px] items-center justify-center rounded border border-dashed border-gray-200 text-gray-500">
@@ -353,7 +315,7 @@ export default function JavView({
         </div>
       )}
       <WaterfallLoader
-        enabled={activeWaterfallMode && !javLoading}
+        enabled={!javLoading}
         hasMore={hasMore}
         loading={loadingMore}
         onLoadMore={onLoadMore}

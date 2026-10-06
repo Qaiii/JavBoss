@@ -2,7 +2,6 @@ import SwapVertIcon from '@mui/icons-material/SwapVert'
 import { Popover } from '@mui/material'
 import { useState } from 'react'
 import JavIdolGrid from '@/features/jav/components/JavIdolGrid'
-import Pagination from '@/shared/ui/Pagination'
 import WaterfallLoader from '@/shared/ui/WaterfallLoader'
 import {
   IDOL_FAVORITE_ORDER_SORT,
@@ -26,28 +25,15 @@ function SortText({ option, value, className = '' }) {
 }
 
 export default function JavIdolView({
-  page,
-  lastPage,
-  totalItems,
-  hasPrev,
-  hasNext,
   loading,
   idolTempSort,
   idolGlobalSort,
-  buildPageUrl,
   buildIdolUrl,
   preferChineseName = false,
-  onFirst,
-  onPrev,
-  onGoToPage,
-  onNext,
-  onLast,
   items,
   onSelectIdol,
   onOpenFavorites,
   onMerged,
-  waterfallMode,
-  onWaterfallModeChange,
   setIdolTempSort,
   onLoadMore,
   loadingMore,
@@ -72,28 +58,8 @@ export default function JavIdolView({
 
   return (
     <>
-      <div className="sticky-pagination pagination-toolbar-grid relative mb-2.5 grid md:grid-cols-[1fr_auto_1fr] md:items-center">
-        <div />
-        <div className="flex justify-center overflow-x-auto">
-          <Pagination
-            page={page}
-            lastPage={lastPage}
-            totalItems={totalItems}
-            hasPrev={hasPrev}
-            hasNext={hasNext}
-            loading={loading}
-            buildPageUrl={buildPageUrl}
-            onFirst={onFirst}
-            onPrev={onPrev}
-            onGoToPage={onGoToPage}
-            onNext={onNext}
-            onLast={onLast}
-            waterfallMode={waterfallMode}
-            onWaterfallModeChange={onWaterfallModeChange}
-          />
-        </div>
-        <div className="flex justify-end">
-          <div className="pagination-sort-group flex items-center">
+      <div className="sticky-pagination relative mb-2.5 flex flex-wrap items-center justify-end gap-3">
+        <div className="pagination-sort-group flex items-center">
             <span className="pagination-sort-label text-gray-500">{zh('排序', 'Sort')}</span>
             <button
               type="button"
@@ -176,7 +142,6 @@ export default function JavIdolView({
               })}
             </div>
           </Popover>
-        </div>
       </div>
       {loading ? (
         <div className="mt-4 flex min-h-[200px] items-center justify-center rounded border border-dashed border-app-border text-app-muted">
@@ -193,7 +158,7 @@ export default function JavIdolView({
         />
       )}
       <WaterfallLoader
-        enabled={waterfallMode && !loading}
+        enabled={!loading}
         hasMore={hasMore}
         loading={loadingMore}
         onLoadMore={onLoadMore}

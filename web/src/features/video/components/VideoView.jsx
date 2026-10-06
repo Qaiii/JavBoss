@@ -2,7 +2,6 @@ import SwapVertIcon from '@mui/icons-material/SwapVert'
 import { Popover } from '@mui/material'
 import { useState } from 'react'
 import BulkActionsMenu from '@/features/playback/components/BulkActionsMenu'
-import Pagination from '@/shared/ui/Pagination'
 import VideoGrid from '@/features/video/components/VideoGrid'
 import WaterfallLoader from '@/shared/ui/WaterfallLoader'
 import {
@@ -27,19 +26,12 @@ function SortText({ option, value, className = '' }) {
 }
 
 export default function VideoView({
-  page,
-  lastPage,
   totalItems,
-  canPrev,
-  canNext,
   loading,
   randomMode,
   videoTempSort,
   videoGlobalSort,
-  buildVideoUrl,
-  setPage,
   setVideoTempSort,
-  goToLastPage,
   videos,
   selectedVideoIds,
   toggleSelectVideo,
@@ -60,8 +52,6 @@ export default function VideoView({
   onRenameVideo,
   onDeleteVideo,
   onTagClick,
-  waterfallMode,
-  onWaterfallModeChange,
   onLoadMore,
   loadingMore,
   hasMore,
@@ -72,12 +62,6 @@ export default function VideoView({
   const hasVideos = Number(totalItems) > 0
   const effectiveSort = videoTempSort || videoGlobalSort
   const currentOption = findVideoSortOption(effectiveSort) || VIDEO_SORT_OPTIONS[0]
-  const activeWaterfallMode = waterfallMode && !randomMode
-  const paginationPage = randomMode ? 1 : page
-  const paginationLastPage = randomMode ? 1 : lastPage
-  const paginationTotalItems = randomMode ? videos.length : totalItems
-  const paginationCanPrev = randomMode ? false : canPrev
-  const paginationCanNext = randomMode ? false : canNext
 
   const isOptionActive = (option) => {
     return findVideoSortOption(effectiveSort)?.base === option.base
@@ -107,38 +91,9 @@ export default function VideoView({
 
   return (
     <>
-      <div className="sticky-pagination mb-4">
-        <div className="pagination-toolbar-grid relative grid md:grid-cols-[1fr_auto_1fr] md:items-center">
-          <div />
-          <div className="flex justify-center">
-            <Pagination
-              page={paginationPage}
-              lastPage={paginationLastPage}
-              totalItems={paginationTotalItems}
-              hasPrev={paginationCanPrev}
-              hasNext={paginationCanNext}
-              loading={loading}
-              buildPageUrl={({ page: targetPage }) =>
-                buildVideoUrl({ page: targetPage, random: false })
-              }
-              onFirst={() => setPage(1)}
-              onPrev={() => {
-                if (canPrev) setPage(page - 1)
-              }}
-              onGoToPage={(p) => setPage(p)}
-              onNext={() => {
-                if (canNext) setPage(page + 1)
-              }}
-              onLast={() => {
-                goToLastPage()
-              }}
-              waterfallMode={waterfallMode}
-              onWaterfallModeChange={onWaterfallModeChange}
-              totalItemsAction={bulkActionMenu}
-            />
-          </div>
-          <div className="flex justify-end">
-            {!randomMode && (
+      <div className="sticky-pagination mb-4 flex flex-wrap items-center justify-end gap-3">
+        {bulkActionMenu}
+        {!randomMode && (
               <div className="pagination-sort-group flex items-center">
                 <span className="pagination-sort-label text-gray-500">{zh('排序', 'Sort')}</span>
                 <button
@@ -205,8 +160,6 @@ export default function VideoView({
                 })}
               </div>
             </Popover>
-          </div>
-        </div>
       </div>
       {loading ? (
         <div className="mt-4 flex min-h-[200px] items-center justify-center rounded border border-dashed border-gray-200 text-gray-500">
@@ -231,7 +184,7 @@ export default function VideoView({
         />
       )}
       <WaterfallLoader
-        enabled={activeWaterfallMode && !loading}
+        enabled={!loading}
         hasMore={hasMore}
         loading={loadingMore}
         onLoadMore={onLoadMore}
