@@ -20,6 +20,7 @@ import AppModal from '@/shared/ui/AppModal'
 import { getErrorMessage } from '@/utils/errors'
 import { selectPlaybackSource, startBrowserPlayback } from '@/utils/browserPlayback'
 import { startWatchTracking } from '@/features/playback/watchTime'
+import { createBrowserResume } from '@/features/playback/browserResume'
 import { createPlaybackSession, reportPlaybackSession } from '@/features/playback/api'
 
 const VOLUME_STORAGE_KEY = 'javboss.player.volume'
@@ -34,7 +35,8 @@ export default function PlayerModal({
   playlist = [],
   currentIndex = 0,
   onSelectVideo,
-  startTime = 0,
+  startTime = null,
+  resumePlayback = true,
   onClose,
   hotkeys = null,
   showHotkeyHint = true,
@@ -56,7 +58,7 @@ export default function PlayerModal({
   const [playbackInfo, setPlaybackInfo] = useState(null)
   const [playbackError, setPlaybackError] = useState('')
   const [loadingPlayback, setLoadingPlayback] = useState(false)
-  const [screenshotNotice, setScreenshotNotice] = useState(false)
+  const [screenshotNotice, setScreenshotNotice] = useState('')
   const [hotkeyHintVisible, setHotkeyHintVisible] = useState(false)
   const normalizedHotkeys = useMemo(() => parsePlayerHotkeys(hotkeys), [hotkeys])
   const hotkeyHintLines = useMemo(() => {
@@ -124,7 +126,7 @@ export default function PlayerModal({
       setPlaybackInfo(null)
       setPlaybackError('')
       setLoadingPlayback(false)
-      setScreenshotNotice(false)
+      setScreenshotNotice('')
       return
     }
 
@@ -132,7 +134,7 @@ export default function PlayerModal({
     setLoadingPlayback(true)
     setPlaybackError('')
     setPlaybackInfo(null)
-    setScreenshotNotice(false)
+    setScreenshotNotice('')
 
     fetchPlaybackInfo(video.id, { locationId: video.location_id })
       .then((info) => {
@@ -211,22 +213,24 @@ export default function PlayerModal({
       if (!playback || screenshotInFlightRef.current) return
       const { video, locationId } = playback
       const second = Math.max(0, Number(player.currentTime()) || 0)
+      const showNotice = (message, duration = 1600) => {
+        // Ignore failures from a previous video or a closed player.
+        if (player.isDisposed() || activePlaybackRef.current !== playback) return
+        if (screenshotNoticeTimerRef.current !== null) {
+          window.clearTimeout(screenshotNoticeTimerRef.current)
+        }
+        setScreenshotNotice(message)
+        screenshotNoticeTimerRef.current = window.setTimeout(() => {
+          setScreenshotNotice('')
+          screenshotNoticeTimerRef.current = null
+        }, duration)
+      }
       screenshotInFlightRef.current = true
+      showNotice(zh('已截图', 'Screenshot taken'))
       createVideoScreenshot(video.id, { second, locationId })
-        .then(() => {
-          // Ignore screenshot responses from a previous video or a closed player.
-          if (player.isDisposed() || activePlaybackRef.current !== playback) return
-          if (screenshotNoticeTimerRef.current) {
-            window.clearTimeout(screenshotNoticeTimerRef.current)
-          }
-          setScreenshotNotice(true)
-          screenshotNoticeTimerRef.current = window.setTimeout(() => {
-            setScreenshotNotice(false)
-            screenshotNoticeTimerRef.current = null
-          }, 1600)
-        })
         .catch((err) => {
           console.error(zh('截图失败', 'Failed to capture screenshot'), err)
+          showNotice(zh('截图失败', 'Screenshot failed'), 3000)
         })
         .finally(() => {
           screenshotInFlightRef.current = false
@@ -329,18 +333,26 @@ export default function PlayerModal({
       create: () => createPlaybackSession(video.id, playback.locationId),
       report: (session, total) => reportPlaybackSession(video.id, session, total),
     })
+    const resume = createBrowserResume({
+      videoId: video.id,
+      locationId: playback.locationId,
+      enabled: resumePlayback,
+    })
+    const hasExplicitStart = startTime != null && Number.isFinite(Number(startTime))
     const stopPlayback = startBrowserPlayback(
       player,
       selectedSource,
       playbackInfo.sources.find((source) => source.kind === 'hls'),
-      startTime,
+      hasExplicitStart ? startTime : resume.position,
       (error) => {
         if (activePlaybackRef.current !== playback) return
         const message = error.message || zh('视频播放失败', 'Video playback failed')
         setPlaybackError(message)
         onPlaybackErrorRef.current?.(message)
-      }
+      },
+      { resume: !hasExplicitStart, onPosition: resume.record, onEnded: resume.complete }
     )
+    window.addEventListener('pagehide', resume.flush)
     const handleEnded = () => onEndedRef.current?.()
     player.on('ended', handleEnded)
 
@@ -350,6 +362,8 @@ export default function PlayerModal({
       stopSourceRef.current = null
       stopWatchTracking()
       stopPlayback()
+      resume.flush()
+      window.removeEventListener('pagehide', resume.flush)
       player.off('ended', handleEnded)
       player.autoplay(false)
       player.pause()
@@ -366,7 +380,7 @@ export default function PlayerModal({
     }
     stopSourceRef.current = stop
     return stop
-  }, [player, video, startTime, selectedSource, playbackInfo, loadingPlayback])
+  }, [player, video, startTime, resumePlayback, selectedSource, playbackInfo, loadingPlayback])
 
   if (!video) return null
 
@@ -441,13 +455,13 @@ export default function PlayerModal({
             <CloseRoundedIcon sx={{ fontSize: 16 }} />
           </button>
         </header>
-        <div className="flex min-h-0 min-w-0 flex-1 gap-2">
+        <div className="flex min-h-0 min-w-0 flex-1">
           <div className="player-shell relative min-w-0 flex-1 bg-black">
             {screenshotNotice || hotkeyHintVisible ? (
               <div className="pointer-events-none absolute left-3 top-3 z-10 flex max-w-[calc(100%-1.5rem)] flex-col items-start gap-2">
                 {screenshotNotice ? (
                   <div className="rounded bg-black/75 px-3 py-1.5 text-sm font-medium text-white shadow">
-                    {zh('截图成功', 'Screenshot saved')}
+                    {screenshotNotice}
                   </div>
                 ) : null}
                 {hotkeyHintVisible ? (
