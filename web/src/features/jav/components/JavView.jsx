@@ -1,36 +1,16 @@
-import SwapVertIcon from '@mui/icons-material/SwapVert'
-import { Popover } from '@mui/material'
-import { useState } from 'react'
 import JavGrid from '@/features/jav/components/JavGrid'
 import JavIdolHero from '@/features/jav/components/JavIdolHero'
 import { JavDetailHeader } from '@/features/jav/components/JavSeriesDetailHeader'
 import BulkActionsMenu from '@/features/playback/components/BulkActionsMenu'
 import WaterfallLoader from '@/shared/ui/WaterfallLoader'
-import { JAV_SORT_OPTIONS, findSortOption, reverseSortValue, sortLabelParts } from '@/constants/jav'
 import { useStore } from '@/store'
-import { JAV_LIBRARY_SCOPE_OPTIONS, normalizeJavLibraryScope } from '@/utils/javLibrary'
 import { zh } from '@/utils/i18n'
-
-function SortText({ option, value, className = '' }) {
-  const parts = sortLabelParts(option, value, zh)
-
-  return (
-    <span className={`truncate font-semibold ${className}`}>
-      <span>{parts.label}</span>
-      <span className="font-normal text-gray-500">{parts.separator}</span>
-      <span className="font-normal text-gray-500">{parts.direction}</span>
-    </span>
-  )
-}
 
 export default function JavView({
   javTotal,
   javLoading,
   javRandomMode,
-  javResolvedSort,
-  javSortSource,
   buildJavUrl,
-  setJavTempSort,
   javItems,
   selectedJavIds,
   onToggleSelect,
@@ -72,8 +52,6 @@ export default function JavView({
   onLoadMore,
   loadingMore,
   hasMore,
-  javLibraryScope,
-  onJavLibraryScopeChange,
   activeIdolId = 0,
   activeSeriesId = 0,
   seriesName = '',
@@ -84,8 +62,6 @@ export default function JavView({
   onDislikeWork,
   playOnCoverClick = false,
 }) {
-  const storeLibraryScope = useStore((state) => state.javLibraryScope)
-  const setStoreLibraryScope = useStore((state) => state.setJavLibraryScope)
   const storeDislike = useStore((state) => state.dislikeJavIdolWork)
   const storeIdolId = useStore((state) =>
     Array.isArray(state.javIdolIds) && state.javIdolIds.length === 1 ? Number(state.javIdolIds[0]) : 0
@@ -97,7 +73,6 @@ export default function JavView({
   const storeTagId = useStore((state) =>
     Array.isArray(state.javTags) && state.javTags.length === 1 ? Number(state.javTags[0]) : 0
   )
-  const [sortAnchorEl, setSortAnchorEl] = useState(null)
   const resolvedIdolId = Number(activeIdolId) > 0 ? Number(activeIdolId) : storeIdolId
   const resolvedSeriesId = Number(activeSeriesId) > 0 ? Number(activeSeriesId) : storeSeriesId
   const resolvedStudioId = Number(activeStudioId) > 0 ? Number(activeStudioId) : storeStudioId
@@ -107,23 +82,7 @@ export default function JavView({
     headerKind === 'series' ? resolvedSeriesId : headerKind === 'studio' ? resolvedStudioId : resolvedTagId
   const headerName =
     headerKind === 'series' ? seriesName || storeSeriesName : headerKind === 'studio' ? studioName || storeStudioName : tagName
-  const libraryScope = normalizeJavLibraryScope(javLibraryScope || storeLibraryScope)
-  const changeLibraryScope = onJavLibraryScopeChange || setStoreLibraryScope
   const dislikeWork = onDislikeWork || storeDislike
-  const effectiveSort = javResolvedSort
-  const currentOption = findSortOption(JAV_SORT_OPTIONS, effectiveSort) || JAV_SORT_OPTIONS[0]
-
-  const isOptionActive = (option) => {
-    return findSortOption([option], effectiveSort)
-  }
-
-  const openSortMenu = (event) => {
-    setSortAnchorEl(event.currentTarget)
-  }
-
-  const closeSortMenu = () => {
-    setSortAnchorEl(null)
-  }
 
   const body = (
     <>
@@ -150,30 +109,7 @@ export default function JavView({
           onIdolClick={onIdolClick}
         />
       ) : null}
-      <div
-        className="jav-library-scope mb-2 flex justify-end"
-        role="radiogroup"
-        aria-label={zh('作品入库范围', 'Library scope')}
-      >
-        {JAV_LIBRARY_SCOPE_OPTIONS.map((option) => {
-          const active = libraryScope === option.value
-          return (
-            <button
-              key={option.value}
-              type="button"
-              role="radio"
-              aria-checked={active}
-              className={active ? 'is-active' : undefined}
-              onClick={() => {
-                if (option.value === libraryScope) return
-                changeLibraryScope?.(option.value)
-              }}
-            >
-              {zh(option.label[0], option.label[1])}
-            </button>
-          )
-        })}
-      </div>
+      {/* 入库 / 排序 live in the top navigation's 更多 menu; only bulk actions stay in the page. */}
       <div className="sticky-pagination mb-4 flex flex-wrap items-center justify-end gap-3">
         <BulkActionsMenu
           label={zh('JAV 批量操作', 'JAV bulk actions')}
@@ -186,85 +122,6 @@ export default function JavView({
           onPlayPage={onPlayPage}
           onPlayAll={onPlayAll}
         />
-        {!javRandomMode && (
-          <div className="pagination-sort-group flex items-center">
-            <span className="pagination-sort-label text-gray-500">{zh('排序', 'Sort')}</span>
-            <button
-              type="button"
-              onClick={openSortMenu}
-              aria-haspopup="dialog"
-              aria-expanded={Boolean(sortAnchorEl)}
-              aria-label={zh('修改当前 JAV 排序方式', 'Change current JAV sort')}
-              className="pagination-sort-button"
-            >
-              <SortText option={currentOption} value={effectiveSort} />
-              <span aria-hidden="true" className="pagination-sort-caret" />
-            </button>
-          </div>
-        )}
-        <Popover
-            open={Boolean(sortAnchorEl)}
-            anchorEl={sortAnchorEl}
-            onClose={closeSortMenu}
-            disableScrollLock
-            anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-            transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-          >
-            <div className="pagination-sort-menu">
-              {javSortSource === 'temporary' ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    closeSortMenu()
-                    setJavTempSort?.('')
-                  }}
-                  className="w-full border-b border-slate-100 px-3 py-2 text-left text-xs font-medium text-blue-700 hover:bg-blue-50"
-                >
-                  {zh('恢复自动排序', 'Restore automatic sort')}
-                </button>
-              ) : null}
-              {JAV_SORT_OPTIONS.map((option) => {
-                const active = isOptionActive(option)
-                const displayValue = active ? effectiveSort : option.defaultValue
-                return (
-                  <div
-                    key={option.base}
-                    className={`pagination-sort-row ${
-                      active ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50'
-                    }`}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => {
-                        closeSortMenu()
-                        setJavTempSort?.(displayValue)
-                      }}
-                      className="pagination-sort-option"
-                    >
-                      <SortText option={option} value={displayValue} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        closeSortMenu()
-                        setJavTempSort?.(
-                          reverseSortValue([option], displayValue, option.defaultValue)
-                        )
-                      }}
-                      className="pagination-sort-reverse"
-                      title={zh('反转排序', 'Reverse sort')}
-                      aria-label={zh(
-                        `反转${option.label[0]}排序`,
-                        `Reverse ${option.label[1]} sort`
-                      )}
-                    >
-                      <SwapVertIcon fontSize="inherit" />
-                    </button>
-                  </div>
-                )
-              })}
-            </div>
-          </Popover>
       </div>
       {javLoading ? (
         <div className="flex min-h-[200px] items-center justify-center rounded border border-dashed border-gray-200 text-gray-500">
