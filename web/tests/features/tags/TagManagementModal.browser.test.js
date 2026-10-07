@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { browserUnavailable, openBrowser } from '../../helpers/browser.js'
+import { clickNavItem, navItem } from '../../helpers/nav.js'
 
 test(
   'edit mode keeps delete actions visible and shows tooltips without reflowing row-end tags',
@@ -8,7 +9,7 @@ test(
   async (t) => {
     const { origin, command, evaluate, waitFor } = await openBrowser(t)
     await command('Page.navigate', { url: `${origin}/tests/fixtures/app.html?view=video` })
-    await waitFor(`document.querySelector('aside button[aria-label="Tags (Video)"]')`)
+    await waitFor(`document.querySelector('${navItem('tags')}')`)
     await evaluate(`{
       const originalFetch = window.fetch;
       window.fetch = (input, init) => new URL(input, location.origin).pathname === '/tags'
@@ -16,8 +17,8 @@ test(
             id: i + 1, name: 'Example tag ' + (i + 1), count: 24 - i
           }))))
         : originalFetch(input, init);
-      document.querySelector('aside button[aria-label="Tags (Video)"]').click();
     }`)
+    await clickNavItem(evaluate, waitFor, 'tags')
     await waitFor(
       `document.querySelectorAll('.tag-management-modal-list .skeuo-tag').length === 24`
     )

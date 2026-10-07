@@ -63,5 +63,15 @@ export async function openBrowser(
     }
     assert.fail(`Timed out: ${expression}; URL: ${await evaluate('location.href')}`)
   }
+
+  // The app picks its display language from navigator.languages while these tests
+  // assert English labels. Pin the browser locale so the suite is deterministic
+  // regardless of the machine's UI language.
+  await command('Page.enable')
+  await command('Page.addScriptToEvaluateOnNewDocument', {
+    source: `Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
+             Object.defineProperty(navigator, 'language', { get: () => 'en-US' })`,
+  })
+
   return { origin, command, evaluate, waitFor }
 }

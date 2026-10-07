@@ -17,8 +17,8 @@ import useSectionNavigation from '@/navigation/useSectionNavigation'
 import useDocumentTitle from '@/shared/hooks/useDocumentTitle'
 import { buildLibraryPageTitle, formatPageTitle } from '@/navigation/pageTitle'
 import useJavSelection from '@/features/jav/hooks/useJavSelection'
-import SideTabs from '@/app/layout/SideTabs'
-import TopBar from '@/app/layout/TopBar'
+import FilterPanel from '@/app/layout/FilterPanel'
+import TopNav from '@/app/layout/TopNav'
 import {
   createDefaultIdolProfileFilters,
   normalizeIdolProfileFilters,
@@ -28,6 +28,8 @@ import { StudioDetailNavigationContext } from '@/navigation/studioDetailNavigati
 import { JavDetailNavigationContext } from '@/navigation/javDetailNavigation'
 import JavRoute from '@/routes/JavRoute'
 import VideoRoute from '@/routes/VideoRoute'
+import JavLibraryScopePanel from '@/features/jav/components/JavLibraryScopePanel'
+import JavSortPanel from '@/features/jav/components/JavSortPanel'
 import JavDetailRoute from '@/features/jav/components/JavDetailRoute'
 import JavStudioDetailModal from '@/features/jav/components/JavStudioDetailModal'
 import DownloadView from '@/features/downloads/components/DownloadView'
@@ -154,9 +156,6 @@ export default function App() {
     closeStudioDetail,
     saveStudioDetailState,
     navigateFromStudioDetail,
-    browserNavigation,
-    handleBrowserBack,
-    handleBrowserForward,
     pendingScrollRestoreRef,
     saveScrollBeforeUrlStateChange,
     schedulePendingScrollRestore,
@@ -182,8 +181,6 @@ export default function App() {
     javIdolFilterOptions,
     searchHref,
     javSearchHref,
-    handleJavRandomClick,
-    handleVideoRandomClick,
     handleFavoriteRatingEnabledChange,
     handleFavoriteRatingRangeChange,
     handleIdolProfileFilterChange,
@@ -503,9 +500,73 @@ export default function App() {
     store.setDirectorySubpathFilter([dirId], subpaths)
   }, [])
 
+  const controlFilterActive =
+    isJavMode &&
+    ((javTab === 'list' && javFavoriteRatingEnabled) ||
+      (javTab === 'idol' &&
+        (Boolean(String(javSearchTerm || '').trim()) ||
+          Object.values(normalizeIdolProfileFilters(idolProfileFilters)).some(
+            (value) => value.enabled
+          ))))
+
+  const navSelectionCount = isJavMode ? javSelection.count : selectedCount
+
+  const openSelectionOps = isJavMode ? javSelection.openOps : () => setSelectionOpsOpen(true)
+
+  const openFilterEditor = isJavMode
+    ? javTab === 'list'
+      ? () => {
+          setJavQueryEditorOpen(true)
+          loadJavTags()
+        }
+      : null
+    : handleOpenTagFilterEditor
+
+  const buildFavoriteGroupUrl = (groupId) => {
+    const parsedGroupId = Number(groupId)
+    const targetGroupId = Number.isFinite(parsedGroupId) && parsedGroupId > 0 ? parsedGroupId : null
+    const parsedCurrentGroupId = Number(activeSelectedFavoriteGroupId)
+    const currentGroupId =
+      Number.isFinite(parsedCurrentGroupId) && parsedCurrentGroupId > 0
+        ? parsedCurrentGroupId
+        : null
+    if (targetGroupId === currentGroupId) {
+      return buildJavUrl({
+        page: 1,
+        tab: javTab,
+        favoriteGroupId: targetGroupId,
+      })
+    }
+    return buildJavUrl({
+      page: 1,
+      tab: javTab,
+      search: '',
+      idolIds: [],
+      tagIds: [],
+      studioId: null,
+      studioName: '',
+      seriesId: null,
+      seriesName: '',
+      prefix: '',
+      soloOnly: false,
+      favoriteRatingEnabled: false,
+      idolProfileFilters: createDefaultIdolProfileFilters(),
+      favoriteGroupId: targetGroupId,
+      random: false,
+      tempSort: '',
+    })
+  }
+
+  const openFavoriteManager = (group) => {
+    const groupId = Number(group?.id)
+    setFavoriteManageEntityType(activeFavoriteEntityType)
+    setIdolFavoriteManageEditGroupId(Number.isFinite(groupId) && groupId > 0 ? groupId : null)
+    setIdolFavoriteManageOpen(true)
+  }
+
   return (
     <div className="app-shell min-h-screen">
-      <SideTabs
+      <TopNav
         activeTab={isJavMode ? javTab : 'video'}
         buildJavPrefixUrl={(item) =>
           buildJavUrl({
@@ -525,119 +586,68 @@ export default function App() {
             tempSort: '',
           })
         }
-        canGoBack={browserNavigation.canGoBack}
-        canGoForward={browserNavigation.canGoForward}
+        displaySettingsOpen={videoSettingsOpen || javSettingsOpen}
+        downloadOpen={downloadOpen}
+        filterActive={controlFilterActive || activeFilterItems.length > 0}
+        globalSettingsOpen={globalSettingsOpen}
         isJavMode={isJavMode}
         javPrefix={javPrefix}
-        onBrowserBack={handleBrowserBack}
-        onBrowserForward={handleBrowserForward}
+        javSearchHref={javSearchHref}
+        javSearchInput={javSearchInput}
+        javTab={javTab}
+        onHome={handleHomeClick}
+        onJavPrefixClick={handleSelectJavPrefix}
         onOpenDownload={() => setDownloadOpen(true)}
         onOpenGlobalSettings={() => setGlobalSettingsOpen(true)}
         onOpenJavSettings={openJavSettings}
         onOpenJavTagModal={handleOpenJavTagModal}
-        onJavPrefixClick={handleSelectJavPrefix}
         onOpenTagModal={handleOpenTagModal}
         onOpenVideoSettings={openVideoSettings}
-        onSelectTab={handleSelectSideTab}
-        showDirectorySetupHint={showDirectorySetupHint}
-      />
-      <TopBar
-        buildFavoriteGroupUrl={(groupId) => {
-          const parsedGroupId = Number(groupId)
-          const targetGroupId =
-            Number.isFinite(parsedGroupId) && parsedGroupId > 0 ? parsedGroupId : null
-          const parsedCurrentGroupId = Number(activeSelectedFavoriteGroupId)
-          const currentGroupId =
-            Number.isFinite(parsedCurrentGroupId) && parsedCurrentGroupId > 0
-              ? parsedCurrentGroupId
-              : null
-          if (targetGroupId === currentGroupId) {
-            return buildJavUrl({
-              page: 1,
-              tab: javTab,
-              favoriteGroupId: targetGroupId,
-            })
-          }
-          return buildJavUrl({
-            page: 1,
-            tab: javTab,
-            search: '',
-            idolIds: [],
-            tagIds: [],
-            studioId: null,
-            studioName: '',
-            seriesId: null,
-            seriesName: '',
-            prefix: '',
-            soloOnly: false,
-            favoriteRatingEnabled: false,
-            idolProfileFilters: createDefaultIdolProfileFilters(),
-            favoriteGroupId: targetGroupId,
-            random: false,
-            tempSort: '',
-          })
-        }}
-        favoriteEntityType={activeFavoriteEntityType}
-        favoriteGroups={activeFavoriteGroups}
-        favoriteGroupsLoading={activeFavoriteGroupsLoading}
-        favoriteGroupsError={activeFavoriteGroupsError}
-        favoriteManagerOpen={idolFavoriteManageOpen}
-        favoriteRatingEnabled={javFavoriteRatingEnabled}
-        favoriteRatingMin={javFavoriteRatingMin}
-        favoriteRatingMax={javFavoriteRatingMax}
-        idolProfileFilters={idolProfileFilters}
-        filterItems={activeFilterItems}
-        hasActiveControlFilter={
-          isJavMode &&
-          ((javTab === 'list' && javFavoriteRatingEnabled) ||
-            (javTab === 'idol' &&
-              (Boolean(String(javSearchTerm || '').trim()) ||
-                Object.values(normalizeIdolProfileFilters(idolProfileFilters)).some(
-                  (value) => value.enabled
-                ))))
-        }
-        isJavMode={isJavMode}
-        javSearchHref={javSearchHref}
-        javSearchInput={javSearchInput}
-        javTab={javTab}
-        onClearFilters={handleClearActiveFilters}
-        onFavoriteGroupSelect={(groupId) =>
-          handleFavoriteGroupSelect(activeFavoriteEntityType, groupId)
-        }
-        onFavoriteRatingEnabledChange={handleFavoriteRatingEnabledChange}
-        onFavoriteRatingRangeChange={handleFavoriteRatingRangeChange}
-        onIdolProfileFilterChange={handleIdolProfileFilterChange}
-        onHome={handleHomeClick}
-        onOpenFavoriteGroups={() =>
-          loadJavFavoriteGroups(activeFavoriteEntityType, { force: true })
-        }
-        onOpenFavoriteManager={(group) => {
-          const groupId = Number(group?.id)
-          setFavoriteManageEntityType(activeFavoriteEntityType)
-          setIdolFavoriteManageEditGroupId(Number.isFinite(groupId) && groupId > 0 ? groupId : null)
-          setIdolFavoriteManageOpen(true)
-        }}
-        onOpenFilterEditor={
-          isJavMode
-            ? javTab === 'list'
-              ? () => {
-                  setJavQueryEditorOpen(true)
-                  loadJavTags()
-                }
-              : null
-            : handleOpenTagFilterEditor
-        }
-        onOpenSelectionOps={isJavMode ? javSelection.openOps : () => setSelectionOpsOpen(true)}
-        onClearSelection={isJavMode ? javSelection.clear : clearSelection}
-        onRandomClick={
-          !isJavMode ? handleVideoRandomClick : javTab === 'list' ? handleJavRandomClick : null
-        }
         onSearchInputChange={isJavMode ? setJavSearchInput : setSearchInput}
+        onSelectTab={handleSelectSideTab}
         onSubmitSearch={isJavMode ? submitJavSearch : submitSearch}
+        renderLibraryScopePanel={({ onClose }) => <JavLibraryScopePanel onClose={onClose} />}
+        renderSortPanel={({ onClose }) => <JavSortPanel onClose={onClose} />}
+        renderFilterPanel={({ onClose }) => (
+          <FilterPanel
+            buildFavoriteGroupUrl={buildFavoriteGroupUrl}
+            favoriteEntityType={activeFavoriteEntityType}
+            favoriteGroups={activeFavoriteGroups}
+            favoriteGroupsError={activeFavoriteGroupsError}
+            favoriteGroupsLoading={activeFavoriteGroupsLoading}
+            favoriteManagerOpen={idolFavoriteManageOpen}
+            favoriteRatingEnabled={javFavoriteRatingEnabled}
+            favoriteRatingMax={javFavoriteRatingMax}
+            favoriteRatingMin={javFavoriteRatingMin}
+            filterItems={activeFilterItems}
+            hasActiveControlFilter={controlFilterActive}
+            idolProfileFilters={idolProfileFilters}
+            isJavMode={isJavMode}
+            javTab={javTab}
+            onClearFilters={handleClearActiveFilters}
+            onClearSelection={isJavMode ? javSelection.clear : clearSelection}
+            onClose={onClose}
+            onFavoriteGroupSelect={(groupId) =>
+              handleFavoriteGroupSelect(activeFavoriteEntityType, groupId)
+            }
+            onFavoriteRatingEnabledChange={handleFavoriteRatingEnabledChange}
+            onFavoriteRatingRangeChange={handleFavoriteRatingRangeChange}
+            onIdolProfileFilterChange={handleIdolProfileFilterChange}
+            onOpenFavoriteGroups={() =>
+              loadJavFavoriteGroups(activeFavoriteEntityType, { force: true })
+            }
+            onOpenFavoriteManager={openFavoriteManager}
+            onOpenFilterEditor={openFilterEditor}
+            onOpenSelectionOps={openSelectionOps}
+            selectedCount={navSelectionCount}
+            selectedFavoriteGroupId={activeSelectedFavoriteGroupId}
+          />
+        )}
         searchHref={searchHref}
         searchInput={searchInput}
-        selectedCount={isJavMode ? javSelection.count : selectedCount}
-        selectedFavoriteGroupId={activeSelectedFavoriteGroupId}
+        selectionCount={navSelectionCount}
+        showDirectorySetupHint={showDirectorySetupHint}
+        tagManagerOpen={tagModalOpen || javTagModalOpen}
       />
 
       <main className="page-main w-full pb-6 pt-0">

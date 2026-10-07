@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { browserUnavailable, openBrowser } from '../../helpers/browser.js'
+import { clickNavItem, navItem, openFilterPanel } from '../../helpers/nav.js'
 
 test(
   'batch actions use the default player; browser playlists switch copies, advance and reset',
@@ -8,7 +9,7 @@ test(
   async (t) => {
     const { origin, command, evaluate, waitFor } = await openBrowser(t)
     await command('Page.navigate', { url: `${origin}/tests/fixtures/app.html?view=video` })
-    await waitFor(`document.querySelector('aside button[aria-label="JAV codes"]')`)
+    await waitFor(`document.querySelector('${navItem('more')}')`)
     await evaluate(`{
       const wav = new Uint8Array(44 + 8000 * 60).fill(128);
       const header = new DataView(wav.buffer);
@@ -275,6 +276,7 @@ test(
         'loc:12':{video_id:1, location_id:12, label:'second-copy.mp4'}
       }});
     }`)
+    await openFilterPanel(evaluate, waitFor)
     await waitFor(`document.querySelector('button.topbar-selection-action')`)
     await evaluate(`document.querySelector('button.topbar-selection-action').click()`)
     await waitFor(`document.querySelector('[aria-label="Selected Files"]')`)
@@ -320,8 +322,8 @@ test(
         ],total:2});
         return previousFetch(input, init);
       };
-      document.querySelector('aside button[aria-label="JAV"]').click();
     }`)
+    await clickNavItem(evaluate, waitFor, 'list')
     await waitFor(`document.querySelectorAll('.jav-card').length === 2`)
     await evaluate(`document.querySelector('button[aria-label="JAV bulk actions"]').click()`)
     const javPlayAll = `[...document.querySelectorAll('.MuiMenuItem-root')].find(el => el.textContent === 'Play all')`

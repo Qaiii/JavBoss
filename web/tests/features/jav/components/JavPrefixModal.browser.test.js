@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { browserUnavailable, openBrowser } from '../../../helpers/browser.js'
+import { clickMoreItem, navItem } from '../../../helpers/nav.js'
 
 test(
   'prefix initials follow the censor filter and clear selections that become unavailable',
@@ -8,7 +9,7 @@ test(
   async (t) => {
     const { origin, command, evaluate, waitFor } = await openBrowser(t)
     await command('Page.navigate', { url: `${origin}/tests/fixtures/app.html?view=video` })
-    await waitFor(`document.querySelector('aside button[aria-label="JAV codes"]')`)
+    await waitFor(`document.querySelector('${navItem('more')}')`)
     await evaluate(`{
       const originalFetch = window.fetch;
       window.fetch = (input, init) => new URL(input, location.origin).pathname === '/jav/prefixes'
@@ -21,8 +22,8 @@ test(
             {prefix: 'NNN', is_uncensored: null, work_count: 1}
           ]))
         : originalFetch(input, init);
-      document.querySelector('aside button[aria-label="JAV codes"]').click();
     }`)
+    await clickMoreItem(evaluate, waitFor, 'codes')
 
     const modal = `document.querySelector('[aria-labelledby="jav-prefix-modal-title"]')`
     const initials = `${modal}.querySelector('[aria-label="Filter by first code character"]')`

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { browserUnavailable, openBrowser } from '../../../helpers/browser.js'
+import { navItem, openFilterPanel } from '../../../helpers/nav.js'
 
 for (const batch of [false, true]) {
   test(
@@ -9,7 +10,7 @@ for (const batch of [false, true]) {
     async (t) => {
       const { origin, command, evaluate, waitFor } = await openBrowser(t)
       await command('Page.navigate', { url: `${origin}/tests/fixtures/app.html?view=video` })
-      await waitFor(`document.querySelector('aside button[aria-label="JAV codes"]')`)
+      await waitFor(`document.querySelector('${navItem('more')}')`)
       await evaluate(`{
         window.videoRows = Array.from({length:80}, (_, i) => ({
           id: Math.ceil((i + 1) / 2), location_id: i + 1, filename: 'clip-' + (i + 1) + '.mp4',
@@ -56,6 +57,7 @@ for (const batch of [false, true]) {
           state.toggleSelectVideo(state.videos[26]);
           window.failLocation = 27;
         }`)
+        await openFilterPanel(evaluate, waitFor)
         await waitFor(`document.querySelector('button.topbar-selection-action')`)
         await evaluate(`document.querySelector('button.topbar-selection-action').click()`)
         const modal = `document.querySelector('[aria-label="Selected Files"]')`

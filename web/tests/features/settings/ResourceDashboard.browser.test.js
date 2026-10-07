@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { writeFile } from 'node:fs/promises'
 import { browserUnavailable, openBrowser } from '../../helpers/browser.js'
+import { clickMoreItem, navItem } from '../../helpers/nav.js'
 
 test(
   'resource dashboard shows metrics, recovers from errors and stops polling when inactive',
@@ -15,7 +16,7 @@ test(
       mobile: false,
     })
     await command('Page.navigate', { url: `${origin}/tests/fixtures/app.html?view=video` })
-    await waitFor(`document.querySelector('aside button[aria-label="Settings"]')`)
+    await waitFor(`document.querySelector('${navItem('more')}')`)
     await evaluate(`{
       const originalFetch = window.fetch;
       window.resourceRequests = 0;
@@ -42,8 +43,8 @@ test(
           unavailable: window.diskIOUnavailable ? ['process_disk_io'] : []
         }));
       };
-      document.querySelector('aside button[aria-label="Settings"]').click();
     }`)
+    await clickMoreItem(evaluate, waitFor, 'settings')
     const modal = `document.querySelector('[aria-labelledby="global-settings-title"]')`
     const button = (text) =>
       `Array.from(${modal}.querySelectorAll('button')).find(b => b.textContent.includes('${text}'))`

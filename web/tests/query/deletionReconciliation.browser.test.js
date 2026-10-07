@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { browserUnavailable, openBrowser } from '../helpers/browser.js'
+import { navItem } from '../helpers/nav.js'
 
 for (const domain of ['video', 'jav']) {
   test(
@@ -9,7 +10,7 @@ for (const domain of ['video', 'jav']) {
     async (t) => {
       const { origin, command, evaluate, waitFor } = await openBrowser(t)
       await command('Page.navigate', { url: `${origin}/tests/fixtures/app.html?view=${domain}` })
-      await waitFor(`document.querySelector('aside button[aria-label="JAV codes"]')`)
+      await waitFor(`document.querySelector('${navItem('more')}')`)
       const items = domain === 'video' ? 'videos' : 'javItems'
       const loading = domain === 'video' ? 'loading' : 'javLoading'
       const loadingMore = domain === 'video' ? 'videoLoadingMore' : 'javLoadingMore'

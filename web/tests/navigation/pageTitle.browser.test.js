@@ -1,6 +1,13 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { browserUnavailable, openBrowser } from '../helpers/browser.js'
+import {
+  clickMoreItem,
+  clickNavItem,
+  enterNavSearch,
+  openFilterPanel,
+  submitNavSearch,
+} from '../helpers/nav.js'
 
 test(
   'titles follow submitted searches, favorites, detail updates and history',
@@ -10,17 +17,9 @@ test(
     await command('Page.navigate', { url: `${origin}/tests/fixtures/app.html?view=video` })
     await waitFor(`window.requests?.some(r => r.url.startsWith('/videos?'))`)
     await waitFor(`document.title === 'Videos'`)
-    const searchInput = `document.querySelector('.filter-search input')`
-    const enterSearch = async (value) => {
-      await evaluate(`{
-        const input = ${searchInput};
-        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, '${value}');
-        input.dispatchEvent(new Event('input', {bubbles: true}));
-      }`)
-    }
-    await enterSearch('movie')
+    await enterNavSearch(evaluate, waitFor, 'movie')
     assert.equal(await evaluate('document.title'), 'Videos')
-    await evaluate(`document.querySelector('.filter-search').requestSubmit()`)
+    await submitNavSearch(evaluate)
     await waitFor(`document.title === 'Search: movie - Videos'`)
 
     await evaluate(`{
@@ -28,9 +27,10 @@ test(
       window.fetch = (input, init) => new URL(input, location.origin).pathname === '/jav/jav-favorite-groups'
         ? Promise.resolve(Response.json({items: [{id: 7, name: 'Watch later', count: 1}]}))
         : originalFetch(input, init);
-      document.querySelector('aside button[aria-label="JAV"]').click();
     }`)
+    await clickNavItem(evaluate, waitFor, 'list')
     await waitFor(`document.title === 'JAV'`)
+    await openFilterPanel(evaluate, waitFor)
     await evaluate(`document.querySelector('.favorite-menu-trigger').click()`)
     const favorite = `Array.from(document.querySelectorAll('[role="dialog"] a')).find(a => a.textContent.trim() === 'Watch later')`
     await waitFor(favorite)
@@ -53,17 +53,17 @@ test(
     await evaluate('history.back()')
     await waitFor(`document.title === 'Renamed - JAV'`)
 
-    await evaluate(`document.querySelector('aside button[aria-label="Idols"]').click()`)
+    await clickNavItem(evaluate, waitFor, 'idol')
     await waitFor(`document.title === 'Idols'`)
-    await enterSearch('Test actress')
-    await evaluate(`document.querySelector('.filter-search').requestSubmit()`)
+    await enterNavSearch(evaluate, waitFor, 'Test actress')
+    await submitNavSearch(evaluate)
     await waitFor(`document.title === 'Search: Test actress - Idols'`)
-    for (const [section, closeLabel] of [
-      ['Downloads', 'Close downloads dialog'],
-      ['Settings', 'Close global settings'],
+    for (const [nav, title, closeLabel] of [
+      ['download', 'Downloads', 'Close downloads dialog'],
+      ['settings', 'Settings', 'Close global settings'],
     ]) {
-      await evaluate(`document.querySelector('aside button[aria-label="${section}"]').click()`)
-      await waitFor(`document.title === '${section}'`)
+      await clickMoreItem(evaluate, waitFor, nav)
+      await waitFor(`document.title === '${title}'`)
       await evaluate(`document.querySelector('button[aria-label="${closeLabel}"]').click()`)
       await waitFor(`document.title === 'Search: Test actress - Idols'`)
     }
