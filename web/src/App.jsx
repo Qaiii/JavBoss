@@ -798,7 +798,6 @@ export default function App() {
         resumePlayback={configFlag(config?.browser_player_resume_playback, true)}
         hotkeys={config?.player_hotkeys}
         showHotkeyHint={configFlag(config?.browser_player_show_hotkey_hint, true)}
-        onPlaybackError={showCenterToast}
         onClose={closePlayer}
       />
 
@@ -886,11 +885,11 @@ export default function App() {
                 ? zh('选择使用MPV播放器播放的文件', 'Choose a file to play with MPV player')
                 : alternatePlayer === 'system'
                   ? zh('选择使用系统播放器播放的文件', 'Choose a file to play with system player')
-                  : zh('选择使用浏览器播放的文件', 'Choose a file to play in the browser')
+                  : zh('选择使用网页播放器播放的文件', 'Choose a file to play in the web player')
               : defaultPlayer === 'system'
                 ? zh('选择使用系统播放器播放的文件', 'Choose a file to play with system player')
                 : defaultPlayer === 'browser'
-                  ? zh('选择使用浏览器播放的文件', 'Choose a file to play in the browser')
+                  ? zh('选择使用网页播放器播放的文件', 'Choose a file to play in the web player')
                   : zh('选择使用MPV播放器播放的文件', 'Choose a file to play with MPV player')
         }
         onClose={closeLocationPicker}
