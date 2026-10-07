@@ -1708,6 +1708,13 @@ body.has-page-scroll .sticky-pagination {
 }
 
 .idol-profile {
+  /* Viewport-sized poster backdrop plus the first-screen offset that keeps the idol
+     info above the works while the first cover row already peeks into the viewport. */
+  --idol-hero-height: calc(100dvh - var(--topbar-height));
+  /* Idol info top edge: a fraction of the viewport height when the poster fills the
+     screen, and of the viewport width when a tall viewport keeps the poster shorter. */
+  --idol-head-top: 60dvh;
+  --idol-head-top-portrait: 60vw;
   position: relative;
   background: var(--bg);
 }
@@ -1757,28 +1764,90 @@ body.has-page-scroll .idol-profile .sticky-pagination {
   position: sticky;
   top: var(--topbar-height);
   z-index: 0;
-  height: calc(100dvh - var(--topbar-height));
+  height: var(--idol-hero-height);
   width: calc(100% + var(--page-left-padding) + var(--page-right-padding));
   margin-left: calc(-1 * var(--page-left-padding));
   margin-right: calc(-1 * var(--page-right-padding));
   overflow: hidden;
-  background: #0b0f16;
+  background: var(--idol-hero-bg, #0b0f16);
 }
 
+/* Poster block, pinned to the top-right corner; scrolling afterwards only shrinks it
+   by 1.5%.
+
+   Portrait viewport (width < height): the height is at least the viewport width and at
+   most 80% of the viewport height, while the width fills the hero at the poster's own
+   ratio (cropping when the two disagree).
+   Landscape / square viewport (width >= height): 自适应填充 — proportionally scaled so
+   neither dimension is smaller than the container. */
 .idol-hero__poster {
   position: absolute;
-  /* Slight oversize: just enough zoom, and shrink-on-scroll still covers. */
-  inset: -3%;
-  filter: blur(calc(var(--idol-hero-scroll, 0) * 28px));
-  transform: scale(calc(1 - var(--idol-hero-scroll, 0) * 0.05));
-  transform-origin: center;
+  top: 0;
+  right: 0;
+  left: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  filter: blur(calc(var(--idol-hero-past, 0) * 18px));
+  transform: scale(calc(1 - var(--idol-hero-past, 0) * 0.015));
+  transform-origin: top right;
+}
+
+.idol-hero__cover {
+  width: 100%;
+  height: auto;
+  min-height: 100vw;
+  max-height: 80vh;
+  object-fit: cover;
+  /* Fill is anchored on the top-right point: overflow spills left and down. */
+  object-position: right top;
 }
 
 .idol-hero__collage {
   display: grid;
-  height: 100%;
   width: 100%;
+  height: auto;
+  min-height: 100vw;
+  max-height: 80vh;
+  aspect-ratio: var(--idol-hero-poster-aspect, 1.5);
   gap: 2px;
+}
+
+.idol-hero__fallback {
+  display: flex;
+  width: 100%;
+  height: auto;
+  min-height: 100vw;
+  max-height: 80vh;
+  aspect-ratio: 1.5;
+  align-items: center;
+  background: linear-gradient(
+    135deg,
+    rgba(199, 148, 14, 0.18),
+    rgba(12, 10, 8, 0.9)
+  );
+  padding: 0 2.5rem;
+  font-size: 2.25rem;
+  font-weight: 600;
+  color: rgba(244, 239, 230, 0.82);
+}
+
+@media (min-aspect-ratio: 1 / 1) {
+  /* The 1% oversize keeps the scroll shrink from exposing the backdrop at the edges. */
+  .idol-hero__poster {
+    inset: -1%;
+  }
+
+  .idol-hero__cover,
+  .idol-hero__collage,
+  .idol-hero__fallback {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    max-height: none;
+    aspect-ratio: auto;
+    object-fit: cover;
+  }
 }
 
 .idol-hero__collage--1 {
@@ -1817,45 +1886,124 @@ body.has-page-scroll .idol-profile .sticky-pagination {
   grid-template-rows: 1fr 1fr;
 }
 
-.idol-hero__blur {
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 58%;
-  backdrop-filter: blur(var(--idol-hero-blur, 22px));
-  -webkit-backdrop-filter: blur(var(--idol-hero-blur, 22px));
-  mask-image: linear-gradient(to right, #000 0%, #000 42%, transparent 100%);
-  -webkit-mask-image: linear-gradient(to right, #000 0%, #000 42%, transparent 100%);
-  opacity: calc(1 - var(--idol-hero-scroll, 0));
-  pointer-events: none;
-}
-
-.idol-hero__info {
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: min(34rem, 48%);
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  padding: 2.25rem 2rem 3.4rem;
-  pointer-events: none;
-}
-
-.idol-hero__info-fade {
+/* First screen keeps the poster crisp; the veil only settles in once the works scroll. */
+.idol-hero__veil {
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    to right,
-    rgba(12, 10, 8, 0.88) 0%,
-    rgba(26, 22, 18, 0.46) 48%,
-    transparent 100%
-  );
+  background: var(--idol-hero-bg, #0b0f16);
+  opacity: calc(var(--idol-hero-past, 0) * 0.32);
   pointer-events: none;
 }
 
-.idol-hero__info-body {
+/* Idol info: line 1 name, line 2 horizontal meta. Starts above the works list and
+   pins to the top-left corner once the page scrolls. */
+.idol-profile-head {
+  position: sticky;
+  top: calc(var(--topbar-height) + 0.6rem);
+  z-index: 20;
+  width: fit-content;
+  max-width: min(100%, 48rem);
+  margin-top: calc(var(--idol-head-top) - 100dvh);
+  margin-bottom: 0.5rem;
+  pointer-events: none;
+}
+
+/* Tall viewport (width < height): the poster there is shorter than the first screen, so
+   the info block is placed by measurement to land its bottom edge on the poster's bottom
+   edge — it may sit higher than the target, never lower. Without a measurement yet it
+   falls back to a fraction of the viewport width, which is always inside the poster. */
+@media (max-aspect-ratio: 1 / 1) {
+  .idol-profile-head {
+    margin-top: var(
+      --idol-head-margin-portrait,
+      calc(var(--idol-head-top-portrait) - 100dvh)
+    );
+  }
+}
+
+.idol-profile-head__scrim {
+  position: absolute;
+  inset: -0.65rem -1.4rem -0.85rem -0.65rem;
+  background: var(--idol-hero-bg, #0b0f16);
+  mask-image: linear-gradient(90deg, #000 0%, #000 56%, transparent 100%);
+  -webkit-mask-image: linear-gradient(
+    90deg,
+    #000 0%,
+    #000 56%,
+    transparent 100%
+  );
+  opacity: calc(0.3 + var(--idol-hero-past, 0) * 0.58);
+  backdrop-filter: blur(calc(var(--idol-hero-past, 0) * 14px));
+  -webkit-backdrop-filter: blur(calc(var(--idol-hero-past, 0) * 14px));
+  pointer-events: none;
+}
+
+.idol-profile-head__body {
   position: relative;
   z-index: 1;
+  pointer-events: none;
+}
+
+.idol-profile-head__name {
+  text-shadow:
+    0 2px 16px rgba(0, 0, 0, 0.82),
+    0 1px 2px rgba(0, 0, 0, 0.92);
+}
+
+.idol-profile-head__alt {
+  margin-left: 0.7rem;
+  font-size: 1rem;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.idol-profile-head__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 1rem;
+  margin-top: 0.55rem;
+  font-size: 0.875rem;
+  color: rgba(255, 255, 255, 0.86);
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.8);
+}
+
+.idol-profile-head__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.3rem 1.1rem;
+}
+
+.idol-profile-head__meta-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  white-space: nowrap;
+}
+
+.idol-profile-head__meta-item dt {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.idol-profile-head__meta-item dd {
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.idol-profile-head__edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 9999px;
+  background: rgba(199, 148, 14, 0.2);
+  padding: 0.2rem 0.7rem;
+  font-size: 0.8rem;
+  color: var(--accent-gold);
   pointer-events: auto;
+}
+
+.idol-profile-head__edit:hover {
+  background: rgba(199, 148, 14, 0.35);
 }
 
 .idol-profile-works {

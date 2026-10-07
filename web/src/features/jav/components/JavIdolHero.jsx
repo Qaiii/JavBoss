@@ -1,15 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import PhotoCameraRoundedIcon from '@mui/icons-material/PhotoCameraRounded'
 import { fetchJavIdolPreview } from '@/api'
 import JavIdolPosterModal from '@/features/jav/components/JavIdolPosterModal'
-import {
-  IDOL_COVER_DEFAULT_CROP_LEFT,
-  IDOL_COVER_VISIBLE_RATIO,
-  normalizeIdolCoverCropLeft,
-} from '@/features/jav/components/JavIdolCoverModal'
 import { javCoverSrc } from '@/utils/jav'
 import { getIdolDisplayNames } from '@/utils/javIdol'
 import { zh } from '@/utils/i18n'
+import { DEFAULT_IDOL_HERO_BACKGROUND, sampleIdolHeroBackground } from '@/utils/idolHeroBackground'
 import {
   idolPosterImageKey,
   idolPosterImageSrc,
@@ -17,9 +13,26 @@ import {
 } from '@/utils/idolPoster'
 import { useStore } from '@/store'
 
+const DEFAULT_TOPBAR_HEIGHT = 72
+const DEFAULT_POSTER_ASPECT = 3 / 2
+const MIN_POSTER_ASPECT = 0.4
+const MAX_POSTER_ASPECT = 4
+
 function configFlag(value, fallback = false) {
   if (value == null || value === '') return fallback
   return !['0', 'false', 'no', 'off'].includes(String(value).trim().toLowerCase())
+}
+
+function readTopbarHeight() {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return DEFAULT_TOPBAR_HEIGHT
+  const raw = window.getComputedStyle(document.documentElement).getPropertyValue('--topbar-height')
+  const parsed = Number.parseFloat(raw)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_TOPBAR_HEIGHT
+}
+
+function clampPosterAspect(ratio) {
+  if (!Number.isFinite(ratio) || ratio <= 0) return DEFAULT_POSTER_ASPECT
+  return Math.min(MAX_POSTER_ASPECT, Math.max(MIN_POSTER_ASPECT, ratio))
 }
 
 export default function JavIdolHero({ idolId }) {
@@ -28,7 +41,14 @@ export default function JavIdolHero({ idolId }) {
   )
   const [idol, setIdol] = useState(null)
   const [posterOpen, setPosterOpen] = useState(false)
-  const [scrollProgress, setScrollProgress] = useState(0)
+  const [scrollPast, setScrollPast] = useState(0)
+  const [posterAspect, setPosterAspect] = useState(DEFAULT_POSTER_ASPECT)
+  const [heroBackground, setHeroBackground] = useState(DEFAULT_IDOL_HERO_BACKGROUND)
+  // Margin that lands the info block's bottom edge on the poster's bottom edge. Only
+  // needed while the poster is shorter than the first screen (tall viewport).
+  const [headBottomMargin, setHeadBottomMargin] = useState(null)
+  const posterRef = useRef(null)
+  const headRef = useRef(null)
 
   const numericId = Number(idolId)
 
@@ -50,10 +70,14 @@ export default function JavIdolHero({ idolId }) {
     }
   }, [numericId])
 
+  // 0 while the first screen is still in view, 1 once it has been scrolled past.
+  // The poster only picks up blur and its tiny shrink after that point.
   useEffect(() => {
     const update = () => {
-      const heroHeight = Math.max(1, window.innerHeight - 72)
-      setScrollProgress(Math.min(1, Math.max(0, window.scrollY / (heroHeight * 0.72))))
+      const firstScreen = Math.max(1, window.innerHeight - readTopbarHeight())
+      const next = Math.min(1, Math.max(0, window.scrollY / firstScreen))
+      // Quantised so a scroll gesture does not re-render the hero on every frame.
+      setScrollPast((current) => (Math.abs(current - next) < 0.005 ? current : next))
     }
     update()
     window.addEventListener('scroll', update, { passive: true })
@@ -61,6 +85,38 @@ export default function JavIdolHero({ idolId }) {
     return () => {
       window.removeEventListener('scroll', update)
       window.removeEventListener('resize', update)
+    }
+  }, [])
+
+  // Align the info block's bottom edge with the poster's bottom edge whenever the poster
+  // is shorter than the first screen (tall viewport). Measured instead of derived: the
+  // poster height depends on its own image ratio. Falls back to the width-based position.
+  useEffect(() => {
+    const measure = () => {
+      const poster = posterRef.current
+      const head = headRef.current
+      if (!poster || !head) return
+      const topbarHeight = readTopbarHeight()
+      const firstScreen = Math.max(1, window.innerHeight - topbarHeight)
+      const posterHeight = poster.offsetHeight
+      const headHeight = head.offsetHeight
+      if (!(posterHeight > 0) || !(headHeight > 0) || posterHeight >= firstScreen - 1) {
+        setHeadBottomMargin(null)
+        return
+      }
+      const next = Math.round(topbarHeight + posterHeight - headHeight - window.innerHeight)
+      setHeadBottomMargin((current) => (current === next ? current : next))
+    }
+    measure()
+    const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : null
+    if (observer) {
+      if (posterRef.current) observer.observe(posterRef.current)
+      if (headRef.current) observer.observe(headRef.current)
+    }
+    window.addEventListener('resize', measure)
+    return () => {
+      observer?.disconnect()
+      window.removeEventListener('resize', measure)
     }
   }, [numericId])
 
@@ -70,30 +126,47 @@ export default function JavIdolHero({ idolId }) {
   )
   const { primaryName, secondaryName } = getIdolDisplayNames(idol, preferChineseName)
   const metaItems = useMemo(() => buildIdolMetaItems(idol), [idol])
-  const blurPx = 18 + scrollProgress * 22
-  const infoOpacity = Math.max(0, 1 - scrollProgress * 1.35)
   const coverSrc = javCoverSrc(idol?.cover_code)
-  const cropLeft = normalizeIdolCoverCropLeft(idol?.cover_crop_left ?? IDOL_COVER_DEFAULT_CROP_LEFT)
-  const objectPosition = `${Math.min(100, Math.max(0, (cropLeft + IDOL_COVER_VISIBLE_RATIO / 2) * 100))}% center`
+  const posterSource = useMemo(() => {
+    if (posterImages.length > 0) return idolPosterImageSrc(numericId, posterImages[0])
+    return coverSrc
+  }, [posterImages, numericId, coverSrc])
+
+  useEffect(() => {
+    let cancelled = false
+    setHeroBackground(DEFAULT_IDOL_HERO_BACKGROUND)
+    if (!posterSource) return undefined
+    sampleIdolHeroBackground(posterSource)
+      .then((color) => {
+        if (!cancelled && color) setHeroBackground(color)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [posterSource])
 
   if (!Number.isFinite(numericId) || numericId <= 0) return null
 
+  const customProperties = {
+    '--idol-hero-past': String(scrollPast),
+    '--idol-hero-bg': heroBackground,
+  }
+  const headProperties =
+    headBottomMargin == null
+      ? customProperties
+      : { ...customProperties, '--idol-head-margin-portrait': `${headBottomMargin}px` }
+
   return (
     <>
-      <section
-        className="idol-hero"
-        aria-label={primaryName || zh('女优', 'Idol')}
-        style={{
-          '--idol-hero-blur': `${blurPx}px`,
-          '--idol-hero-scroll': String(scrollProgress),
-        }}
-      >
-        <div className="idol-hero__poster">
+      <section className="idol-hero" style={customProperties} aria-hidden="true">
+        <div className="idol-hero__poster" ref={posterRef}>
           {posterImages.length > 0 ? (
             <div
               className={`idol-hero__collage idol-hero__collage--${Math.min(posterImages.length, 6)}`}
+              style={{ '--idol-hero-poster-aspect': String(posterAspect) }}
             >
-              {posterImages.map((image) => {
+              {posterImages.map((image, index) => {
                 const src = idolPosterImageSrc(numericId, image)
                 return (
                   <img
@@ -101,46 +174,47 @@ export default function JavIdolHero({ idolId }) {
                     src={src}
                     alt=""
                     className="h-full w-full object-cover"
+                    onLoad={(event) => {
+                      if (index !== 0) return
+                      const { naturalWidth, naturalHeight } = event.currentTarget
+                      if (!(naturalWidth > 0) || !(naturalHeight > 0)) return
+                      const ratio = clampPosterAspect(naturalWidth / naturalHeight)
+                      setPosterAspect((current) => (current === ratio ? current : ratio))
+                    }}
                   />
                 )
               })}
             </div>
           ) : coverSrc ? (
-            <img
-              src={coverSrc}
-              alt=""
-              className="h-full w-full object-cover"
-              style={{ objectPosition }}
-            />
+            <img className="idol-hero__cover" src={coverSrc} alt="" />
           ) : (
-            <div className="text-app-gold/80 flex h-full w-full items-center bg-app-bg px-10 text-4xl font-semibold">
-              {primaryName}
-            </div>
+            <div className="idol-hero__fallback">{primaryName}</div>
           )}
         </div>
-        <div className="idol-hero__blur" />
-        <div className="idol-hero__info" style={{ opacity: infoOpacity }}>
-          <div className="idol-hero__info-fade" />
-          <div className="idol-hero__info-body">
-            <h1 className="text-4xl font-semibold tracking-tight text-white drop-shadow md:text-5xl">
-              {primaryName || zh('未知女优', 'Unknown idol')}
-            </h1>
-            {secondaryName ? (
-              <div className="mt-2 text-base text-white/80">{secondaryName}</div>
-            ) : null}
+        <div className="idol-hero__veil" />
+      </section>
+      {/* Line 1: idol name. Line 2: idol info laid out horizontally. */}
+      <header className="idol-profile-head" style={headProperties} ref={headRef}>
+        <div className="idol-profile-head__scrim" aria-hidden="true" />
+        <div className="idol-profile-head__body">
+          <h1 className="idol-profile-head__name text-3xl font-semibold tracking-tight text-white md:text-4xl">
+            {primaryName || zh('未知女优', 'Unknown idol')}
+            {secondaryName ? <span className="idol-profile-head__alt">{secondaryName}</span> : null}
+          </h1>
+          <div className="idol-profile-head__row">
             {metaItems.length > 0 ? (
-              <dl className="mt-5 grid max-w-sm gap-2 text-sm text-white/90">
+              <dl className="idol-profile-head__meta">
                 {metaItems.map((item) => (
-                  <div key={item.key} className="flex gap-3">
-                    <dt className="w-16 shrink-0 text-white/55">{item.label}</dt>
-                    <dd className="min-w-0">{item.value}</dd>
+                  <div key={item.key} className="idol-profile-head__meta-item">
+                    <dt>{item.label}</dt>
+                    <dd>{item.value}</dd>
                   </div>
                 ))}
               </dl>
             ) : null}
             <button
               type="button"
-              className="bg-app-gold/20 hover:bg-app-gold/35 mt-6 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm text-app-gold backdrop-blur"
+              className="idol-profile-head__edit"
               onClick={() => setPosterOpen(true)}
             >
               <PhotoCameraRoundedIcon sx={{ fontSize: 16 }} />
@@ -148,7 +222,7 @@ export default function JavIdolHero({ idolId }) {
             </button>
           </div>
         </div>
-      </section>
+      </header>
       <JavIdolPosterModal
         open={posterOpen}
         item={idol}
