@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { browserUnavailable, openBrowser } from '../../../helpers/browser.js'
-import { navItem, openFilterPanel } from '../../../helpers/nav.js'
+import { navItem } from '../../../helpers/nav.js'
 
 for (const batch of [false, true]) {
   test(
@@ -57,9 +57,8 @@ for (const batch of [false, true]) {
           state.toggleSelectVideo(state.videos[26]);
           window.failLocation = 27;
         }`)
-        await openFilterPanel(evaluate, waitFor)
-        await waitFor(`document.querySelector('button.topbar-selection-action')`)
-        await evaluate(`document.querySelector('button.topbar-selection-action').click()`)
+        await waitFor(`document.querySelector('button[aria-label="Selection actions"]')`)
+        await evaluate(`document.querySelector('button[aria-label="Selection actions"]').click()`)
         const modal = `document.querySelector('[aria-label="Selected Files"]')`
         await waitFor(modal)
         const deleteButton = `[...${modal}.querySelectorAll('button')].find(button => button.textContent === 'Delete Selected Videos')`

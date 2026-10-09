@@ -140,6 +140,10 @@ export default function JavSettings({ onClose, onError, onWaterfallChange, initi
       onJavIdolRefreshDaysChange={(value) =>
         setDraft((current) => ({ ...current, javIdolRefreshDaysInput: value }))
       }
+      javWatchTimeIconMinutesInput={draft.javWatchTimeIconMinutesInput}
+      onJavWatchTimeIconMinutesChange={(value) =>
+        setDraft((current) => ({ ...current, javWatchTimeIconMinutesInput: value }))
+      }
       onSave={handleSave}
       saving={saving}
     />

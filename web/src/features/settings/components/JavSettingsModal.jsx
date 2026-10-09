@@ -267,7 +267,7 @@ function JavSortRuleEditor({ rule, index, total, onChange, onMove, onRemove }) {
           <button
             type="button"
             aria-label={zh(`查看规则 ${index + 1} 的当前效果`, `View rule ${index + 1} effect`)}
-            className="inline-flex h-7 w-7 items-center justify-center text-amber-500 transition hover:text-amber-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+            className="inline-flex h-7 w-7 items-center justify-center text-amber-500 transition hover:text-amber-600 focus:outline-none"
           >
             <InfoOutlinedIcon sx={{ fontSize: 18 }} />
           </button>
@@ -440,6 +440,8 @@ export default function JavSettingsModal({
   onJavIdolRefreshDaysChange,
   javTagShowSimplifiedInput = false,
   onJavTagShowSimplifiedChange,
+  javWatchTimeIconMinutesInput = 30,
+  onJavWatchTimeIconMinutesChange,
   onSave,
   saving = false,
 }) {
@@ -476,6 +478,8 @@ export default function JavSettingsModal({
         break
       default:
         onJavPageSizeChange?.(24)
+        onJavWatchTimeIconMinutesChange?.(30)
+        onJavWaterfallDefaultChange?.(false)
         onJavGridColumnsChange?.(0)
         onJavTitleMaxRowsChange?.(2)
         onJavIdolTagMaxRowsChange?.(2)
@@ -579,6 +583,17 @@ export default function JavSettingsModal({
                   layout={cardLayoutInput?.jav}
                   onChange={(layout) => onCardLayoutChange?.('jav', layout)}
                 />
+                <SettingsRow label={zh('每个观看图标代表的分钟数', 'Minutes per watch icon')}>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    aria-label={zh('每个观看图标代表的分钟数', 'Minutes per watch icon')}
+                    value={javWatchTimeIconMinutesInput}
+                    onChange={(event) => onJavWatchTimeIconMinutesChange?.(event.target.value)}
+                    className={controlClassName}
+                  />
+                </SettingsRow>
                 <SettingsRow label={zh('标题最多行数', 'Title max rows')}>
                   <select
                     value={String(javTitleMaxRowsInput ?? 2)}

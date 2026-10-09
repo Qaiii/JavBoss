@@ -1,4 +1,5 @@
 import { useStore } from '@/store'
+import { normalizeWatchTimeIconMinutes } from '@/features/playback/watchTime'
 import { normalizeVideoSort } from '@/constants/video'
 import { updateConfig } from '@/features/settings/api'
 import { normalizeJavIdolRefreshDays } from '@/features/settings/model'
@@ -31,6 +32,9 @@ export async function saveVideoSettings(draft, onWaterfallChange) {
   const cardWidth = normalizeCardWidth(videoCardWidthInput, CARD_WIDTH_DEFAULTS.video.landscape)
 
   const cfg = await updateConfig({
+    video_watch_time_icon_minutes: normalizeWatchTimeIconMinutes(
+      draft.videoWatchTimeIconMinutesInput
+    ),
     video_page_size: size,
     video_sort: normalizedSort,
     video_hide_jav: videoHideJavInput,
@@ -133,6 +137,7 @@ export async function saveJavSettings(draft, onWaterfallChange) {
   const cardLayoutPayload = cardLayoutConfigPayload(cardLayoutInput)
 
   const cfg = await updateConfig({
+    jav_watch_time_icon_minutes: normalizeWatchTimeIconMinutes(draft.javWatchTimeIconMinutesInput),
     jav_page_size: javSize,
     jav_grid_columns: javColumns,
     jav_title_max_rows: javTitleRows,

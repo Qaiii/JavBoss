@@ -1,7 +1,7 @@
 import JavGrid from '@/features/jav/components/JavGrid'
 import JavIdolHero from '@/features/jav/components/JavIdolHero'
 import { JavDetailHeader } from '@/features/jav/components/JavSeriesDetailHeader'
-import BulkActionsMenu from '@/features/playback/components/BulkActionsMenu'
+import BulkPlaybackMenu from '@/features/playback/components/BulkPlaybackMenu'
 import WaterfallLoader from '@/shared/ui/WaterfallLoader'
 import { useStore } from '@/store'
 import { zh } from '@/utils/i18n'
@@ -14,8 +14,6 @@ export default function JavView({
   javItems,
   selectedJavIds,
   onToggleSelect,
-  onSelectAll,
-  onSelectPage,
   onPlayPage,
   onPlayAll,
   bulkActionBusy,
@@ -111,14 +109,12 @@ export default function JavView({
       ) : null}
       {/* 入库 / 排序 live in the top navigation's 更多 menu; only bulk actions stay in the page. */}
       <div className="sticky-pagination mb-4 flex flex-wrap items-center justify-end gap-3">
-        <BulkActionsMenu
-          label={zh('JAV 批量操作', 'JAV bulk actions')}
+        <BulkPlaybackMenu
+          label={zh('批量播放', 'Bulk playback')}
           hasItems={Number(javRandomMode ? javItems.length : javTotal) > 0}
           pageSelectable={javItems.some((item) => Number(item?.id) > 0)}
           busy={bulkActionBusy || javLoading}
           bulkPlaybackEnabled={bulkPlaybackEnabled}
-          onSelectAll={onSelectAll}
-          onSelectPage={onSelectPage}
           onPlayPage={onPlayPage}
           onPlayAll={onPlayAll}
         />

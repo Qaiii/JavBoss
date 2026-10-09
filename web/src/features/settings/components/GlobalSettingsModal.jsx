@@ -94,6 +94,7 @@ const PLAYER_BASIC_DEFAULTS = {
 }
 
 const BROWSER_PLAYER_DEFAULTS = {
+  resumePlayback: true,
   showHotkeyHint: true,
 }
 
@@ -112,6 +113,7 @@ export default function GlobalSettingsModal({
   hostPathPrefixEnabled = false,
   hostAgentConfigured = false,
   serverOS = '',
+  appVersion = '',
   mpvEnabled = true,
   onCreateDirectory,
   onUpdateDirectory,
@@ -137,6 +139,7 @@ export default function GlobalSettingsModal({
   playerVolume,
   playerShowHotkeyHint,
   onSavePlayerBasicSettings,
+  browserPlayerResumePlayback,
   browserPlayerShowHotkeyHint,
   onSaveBrowserPlayerSettings,
   playerHotkeys,
@@ -178,6 +181,7 @@ export default function GlobalSettingsModal({
   const [playerResumePlaybackInput, setPlayerResumePlaybackInput] = useState(true)
   const [playerVolumeInput, setPlayerVolumeInput] = useState('')
   const [playerShowHotkeyHintInput, setPlayerShowHotkeyHintInput] = useState(true)
+  const [browserPlayerResumePlaybackInput, setBrowserPlayerResumePlaybackInput] = useState(true)
   const [browserPlayerShowHotkeyHintInput, setBrowserPlayerShowHotkeyHintInput] = useState(true)
   const [browserPlayerError, setBrowserPlayerError] = useState('')
   const [browserPlayerSuccess, setBrowserPlayerSuccess] = useState('')
@@ -262,6 +266,9 @@ export default function GlobalSettingsModal({
       setPlayerResumePlaybackInput(playerResumePlayback ?? PLAYER_BASIC_DEFAULTS.resumePlayback)
       setPlayerVolumeInput(String(playerVolume ?? PLAYER_BASIC_DEFAULTS.volume))
       setPlayerShowHotkeyHintInput(playerShowHotkeyHint ?? PLAYER_BASIC_DEFAULTS.showHotkeyHint)
+      setBrowserPlayerResumePlaybackInput(
+        browserPlayerResumePlayback ?? BROWSER_PLAYER_DEFAULTS.resumePlayback
+      )
       setBrowserPlayerShowHotkeyHintInput(
         browserPlayerShowHotkeyHint ?? BROWSER_PLAYER_DEFAULTS.showHotkeyHint
       )
@@ -287,6 +294,7 @@ export default function GlobalSettingsModal({
     playerResumePlayback,
     playerVolume,
     playerShowHotkeyHint,
+    browserPlayerResumePlayback,
     browserPlayerShowHotkeyHint,
     mpvEnabled,
     browserPlaybackOnly,
@@ -579,19 +587,38 @@ export default function GlobalSettingsModal({
                 />
               </span>
             </div>
-            {defaultPlayerInput === 'browser' ? (
+            {defaultPlayerInput === 'mpv' ? (
               <p className="mt-1 text-sm text-app-muted">
                 {zh(
-                  '浏览器默认只能播放 MP4 格式视频，如果需要播放任意格式视频需前往“工具”中确认 FFmpeg 已安装。',
-                  'Browsers can only play MP4 videos by default. To play videos in any format, go to Tools and make sure FFmpeg is installed.'
+                  '使用 JavBoss 自带的 MPV 播放器进行播放。',
+                  'Play with the MPV player bundled with JavBoss.'
                 )}
               </p>
-            ) : null}
-            {containerMode && hostAgentConfigured ? (
+            ) : defaultPlayerInput === 'system' ? (
               <p className="mt-1 text-sm text-app-muted">
                 {zh(
-                  '选择“系统”将通过宿主机代理在部署主机上调用系统播放器打开视频。',
-                  'Choosing “System” opens the video with the host machine’s default player via the host agent.'
+                  '使用系统关联的默认程序播放视频，',
+                  'Open videos with the system’s default app. '
+                )}
+                <strong className="font-semibold text-amber-700">
+                  {zh('此方式无法统计观看时长。', 'Watch time cannot be tracked. ')}
+                </strong>
+                {zh(
+                  '批量播放需将 M3U8 文件关联到支持播放列表的播放器。',
+                  'For bulk playback, associate M3U8 files with a player that supports playlists.'
+                )}
+                {containerMode && hostAgentConfigured
+                  ? zh(
+                      ' 选择“系统”将通过宿主机代理在部署主机上调用系统播放器打开视频。',
+                      ' Choosing “System” opens the video with the host machine’s default player via the host agent.'
+                    )
+                  : null}
+              </p>
+            ) : defaultPlayerInput === 'browser' ? (
+              <p className="mt-1 text-sm text-app-muted">
+                {zh(
+                  '网页播放器默认支持的编码格式有限，不支持的格式依赖服务端转码播放，请前往“工具”确认 FFmpeg 已安装。',
+                  'The web player supports a limited range of codecs by default. Unsupported formats rely on server-side transcoding for playback. Go to Tools to check that FFmpeg is installed.'
                 )}
               </p>
             ) : null}
@@ -883,6 +910,27 @@ export default function GlobalSettingsModal({
             renderDefaultPlayerSettings()
           ) : currentPlayerTab === 'browser' ? (
             <div>
+              <section className="mb-5 space-y-3">
+                <label className="flex items-center gap-3 text-sm font-semibold text-zinc-800">
+                  <input
+                    type="checkbox"
+                    checked={browserPlayerResumePlaybackInput}
+                    onChange={(e) => {
+                      setBrowserPlayerResumePlaybackInput(e.target.checked)
+                      setBrowserPlayerError('')
+                      setBrowserPlayerSuccess('')
+                    }}
+                    className="h-4 w-4 rounded"
+                  />
+                  <span>{zh('从上次结束位置播放', 'Resume From Last Position')}</span>
+                </label>
+                <p className="text-xs text-zinc-500">
+                  {zh(
+                    '在当前浏览器中记住每个视频文件的播放位置，下次打开时继续播放。',
+                    'Remember each video file’s position in this browser and resume it next time.'
+                  )}
+                </p>
+              </section>
               <section className="space-y-3">
                 <label className="flex items-center gap-3 text-sm font-semibold text-app-text">
                   <input
@@ -916,6 +964,7 @@ export default function GlobalSettingsModal({
                 <button
                   type="button"
                   onClick={() => {
+                    setBrowserPlayerResumePlaybackInput(BROWSER_PLAYER_DEFAULTS.resumePlayback)
                     setBrowserPlayerShowHotkeyHintInput(BROWSER_PLAYER_DEFAULTS.showHotkeyHint)
                     setBrowserPlayerError('')
                     setBrowserPlayerSuccess('')
@@ -933,6 +982,7 @@ export default function GlobalSettingsModal({
                     setSavingBrowserPlayer(true)
                     try {
                       await onSaveBrowserPlayerSettings?.({
+                        browser_player_resume_playback: browserPlayerResumePlaybackInput,
                         browser_player_show_hotkey_hint: browserPlayerShowHotkeyHintInput,
                       })
                       setBrowserPlayerSuccess(
@@ -1448,8 +1498,8 @@ export default function GlobalSettingsModal({
                 </div>
                 <p className="mt-2 max-w-2xl text-sm text-app-muted">
                   {zh(
-                    '浏览器无法直接播放某些视频编码时，JavBoss 使用 FFmpeg 转码后播放。',
-                    'When a browser cannot play a video codec directly, JavBoss uses FFmpeg to transcode it for playback.'
+                    '网页播放器无法直接播放某些视频编码时，JavBoss 使用 FFmpeg 转码后播放。',
+                    'When the web player cannot play a video codec directly, JavBoss uses FFmpeg to transcode it for playback.'
                   )}
                 </p>
               </div>
@@ -1923,6 +1973,10 @@ export default function GlobalSettingsModal({
                 )
               })}
             </div>
+          <div className="hidden shrink-0 px-4 pb-1 pt-4 text-xs text-app-muted md:block">
+            {zh('当前版本', 'Version')}：
+            {appVersion === 'dev' ? zh('开发版', 'Development') : appVersion || '—'}
+          </div>
           </aside>
 
           <section
@@ -1951,6 +2005,10 @@ export default function GlobalSettingsModal({
             )}
           </section>
         </div>
+      <div className="shrink-0 border-t border-app-border bg-app-surface/60 px-6 py-3 text-xs text-app-muted md:hidden">
+        {zh('当前版本', 'Version')}：
+        {appVersion === 'dev' ? zh('开发版', 'Development') : appVersion || '—'}
+      </div>
       </AppModal>
     </>
   )

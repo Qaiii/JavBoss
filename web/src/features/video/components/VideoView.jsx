@@ -1,7 +1,7 @@
 import SwapVertIcon from '@mui/icons-material/SwapVert'
 import { Popover } from '@mui/material'
 import { useState } from 'react'
-import BulkActionsMenu from '@/features/playback/components/BulkActionsMenu'
+import BulkPlaybackMenu from '@/features/playback/components/BulkPlaybackMenu'
 import VideoGrid from '@/features/video/components/VideoGrid'
 import WaterfallLoader from '@/shared/ui/WaterfallLoader'
 import {
@@ -35,8 +35,6 @@ export default function VideoView({
   videos,
   selectedVideoIds,
   toggleSelectVideo,
-  onSelectAll,
-  onSelectPage,
   onPlayPage,
   onPlayAll,
   bulkActionBusy,
@@ -75,15 +73,13 @@ export default function VideoView({
     setSortAnchorEl(null)
   }
 
-  const bulkActionMenu = (
-    <BulkActionsMenu
-      label={zh('视频批量操作', 'Video bulk actions')}
+  const playbackMenu = (
+    <BulkPlaybackMenu
+      label={zh('批量播放', 'Bulk playback')}
       hasItems={hasVideos}
       pageSelectable={pageSelectable}
       busy={bulkActionBusy}
       bulkPlaybackEnabled={bulkPlaybackEnabled}
-      onSelectAll={onSelectAll}
-      onSelectPage={onSelectPage}
       onPlayPage={onPlayPage}
       onPlayAll={onPlayAll}
     />
@@ -92,7 +88,7 @@ export default function VideoView({
   return (
     <>
       <div className="sticky-pagination mb-4 flex flex-wrap items-center justify-end gap-3">
-        {bulkActionMenu}
+        {playbackMenu}
         {!randomMode && (
               <div className="pagination-sort-group flex items-center">
                 <span className="pagination-sort-label text-gray-500">{zh('排序', 'Sort')}</span>

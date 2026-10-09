@@ -10,7 +10,8 @@ import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined'
 import SwapVertRoundedIcon from '@mui/icons-material/SwapVertRounded'
 import TuneRoundedIcon from '@mui/icons-material/TuneRounded'
 import VideoLibraryOutlinedIcon from '@mui/icons-material/VideoLibraryOutlined'
-import { Button } from '@mui/material'
+import LibraryAddCheckOutlinedIcon from '@mui/icons-material/LibraryAddCheckOutlined'
+import { Button, IconButton, Menu, MenuItem as MuiMenuItem, Tooltip } from '@mui/material'
 import { fetchJavPrefixes } from '@/features/jav/api'
 import JavPrefixModal from '@/features/jav/components/JavPrefixModal'
 import { getErrorMessage } from '@/utils/errors'
@@ -51,6 +52,67 @@ function MenuItem({ nav, icon: Icon, label, note = '', badge = 0, active = false
   )
 }
 
+function SelectionMenu({
+  onSelectPage,
+  onDeselectPage,
+  onSelectAll,
+  onDeselectAll,
+  pageAvailable,
+  allAvailable,
+  busy,
+}) {
+  const [anchorEl, setAnchorEl] = useState(null)
+  const label = zh('多选菜单', 'Selection menu')
+  const actions = [
+    { label: zh('选中本页', 'Select page'), action: onSelectPage, disabled: !pageAvailable },
+    { label: zh('取消本页', 'Deselect page'), action: onDeselectPage, disabled: !pageAvailable },
+    { label: zh('选中全部', 'Select all'), action: onSelectAll, disabled: !allAvailable },
+    { label: zh('取消全部', 'Deselect all'), action: onDeselectAll, disabled: !allAvailable },
+  ]
+  return (
+    <>
+      <Tooltip title={label} arrow>
+        <span className="inline-flex">
+          <IconButton
+            size="small"
+            color="primary"
+            onClick={(event) => setAnchorEl(event.currentTarget)}
+            disabled={busy}
+            aria-label={label}
+            aria-haspopup="menu"
+            aria-expanded={Boolean(anchorEl)}
+            sx={{ width: 24, height: 24 }}
+          >
+            <LibraryAddCheckOutlinedIcon sx={{ fontSize: 18 }} />
+          </IconButton>
+        </span>
+      </Tooltip>
+      <Menu
+        open={Boolean(anchorEl)}
+        anchorEl={anchorEl}
+        onClose={() => setAnchorEl(null)}
+        disableScrollLock
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+        MenuListProps={{ dense: true, 'aria-label': label }}
+      >
+        {actions.map(({ label: text, action, disabled }) => (
+          <MuiMenuItem
+            key={text}
+            disabled={busy || disabled}
+            onClick={() => {
+              setAnchorEl(null)
+              action?.()
+            }}
+          >
+            {text}
+          </MuiMenuItem>
+        ))}
+      </Menu>
+    </>
+  )
+}
+
 /**
  * Persistent top navigation bar: brand on the left, section links on the right.
  * The search icon collapses the links and reveals a centered search field, and
@@ -79,6 +141,15 @@ export default function TopNav({
   onOpenJavTagModal,
   onOpenTagModal,
   onOpenVideoSettings,
+  onClearSelection,
+  onOpenSelectionOps,
+  onSelectPage,
+  onDeselectPage,
+  onSelectAll,
+  onDeselectAll,
+  selectionPageAvailable = false,
+  selectionAllAvailable = false,
+  selectionBusy = false,
   onSearchInputChange,
   onSelectTab,
   onSubmitSearch,
@@ -254,6 +325,8 @@ export default function TopNav({
 
   // 入库 / 排序 belong to the JAV works list, whose controls now live in "更多".
   const showWorksListControls = Boolean(isJavMode) && (javTab || 'list') === 'list'
+  const activeSelectedCount = Number(selectionCount)
+  const hasSelection = Number.isFinite(activeSelectedCount) && activeSelectedCount > 0
 
   return (
     <header
@@ -269,6 +342,44 @@ export default function TopNav({
         >
           JavBoss
         </button>
+
+        {hasSelection ? (
+          <div
+            role="group"
+            aria-label={zh('多选', 'Multiple selection')}
+            className="border-app-purple/40 inline-flex flex-wrap items-center gap-1 rounded-full border bg-app-purple-soft px-1.5 py-1"
+          >
+            <SelectionMenu
+              onSelectPage={onSelectPage}
+              onDeselectPage={onDeselectPage}
+              onSelectAll={onSelectAll}
+              onDeselectAll={onDeselectAll}
+              pageAvailable={selectionPageAvailable}
+              allAvailable={selectionAllAvailable}
+              busy={selectionBusy}
+            />
+            <span className="whitespace-nowrap px-1.5 text-xs font-medium text-app-gold">
+              {zh(`已选 ${activeSelectedCount} 项`, `${activeSelectedCount} selected`)}
+            </span>
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={onOpenSelectionOps}
+              aria-label={zh('多选操作', 'Selection actions')}
+              className="topbar-selection-action"
+            >
+              {zh('操作', 'Actions')}
+            </Button>
+            <Button
+              variant="text"
+              size="small"
+              onClick={onClearSelection}
+              className="topbar-selection-action"
+            >
+              {zh('清空', 'Clear')}
+            </Button>
+          </div>
+        ) : null}
 
         {searchOpen ? (
           <div className="app-topnav__search">

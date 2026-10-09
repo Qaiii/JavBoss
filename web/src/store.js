@@ -8,6 +8,7 @@ import { createConfigSlice } from '@/state/createConfigSlice'
 import { createTagSlice } from '@/state/createTagSlice'
 import { createDirectorySlice } from '@/state/createDirectorySlice'
 import { create } from 'zustand'
+import { createWatchedTimeSlice } from '@/state/createWatchedTimeSlice'
 import { directoryScopeResetState } from '@/state/model'
 import { dislikeJavIdolWork as postJavIdolWorkDislike, fetchJavExternalWorks } from '@/api'
 import {
@@ -83,6 +84,7 @@ export function createAppState(set, get) {
     get().invalidateFavoriteRequests()
   }
   return {
+    ...createWatchedTimeSlice({ set }),
     ...createVideoSlice({ set, get, lists }),
     ...createJavSlice({ set, get, lists }),
     ...createNavigationSlice({ set }),

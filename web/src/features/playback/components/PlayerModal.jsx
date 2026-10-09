@@ -67,7 +67,9 @@ import {
 } from '@/utils/subtitleStyle'
 import SubtitleStylePanel from '@/features/jav/components/SubtitleStylePanel'
 import { startWatchTracking } from '@/features/playback/watchTime'
+import { createBrowserResume } from '@/features/playback/browserResume'
 import { createPlaybackSession, reportPlaybackSession } from '@/features/playback/api'
+import { fetchTools } from '@/features/settings/api'
 
 const VOLUME_STORAGE_KEY = 'javboss.player.volume'
 const CONTROLS_HIDE_DELAY_MS = 3000
@@ -114,7 +116,8 @@ function formatSignedAmount(amount) {
 
 export default function PlayerModal({
   video,
-  startTime = 0,
+  startTime = null,
+  resumePlayback = true,
   episodes = [],
   onSwitchVideo,
   onClose,
@@ -223,7 +226,7 @@ export default function PlayerModal({
   const [subPreview, setSubPreview] = useState(null) // { label, text }
   const [subNotice, setSubNotice] = useState('')
   const [subtitleStyle, setSubtitleStyle] = useState(loadSubtitleStyle)
-  const [screenshotNotice, setScreenshotNotice] = useState(false)
+  const [screenshotNotice, setScreenshotNotice] = useState('')
   const [videoSize, setVideoSize] = useState(null) // { width, height } of the source video
   const [playing, setPlaying] = useState(false)
   const [waiting, setWaiting] = useState(false)
@@ -285,8 +288,8 @@ export default function PlayerModal({
     lines.push(zh('长按方向键可持续调节', 'Hold arrow keys to repeat'))
     lines.push(
       zh(
-        '你可在「设置 → 播放器 → 浏览器播放器」里关闭此信息显示',
-        'You can hide this message under Settings → Player → Browser Player.'
+        '你可在「设置 → 播放器 → 网页播放器」里关闭此信息显示',
+        'You can hide this message under Settings → Player → Web Player.'
       )
     )
     return lines
@@ -947,7 +950,7 @@ export default function PlayerModal({
       setPlaybackInfo(null)
       setPlaybackError('')
       setLoadingPlayback(false)
-      setScreenshotNotice(false)
+      setScreenshotNotice('')
       setVideoSize(null)
       exitPipModeRef.current()
       setLocalSubtitles([])
@@ -968,7 +971,7 @@ export default function PlayerModal({
     setLoadingPlayback(true)
     setPlaybackError('')
     setPlaybackInfo(null)
-    setScreenshotNotice(false)
+    setScreenshotNotice('')
     setVideoSize(null)
 
     fetchPlaybackInfo(video.id, { locationId: video.location_id })
@@ -1155,6 +1158,7 @@ export default function PlayerModal({
       autoplay: true,
       preload: 'auto',
       bigPlayButton: false,
+      errorDisplay: false,
     })
 
     playerRef.current = player
@@ -1162,9 +1166,15 @@ export default function PlayerModal({
       selectedSource.kind === 'direct'
         ? playbackInfo?.sources?.find((item) => item.kind === 'hls') || null
         : null
-    const resume = resumePositionRef.current
-    const fromProp = Number(startTime)
-    const nextStartTime = resume > 0.5 ? resume : fromProp
+    const browserResume = createBrowserResume({
+      videoId: video.id,
+      locationId: video.location_id,
+      enabled: resumePlayback,
+    })
+    const explicitStart = startTime != null && Number.isFinite(Number(startTime))
+    const inSession = resumePositionRef.current
+    const nextStartTime =
+      inSession > 0.5 ? inSession : explicitStart ? Number(startTime) : browserResume.position
     const stopPlayback = startBrowserPlayback(
       player,
       selectedSource,
@@ -1176,8 +1186,26 @@ export default function PlayerModal({
           zh('当前视频无法在浏览器中播放', 'This video cannot be played in the browser')
         setPlaybackError(message)
         onPlaybackErrorRef.current?.(message)
+      },
+      {
+        resume: !explicitStart && inSession <= 0.5,
+        onPosition: (seconds, duration) => browserResume.record(seconds, duration),
+        onEnded: () => browserResume.complete(),
+        beforeTranscode: async () => {
+          const tools = await fetchTools()
+          if (!tools.ffmpeg?.installed && !tools.ffmpeg?.upgrade_available) {
+            throw new Error(
+              zh(
+                '此视频需要转码播放，但尚未安装 FFmpeg。请前往「设置 → 工具」下载 FFmpeg，安装完成后重新打开视频。',
+                'This video requires transcoding, but FFmpeg is not installed. Download FFmpeg in Settings → Tools, then reopen the video after installation.'
+              )
+            )
+          }
+        },
       }
     )
+    const flushResume = () => browserResume.flush()
+    window.addEventListener('pagehide', flushResume)
 
     const playerEl = player.el()
     const savedVolume = (() => {
@@ -1199,6 +1227,7 @@ export default function PlayerModal({
     const syncTime = () => {
       const time = player.currentTime() || 0
       resumePositionRef.current = time
+      browserResume.record(time, player.duration())
       setCurrentTime(time)
     }
     const syncDuration = () =>
@@ -1233,20 +1262,23 @@ export default function PlayerModal({
     const captureScreenshot = () => {
       if (!video?.id || screenshotInFlightRef.current) return
       const second = Math.max(0, Number(player.currentTime()) || 0)
+      const showNotice = (message, duration = 1600) => {
+        if (player.isDisposed()) return
+        if (screenshotNoticeTimerRef.current) {
+          window.clearTimeout(screenshotNoticeTimerRef.current)
+        }
+        setScreenshotNotice(message)
+        screenshotNoticeTimerRef.current = window.setTimeout(() => {
+          setScreenshotNotice('')
+          screenshotNoticeTimerRef.current = null
+        }, duration)
+      }
       screenshotInFlightRef.current = true
+      showNotice(zh('已截图', 'Screenshot taken'))
       createVideoScreenshot(video.id, { second, locationId: video.location_id })
-        .then(() => {
-          if (screenshotNoticeTimerRef.current) {
-            window.clearTimeout(screenshotNoticeTimerRef.current)
-          }
-          setScreenshotNotice(true)
-          screenshotNoticeTimerRef.current = window.setTimeout(() => {
-            setScreenshotNotice(false)
-            screenshotNoticeTimerRef.current = null
-          }, 1600)
-        })
         .catch((err) => {
           console.error(zh('截图失败', 'Failed to capture screenshot'), err)
+          showNotice(zh('截图失败', 'Screenshot failed'), 3000)
         })
         .finally(() => {
           screenshotInFlightRef.current = false
@@ -1319,6 +1351,7 @@ export default function PlayerModal({
       setPlaying(false)
     }
     const handleEnded = () => {
+      browserResume.complete()
       setPlaying(false)
       setEnded(true)
       setWaiting(false)
@@ -1451,9 +1484,6 @@ export default function PlayerModal({
       }
     }
     const applyStartTime = () => {
-      const resume = resumePositionRef.current
-      const fromProp = Number(startTime)
-      const nextStartTime = resume > 0.5 ? resume : fromProp
       if (!Number.isFinite(nextStartTime) || nextStartTime <= 0) return
       applySeek(nextStartTime)
     }
@@ -1569,6 +1599,8 @@ export default function PlayerModal({
       setPendingSeekTime(null)
       // 清理悬停预览：取消在途请求、释放抽帧缓存
       clearFrameCache()
+      window.removeEventListener('pagehide', flushResume)
+      browserResume.flush()
       stopPlayback()
       playerRef.current?.dispose()
       playerRef.current = null
@@ -1577,6 +1609,7 @@ export default function PlayerModal({
   }, [
     video,
     startTime,
+    resumePlayback,
     selectedSource,
     playbackInfo,
     playbackKey,
@@ -1921,11 +1954,11 @@ export default function PlayerModal({
             ...subtitleStyleCssVars(subtitleStyle),
           }}
         >
-          {screenshotNotice || (hotkeyHintVisible && !isPiP) ? (
+          {!playbackError && (screenshotNotice || (hotkeyHintVisible && !isPiP)) ? (
             <div className="pointer-events-none absolute left-3 top-3 z-10 flex max-w-[calc(100%-1.5rem)] flex-col items-start gap-2">
               {screenshotNotice ? (
                 <div className="rounded bg-black/75 px-3 py-1.5 text-sm font-medium text-white shadow">
-                  {zh('截图成功', 'Screenshot saved')}
+                  {screenshotNotice}
                 </div>
               ) : null}
               {hotkeyHintVisible && !isPiP ? (

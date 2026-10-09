@@ -19,6 +19,7 @@ import {
 import { zh } from '@/utils/i18n'
 import PhotoLibraryOutlinedIcon from '@mui/icons-material/PhotoLibraryOutlined'
 import { MovieEdit } from '@mui/icons-material'
+import WatchTimeIcons from '@/features/playback/components/WatchTimeIcons'
 import VideoThumbnail from '@/features/video/components/VideoThumbnail'
 
 export default function VideoCard({
@@ -193,7 +194,8 @@ export default function VideoCard({
             {displayName}
           </div>
         </div>
-        <div className="mt-2 flex flex-wrap items-center gap-1">
+        <div className="mt-2 flex min-w-0 items-start gap-2">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
           <span className="inline-flex h-4 items-center rounded bg-app-surface-2 px-1 text-[10px] font-medium text-app-text">
             {durationMinutes
               ? zh(`${durationMinutes} 分钟`, `${durationMinutes} min`)
@@ -229,6 +231,8 @@ export default function VideoCard({
               {actualFormat.toUpperCase()}
             </span>
           ) : null}
+          </div>
+          <WatchTimeIcons watchedMs={video?.watched_ms} entityType="videos" entityId={video.id} />
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-1">
           {video.tags?.length

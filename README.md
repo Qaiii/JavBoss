@@ -78,10 +78,10 @@ curl -fsSL https://raw.githubusercontent.com/Solr159/JavBoss/main/scripts/instal
 
 点击下载对应系统的最新版发布包并解压：
 
-- [Windows](https://github.com/Solr159/JavBoss/releases/download/v2.1.1/javboss-v2.1.1-windows-x86_64.zip)
-- [Linux](https://github.com/Solr159/JavBoss/releases/download/v2.1.1/javboss-v2.1.1-linux-x86_64.zip)
-- [macOS-x86_64](https://github.com/Solr159/JavBoss/releases/download/v2.1.1/javboss-v2.1.1-macos-x86_64.zip)（适用于 Intel 芯片的 macOS）
-- [macOS-arm64](https://github.com/Solr159/JavBoss/releases/download/v2.1.1/javboss-v2.1.1-macos-arm64.zip)（适用于 M 芯片的 macOS）
+- [Windows](https://github.com/Solr159/JavBoss/releases/download/v2.1.2/javboss-v2.1.2-windows-x86_64.zip)
+- [Linux](https://github.com/Solr159/JavBoss/releases/download/v2.1.2/javboss-v2.1.2-linux-x86_64.zip)
+- [macOS-x86_64](https://github.com/Solr159/JavBoss/releases/download/v2.1.2/javboss-v2.1.2-macos-x86_64.zip)（适用于 Intel 芯片的 macOS）
+- [macOS-arm64](https://github.com/Solr159/JavBoss/releases/download/v2.1.2/javboss-v2.1.2-macos-arm64.zip)（适用于 M 芯片的 macOS）
 
 也可以前往 [Releases](https://github.com/Solr159/JavBoss/releases) 页面查看所有版本。
 
@@ -125,7 +125,7 @@ docker compose up -d
 
 添加目录时直接填写宿主机路径，例如 `/mnt/disk1/videos`，程序会自动映射到容器内可访问路径。
 
-Docker 部署下默认只能使用浏览器播放器（维护力度较弱只保证基本可用性），可参考[Client 模式](#client-模式)以使用 MPV 播放器获得更好的播放体验。
+Docker 部署下默认只能使用网页播放器，如需使用 MPV 可参考[Client 模式](#client-模式)。
 
 
 </dd>

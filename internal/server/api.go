@@ -24,6 +24,8 @@ func RegisterRoutes(router gin.IRoutes) {
 	router.GET("/tools/scraped-data-cleanup", getScrapedDataCleanup)
 	router.POST("/tools/scraped-data-cleanup", runScrapedDataCleanup)
 	router.GET("/videos", listVideos)
+	router.GET("/videos/watched-time", getWatchedTime)
+	router.GET("/videos/watched-time/events", streamWatchedTime)
 	router.GET("/videos/screenshots", listVideosScreenshots)
 	router.GET("/videos/:id", getVideo)
 	router.GET("/videos/:id/streams", getVideoStreams)
