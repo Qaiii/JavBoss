@@ -99,6 +99,13 @@ test('picture-in-picture window can be resized from the corner handle', () => {
   assert.match(player, /saveStoredPipSize/)
 })
 
+test('local subtitle files turn on by default and stay off after a manual disable', () => {
+  assert.match(player, /resolveAutoLocalSubtitle/)
+  assert.match(player, /subtitleDismissedRef\.current = true/)
+  assert.match(player, /subtitleDismissedRef\.current = false/)
+  assert.match(player, /pendingSubtitle\?\.kind === 'local'/)
+})
+
 test('document picture-in-picture can grow beyond the current window width while dragging', () => {
   assert.match(player, /pipResizeMaxWidth/)
   assert.doesNotMatch(

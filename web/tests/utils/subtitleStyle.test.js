@@ -43,6 +43,19 @@ test('normalizes subtitle style with fallbacks and clamps', () => {
   assert.equal(normalizeSubtitleStyle({ edge: 'neon' }).edge, 'outline')
 })
 
+test('outline shadow rings the glyph so square corners stay closed', () => {
+  const outline = subtitleEdgeCss('outline')
+  for (const shadow of [
+    '0 -0.04em 0 #000',
+    '0 0.04em 0 #000',
+    '-0.04em 0 0 #000',
+    '0.04em 0 0 #000',
+  ]) {
+    assert.ok(outline.includes(shadow), shadow)
+  }
+  assert.equal(outline.split(',').length, 8)
+})
+
 test('builds css variables for the player shell', () => {
   const vars = subtitleStyleCssVars({
     scale: 1.5,

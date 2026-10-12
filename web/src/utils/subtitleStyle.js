@@ -30,10 +30,22 @@ const BACKGROUND_CSS = {
   solid: 'rgba(0, 0, 0, 0.88)',
 }
 
+// Four diagonal copies leave a gap on every square corner. A full ring
+// (up/down/left/right as well as the diagonals) keeps the stroke closed.
+const OUTLINE_SHADOW = [
+  '0 -0.04em 0 #000',
+  '0.028em -0.028em 0 #000',
+  '0.04em 0 0 #000',
+  '0.028em 0.028em 0 #000',
+  '0 0.04em 0 #000',
+  '-0.028em 0.028em 0 #000',
+  '-0.04em 0 0 #000',
+  '-0.028em -0.028em 0 #000',
+].join(', ')
+
 const EDGE_CSS = {
   none: 'none',
-  outline:
-    '-0.06em -0.06em 0 #000, 0.06em -0.06em 0 #000, -0.06em 0.06em 0 #000, 0.06em 0.06em 0 #000',
+  outline: OUTLINE_SHADOW,
   shadow: '0 0.05em 0.16em #000, 0 0 0.28em #000, 0 0 0.08em #000',
 }
 

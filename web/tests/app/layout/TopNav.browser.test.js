@@ -142,3 +142,47 @@ test(
     assert.deepEqual(await evaluate('window.appErrors'), [])
   }
 )
+
+test(
+  'a drilled-in page highlights its own top tab, and clicking the list tab returns home',
+  { skip: browserUnavailable, timeout: 60000 },
+  async (t) => {
+    const { origin, command, evaluate, waitFor } = await openBrowser(t)
+    const current = (name) =>
+      `document.querySelector('${navItem(name)}')?.getAttribute('aria-current') === 'page'`
+    const noneCurrent = `document.querySelector('header.app-topnav [aria-current="page"]') === null`
+
+    await command('Page.navigate', { url: `${origin}/tests/fixtures/app.html?view=jav` })
+    await waitFor(current('list'))
+
+    await evaluate(
+      `window.testStore.setState({ viewMode: 'jav', javTab: 'list', javIdolIds: [601] })`
+    )
+    await waitFor(noneCurrent)
+
+    await evaluate(
+      `window.testStore.setState({ javIdolIds: [], javSeriesId: 3, javSeriesName: 'Series' })`
+    )
+    await waitFor(current('series'))
+
+    await evaluate(
+      `window.testStore.setState({ javSeriesId: null, javSeriesName: '', javStudioId: 4, javStudioName: 'Studio' })`
+    )
+    await waitFor(current('studio'))
+
+    await evaluate(
+      `window.testStore.setState({ javStudioId: null, javStudioName: '', javTags: [9] })`
+    )
+    await waitFor(current('tags'))
+
+    await evaluate(`window.testStore.setState({ javTags: [], javIdolIds: [601] })`)
+    await waitFor(noneCurrent)
+    await clickNavItem(evaluate, waitFor, 'list')
+    await waitFor(
+      `window.testStore.getState().javTab === 'list' && window.testStore.getState().javIdolIds.length === 0`
+    )
+    await waitFor(current('list'))
+
+    assert.deepEqual(await evaluate('window.appErrors'), [])
+  }
+)

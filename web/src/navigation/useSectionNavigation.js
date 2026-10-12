@@ -1,6 +1,7 @@
 import { useStore } from '@/store'
 import { useShallow } from 'zustand/react/shallow'
 import { createDefaultIdolProfileFilters } from '@/constants/jav'
+import { resolveTopNavTab } from '@/navigation/topNavTab'
 import { useCallback } from 'react'
 
 export default function useSectionNavigation({
@@ -146,7 +147,18 @@ export default function useSectionNavigation({
             : tab === 'download'
               ? 'download'
               : 'list'
-    if (isJavMode && nextTab === javTab) return
+    const state = useStore.getState()
+    const currentNavTab = resolveTopNavTab({
+      isJavMode: state.viewMode === 'jav',
+      javTab: state.javTab,
+      javIdolIds: state.javIdolIds,
+      javSeriesId: state.javSeriesId,
+      javStudioId: state.javStudioId,
+      javTags: state.javTags,
+    })
+    // A detail page can sit on the list tab. Clicking that tab still has to
+    // leave the detail and return to the section home.
+    if (isJavMode && nextTab === state.javTab && currentNavTab === nextTab) return
     handleSwitchJavTab(nextTab)
   }
 

@@ -59,6 +59,7 @@ import { selectPlaybackSource, startBrowserPlayback } from '@/utils/browserPlayb
 import useOverlayHistory from '@/navigation/useOverlayHistory'
 import { zh } from '@/utils/i18n'
 import { getErrorMessage } from '@/utils/errors'
+import { resolveAutoLocalSubtitle } from '@/utils/localSubtitle'
 import {
   DEFAULT_SUBTITLE_STYLE,
   loadSubtitleStyle,
@@ -218,6 +219,10 @@ export default function PlayerModal({
   // ---- 字幕 ----
   const [localSubtitles, setLocalSubtitles] = useState([])
   const [activeSubtitle, setActiveSubtitle] = useState(null) // { kind:'local', name } | { kind:'online', id }
+  const activeSubtitleRef = useRef(null)
+  activeSubtitleRef.current = activeSubtitle
+  // 用户在当前这部片子里手动关掉字幕后，直到换片前不再自动打开。
+  const subtitleDismissedRef = useRef(false)
   const [subSearchItems, setSubSearchItems] = useState([])
   const [subSearchQuery, setSubSearchQuery] = useState('')
   const [subDetailTracks, setSubDetailTracks] = useState({}) // { [code]: { loading, title, tracks, lookupCode, error } }
@@ -319,10 +324,14 @@ export default function PlayerModal({
   }, [episodes])
   const activeEpisodeKey = video?.location_id ? String(video.location_id) : `id:${video?.id || 0}`
 
-  // 切换播放文件（选集/换源）时，清除上一部视频遗留的字幕选择与菜单状态
+  // 切换播放文件（选集/换源）时，清除上一部视频遗留的字幕选择与菜单状态。
+  // 新片子若有本地字幕，会在列表返回后重新自动启用。
   useEffect(() => {
     resumePositionRef.current = 0
+    subtitleDismissedRef.current = false
+    activeSubtitleRef.current = null
     setActiveSubtitle(null)
+    setLocalSubtitles([])
     setSubMenu(null)
     setSubPreview(null)
     setSubNotice('')
@@ -553,22 +562,34 @@ export default function PlayerModal({
     setSubtitleStyle(saveSubtitleStyle(DEFAULT_SUBTITLE_STYLE))
   }, [])
 
-  // 打开播放器时加载同目录本地字幕
+  // 打开播放器或换片时加载同目录本地字幕。已有本地文件则默认启用第一条
+  // （列表按文件名匹配度排序）。在线搜索结果不在这里选择。
   useEffect(() => {
     let cancelled = false
-    if (!video?.id) {
+    const videoId = video?.id
+    if (!videoId) {
       setLocalSubtitles([])
       return undefined
     }
-    fetchLocalSubtitles(video.id)
+    fetchLocalSubtitles(videoId)
       .then((items) => {
-        if (!cancelled) setLocalSubtitles(items)
+        if (cancelled) return
+        const list = Array.isArray(items) ? items : []
+        setLocalSubtitles(list)
+        const pick = resolveAutoLocalSubtitle(
+          activeSubtitleRef.current,
+          list,
+          subtitleDismissedRef.current
+        )
+        if (!pick) return
+        activeSubtitleRef.current = pick
+        setActiveSubtitle(pick)
       })
       .catch(() => {}) // 本地字幕加载失败不打扰播放
     return () => {
       cancelled = true
     }
-  }, [video])
+  }, [video?.id, playbackKey])
 
   // 播放器准备好了之后：把当前字幕 track 的显示状态同步为 activeSubtitle
   const applyActiveSubtitleToTracks = useCallback((player, active) => {
@@ -589,61 +610,47 @@ export default function PlayerModal({
       for (const track of player.textTracks()) track.mode = 'hidden'
       if (subRetryRef.current) window.clearTimeout(subRetryRef.current)
       subRetryRef.current = window.setTimeout(() => {
+        if (subtitleDismissedRef.current) return
+        const current = activeSubtitleRef.current
+        if (!current || current.kind !== active.kind) return
+        if (current.kind === 'local' && current.name !== active.name) return
+        if (current.kind === 'online' && current.id !== active.id) return
         applyActiveSubtitleToTracks(playerRef.current, active)
       }, 500)
     }
   }, [])
 
-  // 播放/切换一条字幕（local 或 online）。online 只建立远程 track，内容经后端代理转换。
-  const playSubtitle = useCallback(
-    (target) => {
-      const player = playerRef.current
-      if (!player || !video?.id) return
-      if (target == null) {
-        setActiveSubtitle(null)
-        setSubMenu(null)
-        setMenuOpen(null)
-        applyActiveSubtitleToTracks(player, null)
-        return
-      }
+  // 把一条字幕挂到播放器上。不改菜单、不改“手动关闭”标记。
+  const ensureSubtitleTrack = useCallback(
+    (player, target) => {
+      if (!player || !video?.id || !target) return
       if (target.kind === 'local') {
         const base = `/videos/${video.id}/subtitles/vtt?name=${encodeURIComponent(target.name)}`
         const tracks = player.textTracks()
         const existing = Array.from(tracks || []).find((t) => t.label === target.name)
-        if (existing) {
-          setActiveSubtitle(target)
-          setSubMenu(null)
-          setMenuOpen(null)
-          applyActiveSubtitleToTracks(player, target)
-          return
+        if (!existing) {
+          player.addRemoteTextTrack(
+            {
+              kind: 'subtitles',
+              label: target.name,
+              language: 'zh',
+              src: base,
+              mode: 'showing',
+              default: true,
+            },
+            true
+          )
         }
-        player.addRemoteTextTrack(
-          {
-            kind: 'subtitles',
-            label: target.name,
-            language: 'zh',
-            src: base,
-            mode: 'showing',
-            default: true,
-          },
-          true
-        )
-        setActiveSubtitle(target)
-        setSubMenu(null)
-        setMenuOpen(null)
-      } else if (target.kind === 'online') {
-        const base = `/videos/${video.id}/subtitles/vtt?code=${encodeURIComponent(
-          target.code
-        )}&subtitle_id=${encodeURIComponent(target.id)}`
-        const tracks = player.textTracks()
-        const existing = Array.from(tracks || []).find((t) => t.label === `online:${target.id}`)
-        if (existing) {
-          setActiveSubtitle(target)
-          setSubMenu(null)
-          setMenuOpen(null)
-          applyActiveSubtitleToTracks(player, target)
-          return
-        }
+        applyActiveSubtitleToTracks(player, target)
+        return
+      }
+      if (target.kind !== 'online') return
+      const base = `/videos/${video.id}/subtitles/vtt?code=${encodeURIComponent(
+        target.code
+      )}&subtitle_id=${encodeURIComponent(target.id)}`
+      const tracks = player.textTracks()
+      const existing = Array.from(tracks || []).find((t) => t.label === `online:${target.id}`)
+      if (!existing) {
         player.addRemoteTextTrack(
           {
             kind: 'subtitles',
@@ -655,12 +662,47 @@ export default function PlayerModal({
           },
           true
         )
-        setActiveSubtitle(target)
-        setSubMenu(null)
-        setMenuOpen(null)
       }
+      applyActiveSubtitleToTracks(player, target)
     },
     [video, applyActiveSubtitleToTracks]
+  )
+  const ensureSubtitleTrackRef = useRef(ensureSubtitleTrack)
+  ensureSubtitleTrackRef.current = ensureSubtitleTrack
+
+  // 本地字幕在列表返回或播放器重建后挂上。手动关闭时 ref 已被清空，这里不会再打开。
+  useEffect(() => {
+    if (subtitleDismissedRef.current) return
+    const target = activeSubtitleRef.current
+    if (!target || target.kind !== 'local') return
+    const player = playerRef.current
+    if (!player) return
+    ensureSubtitleTrack(player, target)
+  }, [activeSubtitle, playbackKey, selectedSource?.src, ensureSubtitleTrack])
+
+  // 播放/切换一条字幕（local 或 online）。online 只建立远程 track，内容经后端代理转换。
+  const playSubtitle = useCallback(
+    (target) => {
+      if (target == null) {
+        subtitleDismissedRef.current = true
+        activeSubtitleRef.current = null
+        setActiveSubtitle(null)
+        setSubMenu(null)
+        setMenuOpen(null)
+        const player = playerRef.current
+        if (player) applyActiveSubtitleToTracks(player, null)
+        return
+      }
+      const player = playerRef.current
+      if (!player || !video?.id) return
+      subtitleDismissedRef.current = false
+      activeSubtitleRef.current = target
+      setActiveSubtitle(target)
+      setSubMenu(null)
+      setMenuOpen(null)
+      ensureSubtitleTrack(player, target)
+    },
+    [video, applyActiveSubtitleToTracks, ensureSubtitleTrack]
   )
 
   // 搜索在线字幕：默认用当前视频番号，允许手动改关键词
@@ -1518,6 +1560,10 @@ export default function PlayerModal({
       syncDuration()
       syncBuffered()
       syncVolumeState()
+      const pendingSubtitle = activeSubtitleRef.current
+      if (pendingSubtitle?.kind === 'local' && !subtitleDismissedRef.current) {
+        ensureSubtitleTrackRef.current?.(player, pendingSubtitle)
+      }
       // 画中画时页面要继续点选其它卡片，不要把焦点抢回播放器
       if (!isPiPRef.current) focusPlayer()
       const techEl = player.tech(true)?.el()

@@ -167,7 +167,7 @@ export function IdolTagList({
           <a
             key={idol.id || idol.name}
             href={buildIdolFilterHref(idol)}
-            className="rounded-full bg-purple-100 px-2 py-1 text-xs font-medium text-purple-700 transition hover:bg-purple-200"
+            className="rounded-full bg-app-purple-soft px-2 py-1 text-xs font-medium text-app-gold transition hover:bg-app-hover"
             onMouseEnter={(event) => onIdolHoverStart(idol, event)}
             onMouseLeave={onIdolHoverEnd}
             onClick={(event) => onFilterLinkClick(event, () => onIdolClick?.(idol))}
@@ -180,8 +180,8 @@ export function IdolTagList({
             expanded={expanded}
             count={idols.length}
             title={toggleTitle}
-            expandedClassName="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-gray-300 bg-gray-50 text-gray-600 shadow-sm transition hover:border-gray-400 hover:bg-gray-100"
-            collapsedClassName="inline-flex h-6 shrink-0 items-center gap-1 rounded-md border border-purple-300 bg-white px-1.5 text-[11px] font-semibold text-purple-700 shadow-sm transition hover:border-purple-500 hover:bg-purple-50"
+            expandedClassName="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-app-border bg-app-surface-2 text-app-muted shadow-sm transition hover:border-app-border-strong hover:bg-app-hover"
+            collapsedClassName="inline-flex h-6 shrink-0 items-center gap-1 rounded-md border border-app-gold/40 bg-app-purple-soft px-1.5 text-[11px] font-semibold text-app-gold shadow-sm transition hover:border-app-gold hover:bg-app-hover"
             onToggle={() => setExpanded((current) => !current)}
           />
         ) : null}
@@ -318,8 +318,8 @@ export function JavTagList({ tags, maxRows, buildTagFilterHref, onTagClick, onFi
             expanded={expanded}
             count={tags.length}
             title={toggleTitle}
-            expandedClassName="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-gray-300 bg-gray-50 text-gray-600 shadow-sm transition hover:border-gray-400 hover:bg-gray-100"
-            collapsedClassName="inline-flex h-6 shrink-0 items-center gap-1 rounded-md border border-orange-300 bg-white px-1.5 text-[11px] font-semibold text-orange-700 shadow-sm transition hover:border-orange-500 hover:bg-orange-50"
+            expandedClassName="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-app-border bg-app-surface-2 text-app-muted shadow-sm transition hover:border-app-border-strong hover:bg-app-hover"
+            collapsedClassName="inline-flex h-6 shrink-0 items-center gap-1 rounded-md border border-orange-400/50 bg-app-surface-2 px-1.5 text-[11px] font-semibold text-orange-300 shadow-sm transition hover:border-orange-300 hover:bg-app-hover"
             onToggle={() => setExpanded((current) => !current)}
           />
         ) : null}

@@ -113,13 +113,13 @@ export default function JavCard(props) {
   return (
     <>
       <div
-        className={`jav-card flex flex-col overflow-hidden rounded-lg border bg-white shadow-sm transition hover:shadow-lg ${checked ? 'border-sky-400 ring-2 ring-sky-200' : ''}`}
+        className={`jav-card app-card flex flex-col ${checked ? 'app-card--selected' : ''}`}
       >
-        <div className="card-hover-scope group relative aspect-[800/538] overflow-hidden bg-white">
+        <div className="card-hover-scope group relative aspect-[800/538] overflow-hidden bg-app-surface-2">
           {cover ? (
             <JavCoverImage src={cover} alt={item?.code || zh('JAV 封面', 'JAV cover')} />
           ) : (
-            <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 text-lg font-semibold text-gray-600">
+            <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-app-surface-2 to-app-hover text-lg font-semibold text-app-muted">
               {item?.code || zh('未知番号', 'Unknown code')}
             </div>
           )}
@@ -259,7 +259,7 @@ export default function JavCard(props) {
                   }}
                   className={`card-hover-focus-visible flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-black/65 shadow-lg shadow-black/40 transition hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-60 [@media(hover:none)]:opacity-100 ${
                     checked
-                      ? 'text-sky-300 opacity-100'
+                      ? 'text-app-gold opacity-100'
                       : 'text-white opacity-0 group-hover:opacity-100'
                   }`}
                 >
@@ -356,11 +356,11 @@ export default function JavCard(props) {
         </div>
         <div className="flex flex-1 flex-col gap-2 p-3">
           <div className="text-sm leading-tight" title={titleText} style={titleClampStyle}>
-            {codeText ? <span className="font-semibold text-gray-800">{codeText}</span> : null}
+            {codeText ? <span className="font-semibold text-app-text">{codeText}</span> : null}
             {codeText ? ' ' : null}
-            <span className="font-medium text-gray-800">{mainTitle}</span>
+            <span className="font-medium text-app-text">{mainTitle}</span>
           </div>
-          <div className="flex min-w-0 items-center gap-2 text-xs text-gray-600">
+          <div className="flex min-w-0 items-center gap-2 text-xs text-app-muted">
             <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-x-3 overflow-hidden">
               <span className="inline-flex shrink-0 items-center gap-1">
                 <Tooltip title={zh('发行日期', 'Release date')} arrow>
@@ -384,14 +384,14 @@ export default function JavCard(props) {
                     <span className="inline-flex">
                       <VideocamOutlinedIcon
                         sx={{ fontSize: 16 }}
-                        className="shrink-0 text-sky-600"
+                        className="shrink-0 text-app-gold"
                       />
                     </span>
                   </Tooltip>
                   <a
                     href={buildStudioFilterHref(item.studio)}
                     className={`block min-w-0 truncate text-left ${
-                      canFilterStudio ? 'cursor-pointer hover:text-blue-700 hover:underline' : ''
+                      canFilterStudio ? 'cursor-pointer hover:text-app-gold hover:underline' : ''
                     }`}
                     onClick={(event) =>
                       handleFilterLinkClick(event, () => {
@@ -409,19 +409,19 @@ export default function JavCard(props) {
             <WatchTimeIcons watchedMs={item?.watched_ms} entityType="javs" entityId={item?.id} />
           </div>
           {!hideSeries && seriesText ? (
-            <div className="flex min-w-0 items-center gap-1 text-xs text-gray-600">
+            <div className="flex min-w-0 items-center gap-1 text-xs text-app-muted">
               <Tooltip title={zh('系列', 'Series')} arrow>
                 <span className="inline-flex">
                   <CollectionsBookmarkOutlinedIcon
                     sx={{ fontSize: 14 }}
-                    className="shrink-0 text-emerald-600"
+                    className="shrink-0 text-app-gold"
                   />
                 </span>
               </Tooltip>
               <a
                 href={buildSeriesFilterHref(preferredSeries)}
                 className={`min-w-0 whitespace-normal break-words text-left leading-snug ${
-                  canFilterSeries ? 'cursor-pointer hover:text-blue-700 hover:underline' : ''
+                  canFilterSeries ? 'cursor-pointer hover:text-app-gold hover:underline' : ''
                 }`}
                 onClick={(event) =>
                   handleFilterLinkClick(event, () => {
@@ -592,7 +592,7 @@ export default function JavCard(props) {
                 </Tooltip>
               </div>
               {Array.isArray(item?.videos) && item.videos.length > 1 && (
-                <span className="text-xs text-gray-500">
+                <span className="text-xs text-app-muted">
                   {zh(`${item.videos.length} 个视频`, `${item.videos.length} video files`)}
                 </span>
               )}

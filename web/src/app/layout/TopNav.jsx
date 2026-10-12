@@ -449,8 +449,8 @@ export default function TopNav({
             <button
               type="button"
               data-nav="tags"
-              className={`app-topnav__item ${tagManagerOpen ? 'is-active' : ''}`}
-              aria-current={tagManagerOpen ? 'page' : undefined}
+              className={`app-topnav__item ${activeTab === 'tags' || tagManagerOpen ? 'is-active' : ''}`}
+              aria-current={activeTab === 'tags' || tagManagerOpen ? 'page' : undefined}
               onClick={openTagManager}
             >
               {zh('标签', 'Tags')}

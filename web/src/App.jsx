@@ -16,6 +16,7 @@ import useContentRestoration from '@/navigation/useContentRestoration'
 import useSectionNavigation from '@/navigation/useSectionNavigation'
 import useDocumentTitle from '@/shared/hooks/useDocumentTitle'
 import { buildLibraryPageTitle, formatPageTitle } from '@/navigation/pageTitle'
+import { resolveTopNavTab } from '@/navigation/topNavTab'
 import useJavSelection from '@/features/jav/hooks/useJavSelection'
 import FilterPanel from '@/app/layout/FilterPanel'
 import TopNav from '@/app/layout/TopNav'
@@ -587,7 +588,14 @@ export default function App() {
   return (
     <div className="app-shell min-h-screen">
       <TopNav
-        activeTab={isJavMode ? javTab : 'video'}
+        activeTab={resolveTopNavTab({
+          isJavMode,
+          javTab,
+          javIdolIds,
+          javSeriesId,
+          javStudioId,
+          javTags,
+        })}
         buildJavPrefixUrl={(item) =>
           buildJavUrl({
             page: 1,

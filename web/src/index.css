@@ -245,9 +245,11 @@ body.has-page-scroll .sticky-pagination {
   top: 0;
   z-index: 50;
   width: 100%;
-  border-bottom: 1px solid var(--border);
-  background: rgba(26, 22, 18, 0.92);
-  box-shadow: 0 10px 24px -18px rgba(8, 4, 16, 0.9);
+  background: transparent;
+}
+
+body.has-page-scroll .app-topnav {
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
 }
@@ -503,13 +505,12 @@ body.has-page-scroll .sticky-pagination {
    below the hover menu so the two never fight over the same anchor. */
 .app-topnav__panel {
   position: absolute;
-  top: 100%;
-  right: 0;
+  top: calc(100% + 8px);
+  right: var(--topbar-right-padding);
   z-index: 55;
   width: min(64rem, calc(100vw - 1rem));
   border: 1px solid var(--border);
-  border-top: 0;
-  border-radius: 0 0 14px 14px;
+  border-radius: 14px;
   background: var(--surface);
   box-shadow: 0 22px 48px rgba(8, 4, 16, 0.62);
 }
