@@ -94,6 +94,7 @@ type JavScanVideo struct {
 // JavUpdateInput contains user-editable JAV metadata fields.
 type JavUpdateInput struct {
 	Title          *string
+	ZhTitle        *string
 	StudioID       *int64
 	SeriesID       *int64
 	IdolIDs        *[]int64
@@ -441,13 +442,19 @@ func UpdateJav(ctx context.Context, javID int64, input JavUpdateInput, directory
 	}
 	err := common.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var javRec models.Jav
-		if err := tx.Select("id", "studio_id").Where("id = ?", javID).First(&javRec).Error; err != nil {
+		if err := tx.Select("id", "studio_id", "title").Where("id = ?", javID).First(&javRec).Error; err != nil {
 			return fmt.Errorf("find jav: %w", err)
 		}
 
 		updates := map[string]any{}
 		if input.Title != nil {
 			updates["title"] = strings.TrimSpace(*input.Title)
+			if updates["title"] != javRec.Title {
+				updates["zh_title"] = ""
+			}
+		}
+		if input.ZhTitle != nil {
+			updates["zh_title"] = strings.TrimSpace(*input.ZhTitle)
 		}
 		if input.ReleaseUnix != nil {
 			releaseUnix := *input.ReleaseUnix
@@ -1163,7 +1170,7 @@ func buildJavFilter(ctx context.Context, idolIDs []int64, tagIDs []int64, search
 	q = q.Where("EXISTS (?)", validLocation)
 	if search != "" {
 		like := fmt.Sprintf("%%%s%%", search)
-		q = q.Where("code LIKE ? OR title LIKE ?", like, like)
+		q = q.Where("code LIKE ? OR title LIKE ? OR zh_title LIKE ?", like, like, like)
 	}
 	if filters.StudioID == 0 {
 		q = q.Where("studio_id IS NULL")
@@ -2014,10 +2021,11 @@ type JavIdolFilters struct {
 
 // JavIdolCoverOption represents one visible JAV work that can be used as an idol card cover.
 type JavIdolCoverOption struct {
-	ID    int64  `json:"id"`
-	Code  string `json:"code"`
-	Title string `json:"title"`
-	Solo  bool   `json:"solo"`
+	ID      int64  `json:"id"`
+	Code    string `json:"code"`
+	Title   string `json:"title"`
+	ZhTitle string `json:"zh_title"`
+	Solo    bool   `json:"solo"`
 }
 
 func applyJavIdolSearch(q *gorm.DB, search string) *gorm.DB {
@@ -2516,14 +2524,15 @@ func ListIdolCoverOptions(ctx context.Context, idolID int64, directoryIDs []int6
 		Group("jim_count.jav_id")
 
 	var rows []struct {
-		ID    int64
-		Code  string
-		Title string
-		Solo  int
+		ID      int64
+		Code    string
+		Title   string
+		ZhTitle string
+		Solo    int
 	}
 	query := common.DB.WithContext(ctx).
 		Table("jav_idol_map jim").
-		Select("j.id, j.code, j.title, CASE WHEN s.c = 1 THEN 1 ELSE 0 END AS solo").
+		Select("j.id, j.code, j.title, j.zh_title, CASE WHEN s.c = 1 THEN 1 ELSE 0 END AS solo").
 		Joins("JOIN jav j ON j.id = jim.jav_id").
 		Joins("JOIN video_location vl ON vl.jav_id = j.id").
 		Joins("JOIN directory d ON d.id = vl.directory_id").
@@ -2532,7 +2541,7 @@ func ListIdolCoverOptions(ctx context.Context, idolID int64, directoryIDs []int6
 		Where(activeDirectoryWhereSQL("d"))
 	query = applyDirectoryFilter(query, "vl", directoryIDs)
 	if err := query.
-		Group("j.id, j.code, j.title, solo").
+		Group("j.id, j.code, j.title, j.zh_title, solo").
 		Order("solo DESC, j.code ASC").
 		Scan(&rows).Error; err != nil {
 		return nil, fmt.Errorf("list idol cover options: %w", err)
@@ -2545,10 +2554,11 @@ func ListIdolCoverOptions(ctx context.Context, idolID int64, directoryIDs []int6
 			continue
 		}
 		options = append(options, JavIdolCoverOption{
-			ID:    row.ID,
-			Code:  code,
-			Title: strings.TrimSpace(row.Title),
-			Solo:  row.Solo == 1,
+			ID:      row.ID,
+			Code:    code,
+			Title:   strings.TrimSpace(row.Title),
+			ZhTitle: strings.TrimSpace(row.ZhTitle),
+			Solo:    row.Solo == 1,
 		})
 	}
 	return options, nil
@@ -3293,10 +3303,12 @@ func saveJavInfoTx(tx *gorm.DB, info *metadata.JavInfo, now ...time.Time) (*mode
 		return nil, errors.New("english JAV metadata cannot be persisted")
 	}
 	javRec.Code = info.Code
-	javRec.Title = info.Title
-	if zhTitle := strings.TrimSpace(info.ZhTitle); zhTitle != "" {
-		javRec.ZhTitle = zhTitle
+	if javRec.Title != info.Title {
+		javRec.ZhTitle = ""
 	}
+	javRec.Title = info.Title
+	// Chinese titles belong to manual editing and AI translation. Scraped
+	// localized titles (including cached JavDB results) must not replace them.
 	javRec.ReleaseUnix = info.ReleaseUnix
 	javRec.DurationMin = info.DurationMin
 	javRec.FetchedAt = ts

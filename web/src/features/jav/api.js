@@ -1,4 +1,120 @@
 import { apiFetch, jsonHeaders, apiError } from '@/api/client'
+import { zh } from '@/utils/i18n'
+
+export async function translateJavTitles(ids, { onItem = () => {} } = {}) {
+  const res = await apiFetch('/jav/title-translation/items', {
+    method: 'POST',
+    headers: { ...jsonHeaders, Accept: 'application/x-ndjson' },
+    body: JSON.stringify({ ids }),
+  })
+  if (!res.ok) throw await apiError(res)
+  const result = { items: [], error: null }
+  const accept = (event) => {
+    if (event.item) {
+      result.items.push(event.item)
+      onItem(event.item)
+    }
+    if (event.error_zh || event.error_en) {
+      result.error ||= new Error(zh(event.error_zh, event.error_en))
+    }
+    return event.done === true
+  }
+  const reader = res.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  const incomplete = () =>
+    new Error(
+      zh(
+        '翻译连接中断，请重试未完成的影片。',
+        'Translation connection interrupted; retry unfinished titles.'
+      )
+    )
+  try {
+    for (;;) {
+      const { value, done } = await reader.read()
+      buffer += decoder.decode(value, { stream: !done })
+      let end
+      while ((end = buffer.indexOf('\n')) !== -1) {
+        const line = buffer.slice(0, end).trim()
+        buffer = buffer.slice(end + 1)
+        if (!line) continue
+        let event
+        try {
+          event = JSON.parse(line)
+        } catch {
+          throw incomplete()
+        }
+        if (accept(event)) return result
+      }
+      if (done || buffer.length > 131072) throw result.error || incomplete()
+    }
+  } finally {
+    await reader.cancel().catch(() => {})
+    reader.releaseLock()
+  }
+}
+
+export async function fetchTitleTranslationModels({ signal, provider, profile, discover } = {}) {
+  const res = await apiFetch('/jav/title-translation/models', {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify({ provider, profile, discover }),
+    signal,
+  })
+  if (!res.ok) throw await apiError(res)
+  return res.json()
+}
+
+export async function translateJavTitle(id, { title, thinking } = {}) {
+  const res = await apiFetch(`/jav/items/${encodeURIComponent(id)}/title-translation`, {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify({ title, thinking }),
+  })
+  if (!res.ok) throw await apiError(res)
+  return res.json()
+}
+
+export async function testTitleTranslation({ provider, profile, prompt, title }) {
+  const res = await apiFetch('/jav/title-translation/test', {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify({ provider, profile, prompt, title }),
+  })
+  if (!res.ok) throw await apiError(res)
+  return res.json()
+}
+
+export async function previewTitleTranslationBatch(scope = 'missing', { signal } = {}) {
+  const res = await apiFetch(
+    `/jav/title-translation/batch/preview?scope=${encodeURIComponent(scope)}`,
+    { cache: 'no-store', signal }
+  )
+  if (!res.ok) throw await apiError(res)
+  return res.json()
+}
+
+export async function stopTitleTranslationBatch() {
+  const res = await apiFetch('/jav/title-translation/batch', { method: 'DELETE' })
+  if (!res.ok) throw await apiError(res)
+  return res.json()
+}
+
+export async function startTitleTranslationBatch(scope = 'missing', confirmOverwrite = false) {
+  const res = await apiFetch('/jav/title-translation/batch', {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify({ scope, confirm_overwrite: confirmOverwrite }),
+  })
+  if (!res.ok) throw await apiError(res)
+  return res.json()
+}
+
+export async function fetchTitleTranslationBatch({ signal } = {}) {
+  const res = await apiFetch('/jav/title-translation/batch', { signal, cache: 'no-store' })
+  if (!res.ok) throw await apiError(res)
+  return res.json()
+}
 
 export const javIdolResolveInFlight = new Map()
 

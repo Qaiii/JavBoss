@@ -105,3 +105,161 @@ test('JAV watch icon settings persist independently and invalid values use 30 mi
     )
   }
 })
+
+test('translation settings keep saved keys private and omit untouched credentials', async (t) => {
+  const [model, actions, { useStore }] = await loadModules(t, [
+    'features/settings/titleTranslation.js',
+    'features/settings/actions.js',
+    'store.js',
+  ])
+  useStore.setState({
+    config: {
+      jav_title_translation_enabled: 'true',
+      jav_title_translation_profiles: JSON.stringify({
+        deepseek: { api_key_set: true, model: 'official-model' },
+      }),
+      jav_title_translation_prompt: 'Custom prompt',
+    },
+  })
+  let payload
+  t.mock.method(globalThis, 'fetch', async (_url, init) => {
+    payload = JSON.parse(init.body)
+    const profile = payload.jav_title_translation_profiles.deepseek
+    return Response.json({
+      ...payload,
+      jav_title_translation_enabled: useStore.getState().config.jav_title_translation_enabled,
+      jav_title_translation_profiles: JSON.stringify({
+        deepseek: { ...profile, api_key: undefined, api_key_set: profile.api_key !== '' },
+      }),
+    })
+  })
+  const draft = model.createTitleTranslationDraft(useStore.getState().config)
+  assert.equal(draft.apiKey, '')
+  assert.equal(draft.thinking, false)
+  await actions.saveTitleTranslationSettings(draft)
+  assert.equal(payload.jav_title_translation_profiles.deepseek.thinking, false)
+  assert.equal(Object.hasOwn(payload.jav_title_translation_profiles.deepseek, 'api_key'), false)
+  assert.equal(payload.jav_title_translation_prompt, 'Custom prompt')
+  assert.equal(Object.hasOwn(payload, 'jav_title_translation_enabled'), false)
+  draft.apiKey = 'replacement-key'
+  draft.thinking = true
+  await actions.saveTitleTranslationSettings(draft)
+  assert.equal(payload.jav_title_translation_profiles.deepseek.thinking, true)
+  assert.equal(model.createTitleTranslationDraft(useStore.getState().config).thinking, true)
+  assert.equal(payload.jav_title_translation_profiles.deepseek.api_key, 'replacement-key')
+  assert.equal(useStore.getState().config.jav_title_translation_api_key, undefined)
+  Object.assign(draft, {
+    apiKey: '',
+    clearApiKey: true,
+    hasApiKey: false,
+  })
+  await actions.saveTitleTranslationSettings(draft)
+  assert.equal(payload.jav_title_translation_profiles.deepseek.api_key, '')
+})
+
+test('display settings save the title preference independently of translation configuration', async (t) => {
+  const [model, actions, { useStore }] = await loadModules(t, [
+    'features/settings/model.js',
+    'features/settings/actions.js',
+    'store.js',
+  ])
+  let payload
+  t.mock.method(globalThis, 'fetch', async (_url, init) => {
+    payload = JSON.parse(init.body)
+    return Response.json(payload)
+  })
+  const draft = model.createJavSettingsDraft(useStore.getState())
+  assert.equal(draft.javTitlePreferChineseInput, true)
+  await actions.saveJavSettings(draft, () => {})
+  assert.equal(payload.jav_title_prefer_chinese, true)
+  draft.javTitlePreferChineseInput = false
+  await actions.saveJavSettings(draft, () => {})
+  assert.equal(payload.jav_title_prefer_chinese, false)
+  assert.equal(model.createJavSettingsDraft(useStore.getState()).javTitlePreferChineseInput, false)
+  assert.equal(Object.hasOwn(payload, 'jav_title_translation_enabled'), false)
+  assert.equal(Object.hasOwn(payload, 'jav_title_translation_prompt'), false)
+  assert.equal(Object.hasOwn(payload, 'jav_title_translation_profiles'), false)
+})
+
+test('provider switching preserves independent unsaved profiles and request templates', async (t) => {
+  const [settings] = await loadModules(t, ['features/settings/titleTranslation.js'])
+  let draft = settings.createTitleTranslationDraft({
+    jav_title_translation_profiles: JSON.stringify({
+      deepseek: { api_key_set: true, model: 'deepseek-flash' },
+      kimi: { api_key_set: true, model: 'kimi-k2.5' },
+    }),
+  })
+  draft.apiKey = 'new-deepseek-key'
+  draft = settings.changeTranslationDraft(draft, { provider: 'kimi' })
+  assert.equal(draft.apiKey, '')
+  assert.equal(draft.model, 'kimi-k2.5')
+  draft.model = 'kimi-k2.6'
+  draft = settings.changeTranslationDraft(draft, { provider: 'custom' })
+  draft.baseUrl = 'http://localhost:1234/v1'
+  draft.model = 'local'
+  draft.request = JSON.stringify({
+    url: '{{base_url}}/translate',
+    body: { text: '{{title}}' },
+    response_path: '/translation',
+  })
+  const profiles = settings.translationProfiles(draft)
+  assert.equal(profiles.deepseek.api_key, 'new-deepseek-key')
+  assert.equal(profiles.kimi.api_key, undefined)
+  assert.equal(profiles.kimi.model, 'kimi-k2.6')
+  assert.equal(profiles.custom.request.body.text, '{{title}}')
+  draft = settings.changeTranslationDraft(draft, { provider: 'deepseek' })
+  assert.equal(draft.apiKey, 'new-deepseek-key')
+  assert.equal(draft.model, 'deepseek-flash')
+})
+
+test('provider picker uses only the backend catalog and its endpoint defaults', async (t) => {
+  const [settings] = await loadModules(t, ['features/settings/titleTranslation.js'])
+  for (const catalog of [undefined, '', '[]', '{}']) {
+    const draft = settings.createTitleTranslationDraft({ jav_title_translation_catalog: catalog })
+    assert.deepEqual(draft.catalog, [])
+  }
+  const catalog = [
+    { id: 'deepseek', name: 'DeepSeek', base_url: 'https://deepseek.test', protocol: 'chat' },
+    { id: 'openai', name: 'OpenAI', base_url: 'https://openai.test/v1', protocol: 'responses' },
+    { id: 'custom', name: 'Custom', base_url: '', protocol: 'chat' },
+  ]
+  const draft = settings.createTitleTranslationDraft({
+    jav_title_translation_catalog: JSON.stringify(catalog),
+  })
+  assert.deepEqual(draft.catalog, catalog)
+  assert.equal(draft.baseUrl, catalog[0].base_url)
+  assert.equal(draft.customAddress, false)
+  const openai = settings.changeTranslationDraft(draft, { provider: 'openai' })
+  assert.equal(openai.baseUrl, catalog[1].base_url)
+  assert.equal(openai.protocol, 'responses')
+  const custom = settings.changeTranslationDraft(openai, { provider: 'custom' })
+  assert.equal(custom.baseUrl, '')
+})
+
+test('Chinese title display defaults on and is independent of automatic translation', async (t) => {
+  const [{ preferChineseTitle }, settings] = await loadModules(t, [
+    'features/jav/titleTranslation.js',
+    'features/settings/titleTranslation.js',
+  ])
+  assert.equal(preferChineseTitle({}), true)
+  for (const enabled of ['true', 'false']) {
+    for (const preference of [undefined, '', 'true', 'false']) {
+      assert.equal(
+        preferChineseTitle({
+          jav_title_translation_enabled: enabled,
+          jav_title_prefer_chinese: preference,
+        }),
+        preference !== 'false'
+      )
+    }
+  }
+  const draft = settings.createTitleTranslationDraft({
+    jav_title_translation_enabled: 'true',
+    jav_title_prefer_chinese: 'false',
+    jav_title_translation_default_prompt: 'Default',
+  })
+  const next = settings.changeTranslationDraft(draft, { provider: 'openai' })
+  assert.equal(Object.hasOwn(next, 'enabled'), false)
+  assert.equal(Object.hasOwn(next, 'preferChinese'), false)
+  assert.equal(next.defaultPrompt, 'Default')
+})

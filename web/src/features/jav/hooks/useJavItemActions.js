@@ -1,3 +1,4 @@
+import { preferChineseTitle } from '@/features/jav/titleTranslation'
 import { useMemo, useState, useContext, useEffect, useRef } from 'react'
 import { getIdolCardLayoutProps } from '@/features/jav/components/JavIdolGrid'
 import { JavDetailNavigationContext } from '@/navigation/javDetailNavigation'
@@ -81,7 +82,8 @@ export default function useJavItemActions({
   const seriesText = String(preferredSeries?.name || '').trim()
   const canFilterSeries = seriesText && typeof onSeriesClick === 'function'
   const codeText = code
-  const mainTitle = getJavDisplayTitle(item)
+  const translateTitle = useStore((state) => preferChineseTitle(state.config))
+  const mainTitle = getJavDisplayTitle(item, translateTitle)
   const titleText = [codeText, mainTitle].filter(Boolean).join(' ')
   const normalizedTitleMaxRows = normalizeJavTitleMaxRows(titleMaxRows)
   const titleClampStyle =
