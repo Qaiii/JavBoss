@@ -1,4 +1,8 @@
-import { preferChineseTitle } from '@/features/jav/titleTranslation'
+import {
+  preferChineseTitle,
+  preferChineseSeries,
+  getSeriesDisplayName,
+} from '@/features/jav/titleTranslation'
 import { useMemo, useState, useContext, useEffect, useRef } from 'react'
 import { getIdolCardLayoutProps } from '@/features/jav/components/JavIdolGrid'
 import { JavDetailNavigationContext } from '@/navigation/javDetailNavigation'
@@ -47,6 +51,7 @@ export default function useJavItemActions({
   loadStudioPreview,
   loadSeriesPreview,
   onIdolPreviewUpdated,
+  onSeriesPreviewUpdated,
   onOpenCoverPreview,
   preferChineseName = false,
   titleMaxRows,
@@ -79,10 +84,11 @@ export default function useJavItemActions({
   const studioText = String(item?.studio?.name || '').trim()
   const canFilterStudio = studioText && typeof onStudioClick === 'function'
   const preferredSeries = item?.series
-  const seriesText = String(preferredSeries?.name || '').trim()
-  const canFilterSeries = seriesText && typeof onSeriesClick === 'function'
   const codeText = code
   const translateTitle = useStore((state) => preferChineseTitle(state.config))
+  const translateSeries = useStore((state) => preferChineseSeries(state.config))
+  const seriesText = getSeriesDisplayName(preferredSeries, translateSeries)
+  const canFilterSeries = seriesText && typeof onSeriesClick === 'function'
   const mainTitle = getJavDisplayTitle(item, translateTitle)
   const titleText = [codeText, mainTitle].filter(Boolean).join(' ')
   const normalizedTitleMaxRows = normalizeJavTitleMaxRows(titleMaxRows)
@@ -322,6 +328,7 @@ export default function useJavItemActions({
   const [seriesHoverAnchorEl, setSeriesHoverAnchorEl] = useState(null)
   const [idolCoverEditorItem, setIdolCoverEditorItem] = useState(null)
   const [idolEditorItem, setIdolEditorItem] = useState(null)
+  const [seriesEditorItem, setSeriesEditorItem] = useState(null)
   const closeTimerRef = useRef(null)
   const activeIdolHoverIdRef = useRef(null)
   const activeStudioHoverIdRef = useRef(null)
@@ -394,7 +401,7 @@ export default function useJavItemActions({
         studioId: null,
         studioName: '',
         seriesId: id,
-        seriesName: series?.name || '',
+        seriesName: getSeriesDisplayName(series, translateSeries),
         prefix: '',
         favoriteRatingEnabled: false,
         random: false,
@@ -500,6 +507,17 @@ export default function useJavItemActions({
   const handleOpenIdolEditor = (idol) => {
     clearHoverCloseTimer()
     setIdolEditorItem(idol)
+  }
+
+  const handleOpenSeriesEditor = (series) => {
+    clearHoverCloseTimer()
+    clearHoverPreview()
+    setSeriesEditorItem(series)
+  }
+
+  const handleSeriesSaved = (updated) => {
+    onSeriesPreviewUpdated?.(updated)
+    setSeriesEditorItem(null)
   }
 
   const handleIdolSaved = (updated) => {
@@ -649,6 +667,7 @@ export default function useJavItemActions({
     onOpenFavorites,
     handleOpenIdolCoverEditor,
     handleOpenIdolEditor,
+    handleOpenSeriesEditor,
     coverAspectPercent,
     showIdolWorkCount,
     hideTags,
@@ -682,6 +701,9 @@ export default function useJavItemActions({
     setIdolCoverEditorItem,
     handleIdolCoverSaved,
     idolEditorItem,
+    seriesEditorItem,
+    setSeriesEditorItem,
+    handleSeriesSaved,
     setIdolEditorItem,
     handleIdolSaved,
     setPreviewIdol,

@@ -6,8 +6,10 @@ import { useStore } from '@/store'
 import '@/index.css'
 
 window.testStore = useStore
+window.loadJavs = useStore.getState().loadJavs
 window.translationRequests = []
 window.testFailure = false
+window.pendingConfigResponses = []
 const capabilities = {
   reasoning: 'toggle',
   temperature: true,
@@ -15,8 +17,8 @@ const capabilities = {
   efforts: ['low', 'medium', 'high'],
 }
 let config = {
-  jav_title_prefer_chinese: 'true',
-  jav_title_translation_enabled: 'false',
+  jav_title_translation_enabled: 'true',
+  jav_series_translation_enabled: 'false',
   jav_title_translation_provider: 'deepseek',
   jav_title_translation_catalog: JSON.stringify([
     { id: 'deepseek', name: 'DeepSeek', base_url: 'https://api.deepseek.com', protocol: 'chat' },
@@ -52,7 +54,11 @@ window.fetch = async (input, init = {}) => {
         )
       )
     }
-    return Response.json(config)
+    const response = Response.json(config)
+    if (window.holdConfigResponses) {
+      return new Promise((resolve) => window.pendingConfigResponses.push(() => resolve(response)))
+    }
+    return response
   }
   if (url.pathname.endsWith('/models'))
     return Response.json({

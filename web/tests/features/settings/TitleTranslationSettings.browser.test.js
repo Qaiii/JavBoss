@@ -3,6 +3,78 @@ import test from 'node:test'
 import { browserUnavailable, openBrowser } from '../../helpers/browser.js'
 
 test(
+  'series translation switch and batch use series endpoints with the shared provider',
+  { skip: browserUnavailable, timeout: 60000 },
+  async (t) => {
+    const { origin, command, evaluate, waitFor } = await openBrowser(t)
+    await command('Page.navigate', {
+      url: `${origin}/tests/fixtures/titleTranslationSettings.html`,
+    })
+    await waitFor(`document.querySelector('#series-translation-enabled')`)
+    assert.equal(await evaluate(`document.querySelector('#series-translation-auto-enabled')`), null)
+    assert.equal(
+      await evaluate(`document.querySelector('[data-translation-batch="series"]')`),
+      null
+    )
+    await evaluate(`document.querySelector('#series-translation-enabled').click()`)
+    await waitFor(`document.querySelector('#series-translation-auto-enabled')`)
+    for (const target of ['title', 'series']) {
+      assert.equal(
+        await evaluate(
+          `document.querySelector('#${target}-translation-enabled').closest('section') === document.querySelector('[data-translation-batch="${target}"]').closest('section')`
+        ),
+        true
+      )
+    }
+    assert.equal(
+      await evaluate(
+        `document.querySelector('#title-translation-enabled').closest('section') === document.querySelector('#series-translation-enabled').closest('section')`
+      ),
+      false
+    )
+    await evaluate(`document.querySelector('#series-translation-auto-enabled').click()`)
+    await waitFor(`window.testStore.getState().config.jav_series_translation_auto_enabled === true`)
+    assert.deepEqual(
+      await evaluate(`window.translationRequests.filter(r => r.path === '/config').at(-1).payload`),
+      { jav_series_translation_auto_enabled: true }
+    )
+    assert.equal(
+      await evaluate(`window.testStore.getState().config.jav_title_translation_auto_enabled`),
+      undefined
+    )
+    await evaluate(`document.querySelector('#series-translation-enabled').click()`)
+    await waitFor(`!document.querySelector('#series-translation-auto-enabled')`)
+    assert.equal(
+      await evaluate(`document.querySelector('[data-translation-batch="series"]')`),
+      null
+    )
+    await evaluate(`document.querySelector('#series-translation-enabled').click()`)
+    await waitFor(`document.querySelector('#series-translation-auto-enabled')?.checked`)
+    const batch = `document.querySelector('[data-translation-batch="series"]')`
+    await evaluate(`${batch}.querySelector('summary').click()`)
+    await waitFor(`${batch}.textContent.includes('Translate 3 series names')`)
+    await evaluate(
+      `[...${batch}.querySelectorAll('button')].find(b => b.textContent === 'Start translation').click()`
+    )
+    await waitFor(
+      `window.translationRequests.some(r => r.path === '/jav/series-translation/batch' && r.method === 'POST')`
+    )
+    assert.deepEqual(
+      await evaluate(
+        `window.translationRequests.find(r => r.path === '/jav/series-translation/batch' && r.method === 'POST').payload`
+      ),
+      { scope: 'missing', confirm_overwrite: false }
+    )
+    assert.equal(
+      await evaluate(
+        `window.translationRequests.some(r => r.path === '/jav/title-translation/batch' && r.method === 'POST')`
+      ),
+      false
+    )
+  }
+)
+
+test(
   'translation settings await the backend catalog and query capabilities only for model edits',
   { skip: browserUnavailable, timeout: 60000 },
   async (t) => {
@@ -75,14 +147,10 @@ test(
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, 'unsaved-model');
       input.dispatchEvent(new Event('input', { bubbles: true }));
     }`)
-    await evaluate(
-      `document.querySelector('[aria-label="Automatically translate missing titles"]').click()`
-    )
-    await waitFor(
-      `!document.querySelector('[aria-label="Automatically translate missing titles"]').disabled`
-    )
+    await evaluate(`document.querySelector('#title-translation-auto-enabled').click()`)
+    await waitFor(`!document.querySelector('#title-translation-auto-enabled').disabled`)
     assert.deepEqual(await evaluate(`${requests}.at(-1).payload`), {
-      jav_title_translation_enabled: true,
+      jav_title_translation_auto_enabled: true,
     })
     assert.equal(
       await evaluate(`document.querySelector('#title-translation-model').value`),
@@ -96,9 +164,7 @@ test(
     )
     assert.equal(await evaluate(`${requests}.length`), 1)
     assert.equal(
-      await evaluate(
-        `document.querySelector('[aria-label="Automatically translate missing titles"]').checked`
-      ),
+      await evaluate(`document.querySelector('#title-translation-auto-enabled').checked`),
       true
     )
     await evaluate(`${button('Edit')}.click()`)
@@ -113,16 +179,14 @@ test(
       false
     )
     assert.equal(
-      await evaluate(
-        `document.querySelector('[aria-label="Automatically translate missing titles"]').checked`
-      ),
+      await evaluate(`document.querySelector('#title-translation-auto-enabled').checked`),
       true
     )
   }
 )
 
 test(
-  'display preference can be saved independently and restores to enabled',
+  'display settings no longer expose Chinese title preference',
   { skip: browserUnavailable, timeout: 60000 },
   async (t) => {
     const { origin, command, evaluate, waitFor } = await openBrowser(t)
@@ -130,37 +194,23 @@ test(
       url: `${origin}/tests/fixtures/titleTranslationSettings.html`,
     })
     await waitFor(`document.querySelector('#title-translation-model')`)
-    const click = (text) =>
-      evaluate(
-        `[...document.querySelectorAll('button')].find(b => b.textContent === '${text}').click()`
-      )
-    const toggle = `document.querySelector('[role="switch"][aria-label="Prefer Chinese titles"]')`
-    await click('Display settings')
-    await waitFor(toggle)
-    assert.equal(await evaluate(`${toggle}.getAttribute('aria-checked')`), 'true')
-    await evaluate(`${toggle}.click()`)
-    await click('Save')
-    await waitFor(`!${toggle}`)
+    await evaluate(
+      `[...document.querySelectorAll('button')].find(b => b.textContent === 'Display settings').click()`
+    )
+    await waitFor(`document.querySelector('[role="dialog"]')`)
+    assert.equal(
+      await evaluate(`document.body.textContent.includes('Prefer Chinese titles')`),
+      false
+    )
+    await evaluate(
+      `[...document.querySelectorAll('button')].find(b => b.textContent === 'Save').click()`
+    )
+    await waitFor(`!document.querySelector('[role="dialog"]')`)
     const saved = await evaluate(
       `window.translationRequests.filter(r => r.path === '/config').at(-1).payload`
     )
-    assert.equal(saved.jav_title_prefer_chinese, false)
+    assert.equal(Object.hasOwn(saved, 'jav_title_prefer_chinese'), false)
     assert.equal(Object.hasOwn(saved, 'jav_title_translation_enabled'), false)
-    assert.equal(
-      await evaluate(`window.testStore.getState().config.jav_title_translation_enabled`),
-      'false'
-    )
-    await click('Display settings')
-    await waitFor(toggle)
-    assert.equal(await evaluate(`${toggle}.getAttribute('aria-checked')`), 'false')
-    await click('Restore defaults')
-    assert.equal(await evaluate(`${toggle}.getAttribute('aria-checked')`), 'true')
-    await click('Save')
-    await waitFor(`!${toggle}`)
-    assert.equal(
-      await evaluate(`window.testStore.getState().config.jav_title_prefer_chinese`),
-      true
-    )
   }
 )
 
@@ -320,5 +370,146 @@ test(
     )
     assert.deepEqual(batchPayload, { scope: 'all', confirm_overwrite: true })
     assert.equal(await evaluate(`${requests('/config')}.length`), 1)
+  }
+)
+
+test(
+  'translation switches save independently without flashing or reverting other switches',
+  { skip: browserUnavailable, timeout: 60000 },
+  async (t) => {
+    const { origin, command, evaluate, waitFor } = await openBrowser(t)
+    await command('Page.navigate', {
+      url: `${origin}/tests/fixtures/titleTranslationSettings.html`,
+    })
+    await waitFor(`document.querySelector('#series-translation-enabled')`)
+    await evaluate(`document.querySelector('#series-translation-enabled').click()`)
+    await waitFor(`document.querySelector('#series-translation-auto-enabled')`)
+    await evaluate(
+      `[...document.querySelectorAll('button')].find(button => button.textContent === 'Edit').click()`
+    )
+    await evaluate(
+      `window.holdConfigResponses = true; document.querySelector('#title-translation-auto-enabled').click()`
+    )
+    await waitFor(`window.pendingConfigResponses.length === 1`)
+    assert.equal(
+      await evaluate(`document.querySelector('#title-translation-auto-enabled').disabled`),
+      true
+    )
+    assert.equal(
+      await evaluate(`document.querySelector('#title-translation-model').matches(':disabled')`),
+      false
+    )
+    for (const id of [
+      'title-translation-enabled',
+      'series-translation-enabled',
+      'series-translation-auto-enabled',
+    ]) {
+      assert.equal(await evaluate(`document.querySelector('#${id}').disabled`), false)
+    }
+    await evaluate(`document.querySelector('#series-translation-auto-enabled').click()`)
+    await waitFor(`window.pendingConfigResponses.length === 2`)
+    // The second response arrives first; the older snapshot must not reset its switch.
+    await evaluate(`window.pendingConfigResponses[1]()`)
+    await waitFor(
+      `document.querySelector('#series-translation-auto-enabled').checked && !document.querySelector('#series-translation-auto-enabled').disabled`
+    )
+    await evaluate(`window.pendingConfigResponses[0]()`)
+    await waitFor(
+      `document.querySelector('#title-translation-auto-enabled').checked && !document.querySelector('#title-translation-auto-enabled').disabled`
+    )
+    assert.equal(
+      await evaluate(`document.querySelector('#series-translation-auto-enabled').checked`),
+      true
+    )
+    assert.equal(
+      await evaluate(`document.querySelector('#series-translation-auto-enabled').disabled`),
+      false
+    )
+    // Failed saves retain the persisted value and release only the affected switch.
+    await evaluate(
+      `window.holdConfigResponses = false; window.configFailure = true; document.querySelector('#title-translation-auto-enabled').click()`
+    )
+    await waitFor(`document.querySelector('[role="alert"]')?.textContent.includes('Save failed')`)
+    assert.equal(
+      await evaluate(`document.querySelector('#title-translation-auto-enabled').checked`),
+      true
+    )
+    assert.equal(
+      await evaluate(`document.querySelector('#title-translation-auto-enabled').disabled`),
+      false
+    )
+    assert.equal(
+      await evaluate(`document.querySelector('#series-translation-auto-enabled').checked`),
+      true
+    )
+  }
+)
+
+test(
+  'series batch completion refreshes series embedded in JAV and studio lists without automatic translation',
+  { skip: browserUnavailable, timeout: 60000 },
+  async (t) => {
+    const { origin, command, evaluate, waitFor } = await openBrowser(t)
+    await command('Page.navigate', {
+      url: `${origin}/tests/fixtures/titleTranslationSettings.html`,
+    })
+    await waitFor(`document.querySelector('#series-translation-enabled')`)
+    await evaluate(`(async () => {
+      window.listRequests = [];
+      window.seriesBatchStarted = false;
+      window.seriesBatchFinished = false;
+      const originalFetch = window.fetch;
+      window.fetch = async (input, init = {}) => {
+        const url = new URL(input, location.origin);
+        const path = url.pathname;
+        const translatedSeries = (id) => ({id, name:'Series ' + id, zh_name:window.seriesBatchFinished ? '中文系列 ' + id : ''});
+        if (path === '/jav/series-translation/batch') {
+          if (init.method === 'POST') {
+            window.seriesBatchStarted = true;
+            return Response.json({running:true,total:3,processed:0});
+          }
+          if (window.seriesBatchStarted) {
+            window.seriesBatchFinished = true;
+            return Response.json({running:false,total:3,processed:3,translated:3});
+          }
+        }
+        if (['/jav','/jav/series','/jav/studios'].includes(path)) {
+          window.listRequests.push({path,limit:Number(url.searchParams.get('limit'))});
+          const items = path === '/jav/series' ? [translatedSeries(1)] : path === '/jav'
+            ? [{id:1,code:'TEST-001',series:translatedSeries(2)}]
+            : [{id:1,name:'Studio',series:[translatedSeries(3)]}];
+          return Response.json({items,total:1});
+        }
+        return originalFetch(input, init);
+      };
+      window.testStore.setState({loadJavs:window.loadJavs});
+      await Promise.all(['loadJavs','loadJavSeries','loadJavStudios'].map(key => window.testStore.getState()[key]({force:true})));
+    })()`)
+    assert.equal(await evaluate('window.testStore.getState().javItems[0].series.zh_name'), '')
+    await evaluate(`document.querySelector('#series-translation-enabled').click()`)
+    await waitFor(`document.querySelector('[data-translation-batch="series"]')`)
+    assert.equal(
+      await evaluate(`document.querySelector('#series-translation-auto-enabled').checked`),
+      false
+    )
+    const batch = `document.querySelector('[data-translation-batch="series"]')`
+    await evaluate(`${batch}.querySelector('summary').click()`)
+    await waitFor(`${batch}.textContent.includes('Translate 3 series names')`)
+    await evaluate(
+      `[...${batch}.querySelectorAll('button')].find(button => button.textContent === 'Start translation').click()`
+    )
+    await waitFor(
+      `window.testStore.getState().seriesItems[0]?.zh_name === '中文系列 1' && window.testStore.getState().javItems[0]?.series.zh_name === '中文系列 2' && window.testStore.getState().studioItems[0]?.series[0].zh_name === '中文系列 3'`
+    )
+    for (const path of ['/jav', '/jav/series', '/jav/studios']) {
+      assert.equal(
+        await evaluate(`window.listRequests.filter(request => request.path === '${path}').length`),
+        2
+      )
+    }
+    assert.equal(
+      await evaluate(`window.translationRequests.some(request => request.path.endsWith('/items'))`),
+      false
+    )
   }
 )

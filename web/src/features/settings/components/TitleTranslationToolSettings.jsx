@@ -21,7 +21,8 @@ export default function TitleTranslationToolSettings() {
   const config = useStore((state) => state.config)
   const [draft, setDraft] = useState(() => createTitleTranslationDraft(config))
   const [editing, setEditing] = useState(false)
-  const [toggling, setToggling] = useState(false)
+  const [pendingSwitches, setPendingSwitches] = useState({})
+  const toggling = Object.values(pendingSwitches).some(Boolean)
   const [autoError, setAutoError] = useState('')
   const [saving, setSaving] = useState(false)
   const [testing, setTesting] = useState(false)
@@ -42,7 +43,7 @@ export default function TitleTranslationToolSettings() {
   }, [config, editing])
 
   const onChange = (patch) => {
-    if (!editing || saving || testing || toggling) return
+    if (!editing || saving || testing) return
     setDraft((current) => changeTranslationDraft(current, patch))
     setError('')
     setTestError('')
@@ -67,7 +68,7 @@ export default function TitleTranslationToolSettings() {
     }
   }
   const handleTest = async () => {
-    if (!editing || saving || testing || toggling || !sample.trim()) return
+    if (!editing || saving || testing || !sample.trim()) return
     setTesting(true)
     setResult('')
     setTestError('')
@@ -86,16 +87,17 @@ export default function TitleTranslationToolSettings() {
     }
   }
 
-  const handleAutoChange = async (enabled) => {
-    if (toggling || saving || testing) return
-    setToggling(true)
+  const handleAutoChange = async (enabled, target, automatic = false) => {
+    const key = `${target}-${automatic ? 'auto' : 'enabled'}`
+    if (pendingSwitches[key] || saving || testing) return
+    setPendingSwitches((current) => ({ ...current, [key]: true }))
     setAutoError('')
     try {
-      await saveTitleTranslationEnabled(enabled)
+      await saveTitleTranslationEnabled(enabled, target, automatic)
     } catch (err) {
       setAutoError(getErrorMessage(err))
     } finally {
-      setToggling(false)
+      setPendingSwitches((current) => ({ ...current, [key]: false }))
     }
   }
   const resetEditor = () => {
@@ -106,7 +108,7 @@ export default function TitleTranslationToolSettings() {
     setResult('')
     setSaved(false)
   }
-  const busy = saving || testing || toggling
+  const busy = saving || testing
 
   if (!draft.catalog.length) {
     return <p role="status">{zh('正在加载翻译配置…', 'Loading translation settings…')}</p>
@@ -114,53 +116,82 @@ export default function TitleTranslationToolSettings() {
 
   return (
     <div className="mx-auto w-full max-w-4xl space-y-4">
-      <p
-        data-translation-display-hint
-        className="rounded-xl bg-blue-50 px-4 py-3 text-xs leading-5 text-blue-800"
-      >
-        {zh(
-          '要展示自动翻译或批量翻译生成的中文标题，请在「显示设置 → JAV → 卡片设置」中确保「优先展示中文标题」已开启（默认开启）。',
-          'To display Chinese titles from automatic or batch translation, enable “Prefer Chinese titles” in Display settings → JAV → Card settings (enabled by default).'
-        )}
-      </p>
-
-      <section
-        aria-labelledby="translation-behavior-heading"
-        className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm"
-      >
-        <header className="flex items-center justify-between gap-6 px-5 pb-1 pt-4">
-          <h4 id="translation-behavior-heading" className="text-sm font-semibold text-zinc-900">
-            <label htmlFor="translation-auto-enabled" className="cursor-pointer">
-              {zh('自动翻译缺失标题', 'Automatically translate missing titles')}
-            </label>
-          </h4>
-          <Switch
-            size="small"
-            className="shrink-0"
-            checked={configFlag(config?.jav_title_translation_enabled)}
-            disabled={busy}
-            onChange={(_, checked) => void handleAutoChange(checked)}
-            slotProps={{
-              input: {
-                id: 'translation-auto-enabled',
-                'aria-label': zh('自动翻译缺失标题', 'Automatically translate missing titles'),
-              },
-            }}
-          />
-        </header>
-        <p className="px-5 pb-4 text-xs leading-5 text-zinc-500">
-          {zh(
-            '开启后自动翻译当前页缺失的中文标题。',
-            'Automatically translate missing Chinese titles on the current page.'
-          )}
-        </p>
-      </section>
+      {['title', 'series'].map((target) => {
+        const label =
+          target === 'title'
+            ? zh('JAV 标题翻译', 'JAV title translation')
+            : zh('JAV 系列翻译', 'JAV series translation')
+        const enabled = configFlag(config?.[`jav_${target}_translation_enabled`])
+        return (
+          <section
+            key={target}
+            aria-label={label}
+            className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm"
+          >
+            <header className="flex items-center justify-between gap-6 px-5 py-4">
+              <div>
+                <label
+                  htmlFor={`${target}-translation-enabled`}
+                  className="cursor-pointer text-sm font-semibold text-zinc-900"
+                >
+                  {label}
+                </label>
+                <p className="mt-1 text-xs leading-5 text-zinc-500">
+                  {zh(
+                    '开启后优先展示已有中文译文，没有译文时显示原文。',
+                    'Show Chinese translations when enabled, falling back to the original text.'
+                  )}
+                </p>
+              </div>
+              <Switch
+                size="small"
+                checked={enabled}
+                disabled={saving || testing || Boolean(pendingSwitches[`${target}-enabled`])}
+                onChange={(_, checked) => void handleAutoChange(checked, target)}
+                slotProps={{ input: { id: `${target}-translation-enabled`, 'aria-label': label } }}
+              />
+            </header>
+            {enabled && (
+              <div className="divide-y divide-zinc-100 border-t border-zinc-100">
+                <div className="flex items-center justify-between gap-6 px-5 py-4">
+                  <div>
+                    <label
+                      htmlFor={`${target}-translation-auto-enabled`}
+                      className="cursor-pointer text-sm font-medium text-zinc-700"
+                    >
+                      {zh('自动翻译', 'Automatic translation')}
+                    </label>
+                    <p className="mt-1 text-xs leading-5 text-zinc-500">
+                      {zh(
+                        '自动补齐当前页缺失的中文译文。',
+                        'Automatically fill missing Chinese translations on the current page.'
+                      )}
+                    </p>
+                  </div>
+                  <Switch
+                    size="small"
+                    checked={configFlag(config?.[`jav_${target}_translation_auto_enabled`])}
+                    disabled={saving || testing || Boolean(pendingSwitches[`${target}-auto`])}
+                    onChange={(_, checked) => void handleAutoChange(checked, target, true)}
+                    slotProps={{
+                      input: {
+                        id: `${target}-translation-auto-enabled`,
+                        'aria-label': zh('自动翻译', 'Automatic translation'),
+                      },
+                    }}
+                  />
+                </div>
+                <TitleTranslationBatchSettings dirty={dirty} target={target} />
+              </div>
+            )}
+          </section>
+        )
+      })}
       {autoError && (
         <p role="alert" className="text-sm text-red-600">
           {autoError}
         </p>
       )}
-      <TitleTranslationBatchSettings dirty={dirty} />
       <form onSubmit={handleSave}>
         <section
           aria-labelledby="translation-service-heading"
@@ -200,7 +231,7 @@ export default function TitleTranslationToolSettings() {
                   {zh('取消', 'Cancel')}
                 </button>
                 <button
-                  disabled={busy}
+                  disabled={busy || toggling}
                   type="submit"
                   className="ml-auto shrink-0 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
                 >

@@ -1,6 +1,8 @@
 import useJavPresentation from '@/features/jav/hooks/useJavPresentation'
 import useJavPreviews from '@/features/jav/hooks/useJavPreviews'
-import useJavTitleTranslation from '@/features/jav/hooks/useJavTitleTranslation'
+import useJavTitleTranslation, {
+  useJavSeriesTranslation,
+} from '@/features/jav/hooks/useJavTitleTranslation'
 import { useState, useMemo } from 'react'
 import { zh } from '@/utils/i18n'
 import JavCard from '@/features/jav/components/JavCard'
@@ -43,6 +45,11 @@ export default function JavGrid({
   onManageVideoTagClick,
 }) {
   const translation = useJavTitleTranslation(items)
+  const seriesItems = useMemo(
+    () => (items || []).flatMap((item) => (item.series ? [item.series] : [])),
+    [items]
+  )
+  const seriesTranslation = useJavSeriesTranslation(seriesItems)
   const {
     preferChineseName,
     hideSeries,
@@ -52,8 +59,13 @@ export default function JavGrid({
     showFullFavoriteRating,
     displayItems,
   } = useJavPresentation(items)
-  const { loadIdolPreview, loadStudioPreview, loadSeriesPreview, handleIdolPreviewUpdated } =
-    useJavPreviews()
+  const {
+    loadIdolPreview,
+    loadStudioPreview,
+    loadSeriesPreview,
+    handleIdolPreviewUpdated,
+    handleSeriesPreviewUpdated,
+  } = useJavPreviews()
   const [coverPreview, setCoverPreview] = useState(null)
   const [videoManagerItem, setVideoManagerItem] = useState(null)
   const activeVideoManagerItem = useMemo(() => {
@@ -87,13 +99,20 @@ export default function JavGrid({
 
   return (
     <>
-      {translation.error && (
-        <div role="alert" className="mb-3 flex items-center gap-3 text-sm text-red-600">
-          <span>{translation.error}</span>
-          <button type="button" className="shrink-0 underline" onClick={translation.retry}>
-            {zh('重试翻译', 'Retry translation')}
-          </button>
-        </div>
+      {[translation, seriesTranslation].map(
+        (status, index) =>
+          status.error && (
+            <div
+              key={index}
+              role="alert"
+              className="mb-3 flex items-center gap-3 text-sm text-red-600"
+            >
+              <span>{status.error}</span>
+              <button type="button" className="shrink-0 underline" onClick={status.retry}>
+                {zh('重试翻译', 'Retry translation')}
+              </button>
+            </div>
+          )
       )}
       <div className={gridClassName} style={gridStyle}>
         {displayItems.map((item) => (
@@ -133,6 +152,7 @@ export default function JavGrid({
             loadStudioPreview={loadStudioPreview}
             loadSeriesPreview={loadSeriesPreview}
             onIdolPreviewUpdated={handleIdolPreviewUpdated}
+            onSeriesPreviewUpdated={handleSeriesPreviewUpdated}
             onOpenCoverPreview={setCoverPreview}
             preferChineseName={preferChineseName}
             titleMaxRows={titleMaxRows}
