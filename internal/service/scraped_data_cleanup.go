@@ -10,7 +10,7 @@ import (
 	"javboss/internal/common/logging"
 	"javboss/internal/db"
 	"javboss/internal/jav"
-	"javboss/internal/manager"
+	"javboss/internal/jav/scrape/cover"
 )
 
 // ErrScrapedDataCleanupBusy is returned when a cleanup is already running.
@@ -54,14 +54,14 @@ func initScrapedDataCleanupManager() *scrapedDataCleanupManager {
 }
 
 func scrapedDataCleanupCoverDir() string {
-	if common.AppConfig == nil {
+	if common.CurrentConfig() == nil {
 		return ""
 	}
-	return common.AppConfig.JavCoverDir
+	return common.CurrentConfig().JavCoverDir
 }
 
 func previewScrapedDataCleanup(ctx context.Context) (ScrapedDataCleanupReport, error) {
-	if common.DB == nil {
+	if db.Conn() == nil {
 		return ScrapedDataCleanupReport{}, errors.New("nil db")
 	}
 	counts, err := db.CountUnusedScrapedData(ctx)
@@ -72,7 +72,7 @@ func previewScrapedDataCleanup(ctx context.Context) (ScrapedDataCleanupReport, e
 	if err != nil {
 		return ScrapedDataCleanupReport{}, err
 	}
-	covers, err := manager.CountUnusedCoverFiles(scrapedDataCleanupCoverDir(), keep)
+	covers, err := cover.CountUnusedCoverFiles(scrapedDataCleanupCoverDir(), keep)
 	if err != nil {
 		return ScrapedDataCleanupReport{}, err
 	}
@@ -93,7 +93,7 @@ func previewScrapedDataCleanup(ctx context.Context) (ScrapedDataCleanupReport, e
 }
 
 func runScrapedDataCleanup(ctx context.Context) (ScrapedDataCleanupReport, error) {
-	if common.DB == nil {
+	if db.Conn() == nil {
 		return ScrapedDataCleanupReport{}, errors.New("nil db")
 	}
 	counts, err := db.DeleteUnusedScrapedData(ctx)
@@ -104,7 +104,7 @@ func runScrapedDataCleanup(ctx context.Context) (ScrapedDataCleanupReport, error
 	if err != nil {
 		return ScrapedDataCleanupReport{}, err
 	}
-	covers, err := manager.RemoveUnusedCoverFiles(scrapedDataCleanupCoverDir(), keep)
+	covers, err := cover.RemoveUnusedCoverFiles(scrapedDataCleanupCoverDir(), keep)
 	if err != nil {
 		return ScrapedDataCleanupReport{}, err
 	}

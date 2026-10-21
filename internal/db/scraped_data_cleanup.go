@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strings"
 
-	"javboss/internal/common"
 	"javboss/internal/models"
 
 	"gorm.io/gorm"
@@ -66,12 +65,12 @@ func unusedSeriesQuery(tx *gorm.DB) *gorm.DB {
 // remove, including metadata that only becomes unused after orphan JAV rows
 // are deleted. The database is left unchanged.
 func CountUnusedScrapedData(ctx context.Context) (UnusedScrapedDataCounts, error) {
-	if common.DB == nil {
+	if Conn() == nil {
 		return UnusedScrapedDataCounts{}, fmt.Errorf("count unused scraped data: nil db")
 	}
 
 	var counts UnusedScrapedDataCounts
-	err := common.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err := Conn().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		deleted, err := deleteUnusedScrapedDataTx(tx)
 		if err != nil {
 			return err
@@ -92,12 +91,12 @@ func CountUnusedScrapedData(ctx context.Context) (UnusedScrapedDataCounts, error
 // any video location or other still-used API entity. It never deletes videos,
 // video locations, directories, or user-created tags.
 func DeleteUnusedScrapedData(ctx context.Context) (UnusedScrapedDataCounts, error) {
-	if common.DB == nil {
+	if Conn() == nil {
 		return UnusedScrapedDataCounts{}, fmt.Errorf("delete unused scraped data: nil db")
 	}
 
 	var counts UnusedScrapedDataCounts
-	err := common.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err := Conn().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		deleted, err := deleteUnusedScrapedDataTx(tx)
 		if err != nil {
 			return err
@@ -230,13 +229,13 @@ func pluckIDs(query *gorm.DB) ([]int64, error) {
 // ListKeptCoverCodes returns lowercase JAV codes whose cover files must be kept
 // because a library video or an idol-work listing still uses them.
 func ListKeptCoverCodes(ctx context.Context) (map[string]struct{}, error) {
-	if common.DB == nil {
+	if Conn() == nil {
 		return nil, fmt.Errorf("list kept cover codes: nil db")
 	}
 
 	keep := make(map[string]struct{})
 	var codes []string
-	if err := common.DB.WithContext(ctx).
+	if err := Conn().WithContext(ctx).
 		Model(&models.Jav{}).
 		Where("EXISTS (SELECT 1 FROM video_location WHERE video_location.jav_id = jav.id)").
 		Where("COALESCE(code, '') <> ''").
@@ -246,7 +245,7 @@ func ListKeptCoverCodes(ctx context.Context) (map[string]struct{}, error) {
 	addKeptCoverCodes(keep, codes)
 
 	codes = codes[:0]
-	if err := common.DB.WithContext(ctx).
+	if err := Conn().WithContext(ctx).
 		Model(&models.JavIdolWork{}).
 		Where("COALESCE(code, '') <> ''").
 		Distinct("code").

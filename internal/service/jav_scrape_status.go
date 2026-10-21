@@ -1,8 +1,8 @@
 package service
 
 import (
-	"javboss/internal/common"
 	"javboss/internal/jav"
+	"javboss/internal/jav/scrape/cover"
 	"javboss/internal/subtitle"
 )
 
@@ -38,10 +38,7 @@ func JavScrapeStatus() JavScrapeStatusReport {
 		IntervalMS: subtitle.RequestInterval().Milliseconds(),
 	})
 
-	coverPending := 0
-	if common.CoverManager != nil {
-		coverPending = common.CoverManager.PendingCount()
-	}
+	coverPending := cover.PendingCount()
 
 	return JavScrapeStatusReport{
 		Sources: sources,

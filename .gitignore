@@ -2,6 +2,7 @@
 .gomodcache/
 .merge-extract/
 data/
+/cache/
 docker-data/
 *.db
 .DS_Store

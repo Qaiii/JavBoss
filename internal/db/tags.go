@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"javboss/internal/common"
 	"javboss/internal/models"
 
 	"gorm.io/gorm"
@@ -25,26 +24,26 @@ type TagCount struct {
 }
 
 // CreateTag inserts a new tag with the provided name.
-func CreateTag(ctx context.Context, name string) (*models.Tag, error) {
+func (store *Store) CreateTag(ctx context.Context, name string) (*models.Tag, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return nil, errors.New("tag name cannot be empty")
 	}
 
 	tag := models.Tag{Name: name}
-	if err := common.DB.WithContext(ctx).Create(&tag).Error; err != nil {
+	if err := store.conn.WithContext(ctx).Create(&tag).Error; err != nil {
 		return nil, fmt.Errorf("create tag %q: %w", name, err)
 	}
 	return &tag, nil
 }
 
 // DeleteTag removes a tag and detaches it from any associated videos.
-func DeleteTag(ctx context.Context, id int64) error {
+func (store *Store) DeleteTag(ctx context.Context, id int64) error {
 	if id == 0 {
 		return errors.New("tag id cannot be zero")
 	}
 
-	return common.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	return store.conn.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where("tag_id = ?", id).Delete(&models.VideoTag{}).Error; err != nil {
 			return fmt.Errorf("delete tag relations: %w", err)
 		}
@@ -56,7 +55,7 @@ func DeleteTag(ctx context.Context, id int64) error {
 }
 
 // RenameTag updates the tag name.
-func RenameTag(ctx context.Context, id int64, newName string) error {
+func (store *Store) RenameTag(ctx context.Context, id int64, newName string) error {
 	newName = strings.TrimSpace(newName)
 	if id == 0 {
 		return errors.New("tag id cannot be zero")
@@ -65,7 +64,7 @@ func RenameTag(ctx context.Context, id int64, newName string) error {
 		return errors.New("tag name cannot be empty")
 	}
 
-	if err := common.DB.WithContext(ctx).Model(&models.Tag{}).Where("id = ?", id).Update("name", newName).Error; err != nil {
+	if err := store.conn.WithContext(ctx).Model(&models.Tag{}).Where("id = ?", id).Update("name", newName).Error; err != nil {
 		return fmt.Errorf("rename tag: %w", err)
 	}
 	return nil
@@ -73,7 +72,7 @@ func RenameTag(ctx context.Context, id int64, newName string) error {
 
 // ListTags returns all tags ordered by name with attached active location counts.
 // By default it includes locations already associated with JAV metadata.
-func ListTags(ctx context.Context, directoryIDs []int64, closedSubdirs []ClosedSubdirectory, subpaths []DirectorySubpath, hideJav ...bool) ([]TagCount, error) {
+func (store *Store) ListTags(ctx context.Context, directoryIDs []int64, closedSubdirs []ClosedSubdirectory, subpaths []DirectorySubpath, hideJav ...bool) ([]TagCount, error) {
 	var tags []TagCount
 	hideRecognizedJav := false
 	if len(hideJav) > 0 {
@@ -85,7 +84,7 @@ func ListTags(ctx context.Context, directoryIDs []int64, closedSubdirs []ClosedS
 	}
 	countWhere += closedSubdirectoryFilterSQL("vl", closedSubdirs)
 	countWhere += directorySubpathFilterSQL("vl", subpaths)
-	query := common.DB.WithContext(ctx).
+	query := store.conn.WithContext(ctx).
 		Table("tag t").
 		Select("t.id, t.name, t.category_id, tc.name AS category, COUNT(DISTINCT CASE WHEN " + countWhere + " THEN vl.id END) AS count").
 		Joins("LEFT JOIN video_tag vt ON vt.tag_id = t.id").
@@ -103,22 +102,22 @@ func ListTags(ctx context.Context, directoryIDs []int64, closedSubdirs []ClosedS
 }
 
 // ListTagCategories returns every category in its configured display order.
-func ListTagCategories(ctx context.Context) ([]models.TagCategory, error) {
+func (store *Store) ListTagCategories(ctx context.Context) ([]models.TagCategory, error) {
 	var categories []models.TagCategory
-	if err := common.DB.WithContext(ctx).Order("sort_order, id").Find(&categories).Error; err != nil {
+	if err := store.conn.WithContext(ctx).Order("sort_order, id").Find(&categories).Error; err != nil {
 		return nil, fmt.Errorf("list tag categories: %w", err)
 	}
 	return categories, nil
 }
 
 // CreateTagCategory creates an empty category that tags can be moved into.
-func CreateTagCategory(ctx context.Context, name string) (*models.TagCategory, error) {
+func (store *Store) CreateTagCategory(ctx context.Context, name string) (*models.TagCategory, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return nil, errors.New("category name cannot be empty")
 	}
 	category := models.TagCategory{Name: name}
-	if err := common.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	if err := store.conn.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var maxSortOrder int
 		if err := tx.Model(&models.TagCategory{}).
 			Select("COALESCE(MAX(sort_order), -1)").
@@ -135,7 +134,7 @@ func CreateTagCategory(ctx context.Context, name string) (*models.TagCategory, e
 
 // ReorderTagCategories saves the complete category order. ID 0 reserves a
 // sortable position for the virtual default category without storing a row.
-func ReorderTagCategories(ctx context.Context, ids []int64) error {
+func (store *Store) ReorderTagCategories(ctx context.Context, ids []int64) error {
 	if len(ids) == 0 {
 		return errors.New("category ids are required")
 	}
@@ -152,7 +151,7 @@ func ReorderTagCategories(ctx context.Context, ids []int64) error {
 	if _, hasDefaultCategory := seen[0]; !hasDefaultCategory {
 		return errors.New("category order must include the default category")
 	}
-	return common.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	return store.conn.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var storedIDs []int64
 		if err := tx.Model(&models.TagCategory{}).Pluck("id", &storedIDs).Error; err != nil {
 			return fmt.Errorf("list tag categories for reorder: %w", err)
@@ -182,7 +181,7 @@ func ReorderTagCategories(ctx context.Context, ids []int64) error {
 }
 
 // RenameTagCategory changes a category name without changing tag membership.
-func RenameTagCategory(ctx context.Context, id int64, name string) error {
+func (store *Store) RenameTagCategory(ctx context.Context, id int64, name string) error {
 	name = strings.TrimSpace(name)
 	if id <= 0 {
 		return errors.New("category id must be positive")
@@ -190,7 +189,7 @@ func RenameTagCategory(ctx context.Context, id int64, name string) error {
 	if name == "" {
 		return errors.New("category name cannot be empty")
 	}
-	result := common.DB.WithContext(ctx).
+	result := store.conn.WithContext(ctx).
 		Model(&models.TagCategory{}).
 		Where("id = ?", id).
 		Update("name", name)
@@ -204,11 +203,11 @@ func RenameTagCategory(ctx context.Context, id int64, name string) error {
 }
 
 // DeleteTagCategory removes a category and leaves its tags uncategorized.
-func DeleteTagCategory(ctx context.Context, id int64) error {
+func (store *Store) DeleteTagCategory(ctx context.Context, id int64) error {
 	if id <= 0 {
 		return errors.New("category id must be positive")
 	}
-	return common.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	return store.conn.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var categories []models.TagCategory
 		if err := tx.Order("sort_order, id").Find(&categories).Error; err != nil {
 			return fmt.Errorf("list tag categories for delete: %w", err)
@@ -288,7 +287,7 @@ func tagCategoryOrderWithDefault(categories []models.TagCategory) []int64 {
 
 // AssignTagsCategory moves multiple tags into one category. A nil category
 // leaves the selected tags uncategorized.
-func AssignTagsCategory(ctx context.Context, tagIDs []int64, categoryID *int64) error {
+func (store *Store) AssignTagsCategory(ctx context.Context, tagIDs []int64, categoryID *int64) error {
 	cleanTagIDs := uniqueInt64s(tagIDs)
 	if len(cleanTagIDs) == 0 {
 		return errors.New("tag ids are required")
@@ -298,14 +297,14 @@ func AssignTagsCategory(ctx context.Context, tagIDs []int64, categoryID *int64) 
 			return errors.New("category id must be positive")
 		}
 		var count int64
-		if err := common.DB.WithContext(ctx).Model(&models.TagCategory{}).Where("id = ?", *categoryID).Count(&count).Error; err != nil {
+		if err := store.conn.WithContext(ctx).Model(&models.TagCategory{}).Where("id = ?", *categoryID).Count(&count).Error; err != nil {
 			return fmt.Errorf("find tag category: %w", err)
 		}
 		if count == 0 {
 			return gorm.ErrRecordNotFound
 		}
 	}
-	if err := common.DB.WithContext(ctx).
+	if err := store.conn.WithContext(ctx).
 		Model(&models.Tag{}).
 		Where("id IN ?", cleanTagIDs).
 		Update("category_id", categoryID).Error; err != nil {
@@ -315,7 +314,7 @@ func AssignTagsCategory(ctx context.Context, tagIDs []int64, categoryID *int64) 
 }
 
 // AddTagToVideos associates a single tag with multiple videos.
-func AddTagToVideos(ctx context.Context, tagID int64, videoIDs []int64) error {
+func (store *Store) AddTagToVideos(ctx context.Context, tagID int64, videoIDs []int64) error {
 	if tagID == 0 || len(videoIDs) == 0 {
 		return nil
 	}
@@ -325,7 +324,7 @@ func AddTagToVideos(ctx context.Context, tagID int64, videoIDs []int64) error {
 		return nil
 	}
 
-	return common.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	return store.conn.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var tag models.Tag
 		if err := tx.First(&tag, tagID).Error; err != nil {
 			return fmt.Errorf("find tag: %w", err)
@@ -348,7 +347,7 @@ func AddTagToVideos(ctx context.Context, tagID int64, videoIDs []int64) error {
 }
 
 // RemoveTagFromVideos detaches a single tag from multiple videos.
-func RemoveTagFromVideos(ctx context.Context, tagID int64, videoIDs []int64) error {
+func (store *Store) RemoveTagFromVideos(ctx context.Context, tagID int64, videoIDs []int64) error {
 	if tagID == 0 || len(videoIDs) == 0 {
 		return nil
 	}
@@ -358,7 +357,7 @@ func RemoveTagFromVideos(ctx context.Context, tagID int64, videoIDs []int64) err
 		return nil
 	}
 
-	return common.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	return store.conn.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var tag models.Tag
 		if err := tx.First(&tag, tagID).Error; err != nil {
 			return fmt.Errorf("find tag: %w", err)
@@ -372,7 +371,7 @@ func RemoveTagFromVideos(ctx context.Context, tagID int64, videoIDs []int64) err
 }
 
 // ReplaceTagsForVideos replaces the full tag list for the provided videos.
-func ReplaceTagsForVideos(ctx context.Context, videoIDs, tagIDs []int64) error {
+func (store *Store) ReplaceTagsForVideos(ctx context.Context, videoIDs, tagIDs []int64) error {
 	cleanVideoIDs := uniqueInt64s(videoIDs)
 	if len(cleanVideoIDs) == 0 {
 		return nil
@@ -381,7 +380,7 @@ func ReplaceTagsForVideos(ctx context.Context, videoIDs, tagIDs []int64) error {
 
 	var tags []models.Tag
 	if len(cleanTagIDs) > 0 {
-		if err := common.DB.WithContext(ctx).Where("id IN ?", cleanTagIDs).Find(&tags).Error; err != nil {
+		if err := store.conn.WithContext(ctx).Where("id IN ?", cleanTagIDs).Find(&tags).Error; err != nil {
 			return fmt.Errorf("find tags: %w", err)
 		}
 		if len(tags) != len(cleanTagIDs) {
@@ -389,7 +388,7 @@ func ReplaceTagsForVideos(ctx context.Context, videoIDs, tagIDs []int64) error {
 		}
 	}
 
-	return common.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	return store.conn.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where("video_id IN ?", cleanVideoIDs).Delete(&models.VideoTag{}).Error; err != nil {
 			return fmt.Errorf("delete video tags: %w", err)
 		}
@@ -412,13 +411,13 @@ func ReplaceTagsForVideos(ctx context.Context, videoIDs, tagIDs []int64) error {
 }
 
 // DeleteTags removes multiple tags and detaches them from videos.
-func DeleteTags(ctx context.Context, ids []int64) error {
+func (store *Store) DeleteTags(ctx context.Context, ids []int64) error {
 	cleanIDs := uniqueInt64s(ids)
 	if len(cleanIDs) == 0 {
 		return nil
 	}
 
-	return common.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	return store.conn.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where("tag_id IN ?", cleanIDs).Delete(&models.VideoTag{}).Error; err != nil {
 			return fmt.Errorf("delete tag relations: %w", err)
 		}

@@ -7,11 +7,10 @@ import (
 	"sync"
 	"time"
 
-	"javboss/internal/common"
 	"javboss/internal/common/logging"
 	"javboss/internal/db"
 	"javboss/internal/jav"
-	"javboss/internal/manager"
+	"javboss/internal/jav/scrape/cover"
 )
 
 const (
@@ -193,7 +192,7 @@ func repairJavScrape(ctx context.Context, code string) error {
 		return err
 	}
 
-	item, err := db.GetJavByCode(ctx, code)
+	item, err := db.Default().GetJavByCode(ctx, code)
 	if err != nil {
 		return err
 	}
@@ -213,7 +212,7 @@ func repairJavScrape(ctx context.Context, code string) error {
 		if info == nil || strings.TrimSpace(info.Title) == "" {
 			continue
 		}
-		if _, saveErr := db.SaveJavInfo(ctx, info); saveErr != nil {
+		if _, saveErr := db.Default().SaveJavInfo(ctx, info); saveErr != nil {
 			logging.Error("jav scrape repair save failed provider=%s code=%s err=%v", provider.String(), code, saveErr)
 			continue
 		}
@@ -227,10 +226,8 @@ func repairJavScrape(ctx context.Context, code string) error {
 		break
 	}
 
-	if mgr := common.CoverManager; mgr != nil {
-		if !mgr.Exists(code) {
-			mgr.TryEnqueue(code)
-		}
+	if cover.Enabled() && !cover.Exists(code) {
+		cover.TryEnqueue(code)
 	}
 	return nil
 }
@@ -238,7 +235,7 @@ func repairJavScrape(ctx context.Context, code string) error {
 // CheckAndRepairJavScrape audits library JAV scrape completeness and queues incomplete rows.
 func CheckAndRepairJavScrape(ctx context.Context) (JavScrapeCheckReport, error) {
 	InitJavScrapeRepairManager()
-	if common.DB == nil {
+	if db.Conn() == nil {
 		return JavScrapeCheckReport{}, errors.New("nil db")
 	}
 
@@ -258,11 +255,10 @@ func CheckAndRepairJavScrape(ctx context.Context) (JavScrapeCheckReport, error) 
 		CheckedAt:       timePtr(time.Now().UTC()),
 		Fields:          map[string]int{},
 	}
-	coverMgr := common.CoverManager
 	queuedCodes := make(map[string]struct{})
 
 	for _, item := range items {
-		fields := javScrapeMissingFields(item, coverMgr)
+		fields := javScrapeMissingFields(item)
 		if len(fields) == 0 {
 			continue
 		}
@@ -276,8 +272,8 @@ func CheckAndRepairJavScrape(ctx context.Context) (JavScrapeCheckReport, error) 
 		needsMetadata := javScrapeNeedsMetadataRepair(fields)
 
 		queued := false
-		if needsCover && coverMgr != nil {
-			if coverMgr.TryEnqueue(code) {
+		if needsCover && cover.Enabled() {
+			if cover.TryEnqueue(code) {
 				report.QueuedCovers++
 				queued = true
 			}
@@ -309,7 +305,7 @@ func CheckAndRepairJavScrape(ctx context.Context) (JavScrapeCheckReport, error) 
 	}
 
 	report.Queued = len(queuedCodes)
-	report.CoverPending = coverMgr.PendingCount()
+	report.CoverPending = cover.PendingCount()
 	metadataPending := 0
 	if javScrapeRepairMgr != nil {
 		metadataPending = javScrapeRepairMgr.pendingCount()
@@ -341,7 +337,7 @@ func JavScrapeCheckStatus() JavScrapeCheckReport {
 	if report.Fields == nil {
 		report.Fields = map[string]int{}
 	}
-	report.CoverPending = common.CoverManager.PendingCount()
+	report.CoverPending = cover.PendingCount()
 	metadataPending := 0
 	if javScrapeRepairMgr != nil {
 		metadataPending = javScrapeRepairMgr.pendingCount()
@@ -350,11 +346,11 @@ func JavScrapeCheckStatus() JavScrapeCheckReport {
 	return report
 }
 
-func javScrapeMissingFields(item db.JavScrapeHealthItem, coverMgr *manager.CoverManager) []string {
+func javScrapeMissingFields(item db.JavScrapeHealthItem) []string {
 	var fields []string
-	if coverMgr != nil {
+	if cover.Enabled() {
 		code := strings.TrimSpace(item.Code)
-		if !coverMgr.Exists(code) {
+		if !cover.Exists(code) {
 			fields = append(fields, JavScrapeFieldCoverLandscape)
 		}
 	}

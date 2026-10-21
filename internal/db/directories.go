@@ -9,7 +9,6 @@ import (
 	"sort"
 	"strings"
 
-	"javboss/internal/common"
 	"javboss/internal/models"
 
 	"gorm.io/gorm"
@@ -39,9 +38,9 @@ func normalizeDirectoryPath(p string) (string, error) {
 }
 
 // ListDirectories returns all directories regardless of status.
-func ListDirectories(ctx context.Context) ([]models.Directory, error) {
+func (store *Store) ListDirectories(ctx context.Context) ([]models.Directory, error) {
 	var dirs []models.Directory
-	if err := common.DB.WithContext(ctx).
+	if err := store.conn.WithContext(ctx).
 		Model(&models.Directory{}).
 		Select(`directory.*,
 			COUNT(video_location.id) AS scanned_video_count,
@@ -57,9 +56,9 @@ func ListDirectories(ctx context.Context) ([]models.Directory, error) {
 }
 
 // ListActiveDirectories returns directories that are not marked as deleted.
-func ListActiveDirectories(ctx context.Context) ([]models.Directory, error) {
+func (store *Store) ListActiveDirectories(ctx context.Context) ([]models.Directory, error) {
 	var dirs []models.Directory
-	if err := common.DB.WithContext(ctx).
+	if err := store.conn.WithContext(ctx).
 		Where("COALESCE(is_delete, 0) = 0").
 		Order("id").
 		Find(&dirs).Error; err != nil {
@@ -69,12 +68,12 @@ func ListActiveDirectories(ctx context.Context) ([]models.Directory, error) {
 }
 
 // GetDirectory fetches a single directory by id.
-func GetDirectory(ctx context.Context, id int64) (*models.Directory, error) {
+func (store *Store) GetDirectory(ctx context.Context, id int64) (*models.Directory, error) {
 	if id == 0 {
 		return nil, errors.New("directory id cannot be zero")
 	}
 	var dir models.Directory
-	if err := common.DB.WithContext(ctx).First(&dir, id).Error; err != nil {
+	if err := store.conn.WithContext(ctx).First(&dir, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
@@ -174,7 +173,7 @@ func ListDirectorySubdirectories(ctx context.Context, directoryID int64) (Direct
 		return DirectorySubdirectories{}, errors.New("directory id cannot be zero")
 	}
 	var paths []string
-	err := common.DB.WithContext(ctx).Raw(
+	err := Conn().WithContext(ctx).Raw(
 		`SELECT relative_path
 		FROM video_location
 		WHERE directory_id = ?`,
@@ -201,14 +200,14 @@ func ListDirectorySubdirectories(ctx context.Context, directoryID int64) (Direct
 }
 
 // CreateDirectory registers a new directory.
-func CreateDirectory(ctx context.Context, path string) (*models.Directory, error) {
+func (store *Store) CreateDirectory(ctx context.Context, path string) (*models.Directory, error) {
 	normalized, err := normalizeDirectoryPath(path)
 	if err != nil {
 		return nil, err
 	}
 
 	var existing models.Directory
-	err = common.DB.WithContext(ctx).Where("path = ?", normalized).First(&existing).Error
+	err = store.conn.WithContext(ctx).Where("path = ?", normalized).First(&existing).Error
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, fmt.Errorf("create directory: %w", err)
 	}
@@ -216,7 +215,7 @@ func CreateDirectory(ctx context.Context, path string) (*models.Directory, error
 	// If directory exists but was soft-deleted, restore it instead of inserting a new row.
 	if err == nil {
 		if existing.IsDelete {
-			dir, updErr := updateDirectoryWithVisibility(ctx, existing.ID, func(tx *gorm.DB, dir *models.Directory) error {
+			dir, updErr := store.updateDirectoryWithVisibility(ctx, existing.ID, func(tx *gorm.DB, dir *models.Directory) error {
 				dir.Path = normalized
 				dir.IsDelete = false
 				dir.Missing = false
@@ -234,14 +233,14 @@ func CreateDirectory(ctx context.Context, path string) (*models.Directory, error
 	dir := models.Directory{
 		Path: normalized,
 	}
-	if err := common.DB.WithContext(ctx).Create(&dir).Error; err != nil {
+	if err := store.conn.WithContext(ctx).Create(&dir).Error; err != nil {
 		return nil, fmt.Errorf("create directory: %w", err)
 	}
 	return &dir, nil
 }
 
 // UpdateDirectory updates a directory's attributes. Pass nil to leave a field untouched.
-func UpdateDirectory(ctx context.Context, id int64, path *string, isDelete *bool, enabled *bool) (*models.Directory, error) {
+func (store *Store) UpdateDirectory(ctx context.Context, id int64, path *string, isDelete *bool, enabled *bool) (*models.Directory, error) {
 	var normalizedPath *string
 	if path != nil {
 		normalized, err := normalizeDirectoryPath(*path)
@@ -251,7 +250,7 @@ func UpdateDirectory(ctx context.Context, id int64, path *string, isDelete *bool
 		normalizedPath = &normalized
 	}
 
-	return updateDirectoryWithVisibility(ctx, id, func(tx *gorm.DB, dir *models.Directory) error {
+	return store.updateDirectoryWithVisibility(ctx, id, func(tx *gorm.DB, dir *models.Directory) error {
 		if normalizedPath != nil && dir.Path != *normalizedPath {
 			var other models.Directory
 			if err := tx.Where("path = ?", *normalizedPath).First(&other).Error; err != nil {
@@ -293,7 +292,7 @@ func UpdateDirectory(ctx context.Context, id int64, path *string, isDelete *bool
 
 // UpdateDirectoryScanSettings updates only automatic-scan fields. The targeted update is safe to
 // run while a scan is active because it cannot overwrite scan state or the latest scan summary.
-func UpdateDirectoryScanSettings(
+func (store *Store) UpdateDirectoryScanSettings(
 	ctx context.Context,
 	id int64,
 	autoScanEnabled *bool,
@@ -313,7 +312,7 @@ func UpdateDirectoryScanSettings(
 		updates["auto_scan_interval_minutes"] = *autoScanIntervalMinutes
 	}
 	if len(updates) > 0 {
-		result := common.DB.WithContext(ctx).
+		result := store.conn.WithContext(ctx).
 			Model(&models.Directory{}).
 			Where("id = ?", id).
 			Updates(updates)
@@ -321,16 +320,16 @@ func UpdateDirectoryScanSettings(
 			return nil, fmt.Errorf("update directory scan settings: %w", result.Error)
 		}
 	}
-	return GetDirectory(ctx, id)
+	return store.GetDirectory(ctx, id)
 }
 
 // SetDirectoryMissing updates whether a directory is temporarily unavailable.
 // Missing directories and their videos remain visible until explicitly deleted.
-func SetDirectoryMissing(ctx context.Context, id int64, missing bool) error {
+func (store *Store) SetDirectoryMissing(ctx context.Context, id int64, missing bool) error {
 	if id <= 0 {
 		return errors.New("directory id cannot be zero")
 	}
-	if err := common.DB.WithContext(ctx).
+	if err := store.conn.WithContext(ctx).
 		Model(&models.Directory{}).
 		Where("id = ?", id).
 		Update("missing", missing).Error; err != nil {
@@ -340,7 +339,7 @@ func SetDirectoryMissing(ctx context.Context, id int64, missing bool) error {
 }
 
 // UpdateDirectoryLastScanSummary stores the latest successfully completed scan result.
-func UpdateDirectoryLastScanSummary(
+func (store *Store) UpdateDirectoryLastScanSummary(
 	ctx context.Context,
 	id int64,
 	summary models.DirectoryScanSummary,
@@ -348,7 +347,7 @@ func UpdateDirectoryLastScanSummary(
 	if id <= 0 {
 		return errors.New("directory id must be positive")
 	}
-	result := common.DB.WithContext(ctx).
+	result := store.conn.WithContext(ctx).
 		Model(&models.Directory{}).
 		Where("id = ?", id).
 		UpdateColumn("last_scan_summary", summary)
@@ -375,20 +374,20 @@ func deleteVideoLocationsByDirectoryID(tx *gorm.DB, directoryID int64) error {
 }
 
 // SetDirectoryDeletedAndHideVideos toggles deletion flag and hides/unhides its videos.
-func SetDirectoryDeletedAndHideVideos(ctx context.Context, id int64, deleted bool) (*models.Directory, error) {
-	return updateDirectoryWithVisibility(ctx, id, func(tx *gorm.DB, dir *models.Directory) error {
+func (store *Store) SetDirectoryDeletedAndHideVideos(ctx context.Context, id int64, deleted bool) (*models.Directory, error) {
+	return store.updateDirectoryWithVisibility(ctx, id, func(tx *gorm.DB, dir *models.Directory) error {
 		dir.IsDelete = deleted
 		return nil
 	})
 }
 
-func updateDirectoryWithVisibility(ctx context.Context, id int64, mutate func(tx *gorm.DB, dir *models.Directory) error) (*models.Directory, error) {
+func (store *Store) updateDirectoryWithVisibility(ctx context.Context, id int64, mutate func(tx *gorm.DB, dir *models.Directory) error) (*models.Directory, error) {
 	if id == 0 {
 		return nil, errors.New("directory id cannot be zero")
 	}
 
 	var dir models.Directory
-	err := common.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err := store.conn.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.First(&dir, id).Error; err != nil {
 			return err
 		}
@@ -416,12 +415,12 @@ func updateDirectoryWithVisibility(ctx context.Context, id int64, mutate func(tx
 }
 
 // DirectoriesByIDs returns directories matching the provided ids.
-func DirectoriesByIDs(ctx context.Context, ids []int64) ([]models.Directory, error) {
+func (store *Store) DirectoriesByIDs(ctx context.Context, ids []int64) ([]models.Directory, error) {
 	if len(ids) == 0 {
 		return nil, nil
 	}
 	var dirs []models.Directory
-	if err := common.DB.WithContext(ctx).Where("id IN ?", ids).Order("id").Find(&dirs).Error; err != nil {
+	if err := store.conn.WithContext(ctx).Where("id IN ?", ids).Order("id").Find(&dirs).Error; err != nil {
 		return nil, fmt.Errorf("list directories by ids: %w", err)
 	}
 	return dirs, nil

@@ -92,10 +92,15 @@ function SettingsSection({ title, children }) {
   )
 }
 
-function SettingsRow({ label, children }) {
+function SettingsRow({ label, hint, children }) {
   return (
     <div className="flex min-h-11 items-center justify-between gap-4 py-1.5 text-sm text-app-text">
-      <span className="font-medium">{label}</span>
+      <span className="font-medium">
+        {label}
+        {hint && (
+          <span className="mt-1 block text-xs font-normal leading-5 text-app-muted">{hint}</span>
+        )}
+      </span>
       {children}
     </div>
   )

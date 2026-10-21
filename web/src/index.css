@@ -1345,8 +1345,8 @@ body.has-page-scroll .app-topnav {
     transform 160ms ease;
 }
 
-/* Restored detail-trigger focus must not keep cover actions visible on mouse leave. */
-.card-hover-scope:has(:focus-visible:not(.card-detail-trigger)) .card-hover-focus-visible {
+/* Restored modal-trigger focus must not keep cover actions visible on mouse leave. */
+.card-hover-scope:has(:focus-visible:not(.card-modal-trigger)) .card-hover-focus-visible {
   opacity: 1;
 }
 

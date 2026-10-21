@@ -1,6 +1,6 @@
 package jav
 
-import "javboss/internal/jav/javdatabase"
+import "javboss/internal/jav/scrape/javdatabase"
 
 // PreferJapaneseTitle keeps an existing Japanese title when the incoming title
 // has none, so an English fallback scrape does not overwrite Japanese listing

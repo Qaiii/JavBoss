@@ -1,3 +1,4 @@
+import { preferChineseTitle } from '@/features/jav/titleTranslation'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import CloseOutlinedIcon from '@mui/icons-material/CloseOutlined'
 import ImageRoundedIcon from '@mui/icons-material/ImageRounded'
@@ -5,7 +6,7 @@ import RestartAltRoundedIcon from '@mui/icons-material/RestartAltRounded'
 import SaveRoundedIcon from '@mui/icons-material/SaveRounded'
 import { fetchJavIdolCoverOptions, updateJavIdolCover } from '@/features/jav/api'
 import AppModal from '@/shared/ui/AppModal'
-import { getJavDisplayTitle, javTitlePrefersChinese } from '@/utils/jav'
+import { getJavDisplayTitle } from '@/utils/jav'
 import { zh } from '@/utils/i18n'
 import { getErrorMessage } from '@/utils/errors'
 import { getIdolDisplayName } from '@/utils/javIdol'
@@ -119,7 +120,8 @@ export default function JavIdolCoverModal({
   )
   const previewCode = String(selectedOption?.code || itemCoverCode).trim()
   const coverSrc = previewCode ? `/jav/${encodeURIComponent(previewCode)}/cover` : ''
-  const title = selectedOption ? getJavDisplayTitle(selectedOption, preferChineseTitle) : ''
+  const translateTitle = useStore((state) => preferChineseTitle(state.config))
+  const title = selectedOption ? getJavDisplayTitle(selectedOption, translateTitle) : ''
   const visibleRatio = getCoverVisibleRatio(imageSize)
   const maxCropLeft = Math.max(0, 1 - visibleRatio)
   const displayCropLeft = Math.min(cropLeft, maxCropLeft)

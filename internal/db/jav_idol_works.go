@@ -11,7 +11,6 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
-	"javboss/internal/common"
 	"javboss/internal/jav"
 	"javboss/internal/models"
 	"javboss/internal/util"
@@ -32,7 +31,7 @@ const DefaultJavIdolRetryMinutes = 30
 // whether she has any visible works, for background works scraping.
 func GetJavIdolBasic(ctx context.Context, idolID int64) (*models.JavIdol, error) {
 	var idol models.JavIdol
-	if err := common.DB.WithContext(ctx).Where("id = ?", idolID).First(&idol).Error; err != nil {
+	if err := Conn().WithContext(ctx).Where("id = ?", idolID).First(&idol).Error; err != nil {
 		return nil, fmt.Errorf("get jav idol basic: %w", err)
 	}
 	return &idol, nil
@@ -60,7 +59,7 @@ func FindJavIdolsByNames(ctx context.Context, names []string) ([]int64, error) {
 	}
 
 	var direct []int64
-	if err := common.DB.WithContext(ctx).
+	if err := Conn().WithContext(ctx).
 		Model(&models.JavIdol{}).
 		Where("name IN ?", clean).
 		Pluck("id", &direct).Error; err != nil {
@@ -68,7 +67,7 @@ func FindJavIdolsByNames(ctx context.Context, names []string) ([]int64, error) {
 	}
 
 	var viaAlias []int64
-	if err := common.DB.WithContext(ctx).
+	if err := Conn().WithContext(ctx).
 		Model(&models.JavIdolAlias{}).
 		Where("alias IN ?", clean).
 		Pluck("jav_idol_id", &viaAlias).Error; err != nil {
@@ -119,7 +118,7 @@ type JavIdolTrackState struct {
 // JavIdolRefreshDays returns the configured refresh interval in days, falling
 // back to DefaultJavIdolRefreshDays when the config key is absent or invalid.
 func JavIdolRefreshDays(ctx context.Context) int {
-	cfg, err := ListConfig(ctx)
+	cfg, err := Default().ListConfig(ctx)
 	if err != nil {
 		return DefaultJavIdolRefreshDays
 	}
@@ -130,7 +129,7 @@ func JavIdolRefreshDays(ctx context.Context) int {
 // failed works scrape, falling back to DefaultJavIdolRetryMinutes when the
 // config key is absent or invalid.
 func JavIdolRetryMinutes(ctx context.Context) int {
-	cfg, err := ListConfig(ctx)
+	cfg, err := Default().ListConfig(ctx)
 	if err != nil {
 		return DefaultJavIdolRetryMinutes
 	}
@@ -151,7 +150,7 @@ func ParsePositiveIntConfig(raw string, fallback int) int {
 // the idol is not in the track table.
 func GetJavIdolTrack(ctx context.Context, idolID int64) (JavIdolTrackState, error) {
 	var track models.JavIdolTrack
-	err := common.DB.WithContext(ctx).Where("jav_idol_id = ?", idolID).First(&track).Error
+	err := Conn().WithContext(ctx).Where("jav_idol_id = ?", idolID).First(&track).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return JavIdolTrackState{}, nil
 	}
@@ -187,7 +186,7 @@ func UpsertJavIdolTrack(ctx context.Context, idolID int64, fields map[string]any
 	}
 	updateColumns = append(updateColumns, "updated_at")
 
-	return common.DB.WithContext(ctx).
+	return Conn().WithContext(ctx).
 		Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "jav_idol_id"}},
 			DoUpdates: clause.AssignmentColumns(updateColumns),
@@ -219,7 +218,7 @@ func MarkJavIdolTrackError(ctx context.Context, idolID int64, scrapeErr error) e
 // RemoveJavIdolTrack deletes the track row for an idol, stopping future
 // refreshes. Stored works remain.
 func RemoveJavIdolTrack(ctx context.Context, idolID int64) error {
-	if err := common.DB.WithContext(ctx).Delete(&models.JavIdolTrack{}, "jav_idol_id = ?", idolID).Error; err != nil {
+	if err := Conn().WithContext(ctx).Delete(&models.JavIdolTrack{}, "jav_idol_id = ?", idolID).Error; err != nil {
 		return fmt.Errorf("remove jav idol track: %w", err)
 	}
 	return nil
@@ -238,7 +237,7 @@ func RemoveJavIdolTrack(ctx context.Context, idolID int64) error {
 // typically now - refreshInterval (days).
 func ListIdolsNeedingWorksScrape(ctx context.Context, retrySince, since time.Time) ([]int64, error) {
 	var ids []int64
-	err := common.DB.WithContext(ctx).
+	err := Conn().WithContext(ctx).
 		Table("jav_idol ji").
 		Select("ji.id").
 		Joins("LEFT JOIN jav_idol_track jit ON jit.jav_idol_id = ji.id").
@@ -261,7 +260,7 @@ func ListIdolsNeedingWorksScrape(ctx context.Context, retrySince, since time.Tim
 // source URLs likewise keep the previous values so a later scrape cannot wipe
 // fields that an earlier provider already filled.
 func ReplaceJavIdolWorks(ctx context.Context, idolID int64, works []models.JavIdolWork) error {
-	return common.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	return Conn().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if len(works) > 0 {
 			existing := make(map[string]models.JavIdolWork, len(works))
 			var prev []models.JavIdolWork
@@ -352,7 +351,7 @@ func uniqueJavIdolWorks(works []models.JavIdolWork) []models.JavIdolWork {
 // CountJavIdolMappedWorks returns how many library JAV records are linked to the idol.
 func CountJavIdolMappedWorks(ctx context.Context, idolID int64) (int64, error) {
 	var n int64
-	if err := common.DB.WithContext(ctx).Table("jav_idol_map").Where("jav_idol_id = ?", idolID).Count(&n).Error; err != nil {
+	if err := Conn().WithContext(ctx).Table("jav_idol_map").Where("jav_idol_id = ?", idolID).Count(&n).Error; err != nil {
 		return 0, fmt.Errorf("count jav idol mapped works: %w", err)
 	}
 	return n, nil
@@ -368,7 +367,7 @@ func ListJavIdolWorks(ctx context.Context, idolID int64, limit, offset int) ([]J
 		offset = 0
 	}
 
-	query := common.DB.WithContext(ctx).Model(&models.JavIdolWork{}).Where("jav_idol_id = ?", idolID)
+	query := Conn().WithContext(ctx).Model(&models.JavIdolWork{}).Where("jav_idol_id = ?", idolID)
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, fmt.Errorf("count jav idol works: %w", err)
@@ -450,7 +449,7 @@ func searchJavIncludingExternal(ctx context.Context, idolIDs []int64, tagIDs []i
 
 	var libraryTotal int64
 	if !filters.UnimportedOnly {
-		countQuery := buildJavFilter(ctx, idolIDs, tagIDs, search, prefix, directoryIDs, filters, closedSubdirs, subpaths).
+		countQuery := Default().buildJavFilter(ctx, idolIDs, tagIDs, search, prefix, directoryIDs, filters, closedSubdirs, subpaths).
 			Select("DISTINCT jav.id")
 		if err := countQuery.Count(&libraryTotal).Error; err != nil {
 			return nil, 0, fmt.Errorf("count jav for external merge: %w", err)
@@ -479,7 +478,7 @@ func searchJavIncludingExternal(ctx context.Context, idolIDs []int64, tagIDs []i
 	}
 
 	var library []models.Jav
-	if err := buildJavFilter(ctx, idolIDs, tagIDs, search, prefix, directoryIDs, filters, closedSubdirs, subpaths).
+	if err := Default().buildJavFilter(ctx, idolIDs, tagIDs, search, prefix, directoryIDs, filters, closedSubdirs, subpaths).
 		Select("jav.id, jav.code, jav.title, jav.zh_title, jav.release_unix, jav.duration_min, jav.created_at, jav.favorite_rating, jav.studio_id, jav.series_id").
 		Find(&library).Error; err != nil {
 		return nil, 0, fmt.Errorf("list jav for external merge: %w", err)
@@ -544,7 +543,7 @@ func searchJavLibraryFirstWithUnimported(ctx context.Context, idolIDs []int64, t
 		return nil, 0, err
 	}
 	if offset+limit <= int(libraryTotal) {
-		page, _, err := SearchJavWithPrefixFilters(ctx, idolIDs, tagIDs, search, prefix, sort, limit, offset, seed, directoryIDs, filters, closedSubdirs, subpaths)
+		page, _, err := Default().SearchJavWithPrefixFilters(ctx, idolIDs, tagIDs, search, prefix, sort, limit, offset, seed, directoryIDs, filters, closedSubdirs, subpaths)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -572,7 +571,7 @@ func searchJavLibraryFirstWithUnimported(ctx context.Context, idolIDs []int64, t
 		if libLimit > limit {
 			libLimit = limit
 		}
-		libPage, _, err := SearchJavWithPrefixFilters(ctx, idolIDs, tagIDs, search, prefix, sort, libLimit, offset, seed, directoryIDs, filters, closedSubdirs, subpaths)
+		libPage, _, err := Default().SearchJavWithPrefixFilters(ctx, idolIDs, tagIDs, search, prefix, sort, libLimit, offset, seed, directoryIDs, filters, closedSubdirs, subpaths)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -627,7 +626,7 @@ func attachJavPlayCountsForSort(ctx context.Context, items []models.Jav, directo
 		JavID     int64 `gorm:"column:jav_id"`
 		PlayCount int64 `gorm:"column:play_count"`
 	}
-	query := common.DB.WithContext(ctx).
+	query := Conn().WithContext(ctx).
 		Table("video_location vl").
 		Select("vl.jav_id AS jav_id, COALESCE(SUM(COALESCE(v.play_count, 0)), 0) AS play_count").
 		Joins("JOIN directory d ON d.id = vl.directory_id").
@@ -667,7 +666,7 @@ func hydrateMergedJavPage(ctx context.Context, page []models.Jav, directoryIDs [
 	}
 
 	var hydrated []models.Jav
-	if err := common.DB.WithContext(ctx).
+	if err := Conn().WithContext(ctx).
 		Preload("Studio").
 		Preload("Idols").
 		Preload("Actors").
@@ -676,13 +675,13 @@ func hydrateMergedJavPage(ctx context.Context, page []models.Jav, directoryIDs [
 		Find(&hydrated).Error; err != nil {
 		return fmt.Errorf("hydrate merged jav page: %w", err)
 	}
-	if err := attachJavLocationVideos(ctx, hydrated, directoryIDs, closedSubdirs, subpaths); err != nil {
+	if err := Default().attachJavLocationVideos(ctx, hydrated, directoryIDs, closedSubdirs, subpaths); err != nil {
 		return err
 	}
-	if err := attachVisibleJavTags(ctx, hydrated); err != nil {
+	if err := Default().attachVisibleJavTags(ctx, hydrated); err != nil {
 		return err
 	}
-	if err := attachJavFavoriteCounts(ctx, hydrated); err != nil {
+	if err := Default().attachJavFavoriteCounts(ctx, hydrated); err != nil {
 		return err
 	}
 	byID := make(map[int64]models.Jav, len(hydrated))
@@ -723,7 +722,7 @@ func unimportedIdolWorkNotDislikedSQL() string {
 }
 
 func unimportedIdolWorkQuery(ctx context.Context, idolID int64, search, prefix string) *gorm.DB {
-	query := common.DB.WithContext(ctx).Model(&models.JavIdolWork{}).
+	query := Conn().WithContext(ctx).Model(&models.JavIdolWork{}).
 		Where(unimportedIdolWorkNotInLibrarySQL()).
 		Where(unimportedIdolWorkNotDislikedSQL())
 	if idolID > 0 {
@@ -774,7 +773,7 @@ func listUnimportedJavIdolWorksPage(ctx context.Context, idolID int64, search, p
 	query := unimportedIdolWorkQuery(ctx, idolID, search, prefix)
 	if idolID <= 0 {
 		bestIDs := unimportedIdolWorkQuery(ctx, idolID, search, prefix).Select("MAX(id)").Group("code")
-		query = common.DB.WithContext(ctx).Model(&models.JavIdolWork{}).Where("id IN (?)", bestIDs)
+		query = Conn().WithContext(ctx).Model(&models.JavIdolWork{}).Where("id IN (?)", bestIDs)
 	}
 	query = applyUnimportedWorkOrder(query, sort, seed)
 	var works []models.JavIdolWork
@@ -872,7 +871,7 @@ func hydrateUnimportedSortKeyPage(ctx context.Context, page []models.Jav) error 
 		return nil
 	}
 	var works []models.JavIdolWork
-	if err := common.DB.WithContext(ctx).Where("code IN ?", codes).Find(&works).Error; err != nil {
+	if err := Conn().WithContext(ctx).Where("code IN ?", codes).Find(&works).Error; err != nil {
 		return fmt.Errorf("hydrate unimported jav page: %w", err)
 	}
 	best := make(map[string]models.JavIdolWork, len(works))
@@ -963,7 +962,7 @@ func attachUnimportedJavIdols(ctx context.Context, page []models.Jav) error {
 		JavIdolID int64  `gorm:"column:jav_idol_id"`
 	}
 	var rows []row
-	if err := common.DB.WithContext(ctx).
+	if err := Conn().WithContext(ctx).
 		Table("jav_idol_work w").
 		Select("UPPER(w.code) AS code, w.jav_idol_id").
 		Where("UPPER(w.code) IN ?", codes).
@@ -990,7 +989,7 @@ func attachUnimportedJavIdols(ctx context.Context, page []models.Jav) error {
 	}
 
 	var idols []models.JavIdol
-	if err := common.DB.WithContext(ctx).Where("id IN ?", idolIDs).Find(&idols).Error; err != nil {
+	if err := Conn().WithContext(ctx).Where("id IN ?", idolIDs).Find(&idols).Error; err != nil {
 		return fmt.Errorf("load unimported jav idols: %w", err)
 	}
 	byID := make(map[int64]models.JavIdol, len(idols))
@@ -1201,14 +1200,14 @@ func lookupJavStudiosByNames(ctx context.Context, names []string) (map[string]mo
 		return result, nil
 	}
 	var studios []models.JavStudio
-	if err := common.DB.WithContext(ctx).Where("name IN ?", clean).Find(&studios).Error; err != nil {
+	if err := Conn().WithContext(ctx).Where("name IN ?", clean).Find(&studios).Error; err != nil {
 		return nil, fmt.Errorf("lookup jav studios: %w", err)
 	}
 	for _, studio := range studios {
 		result[normalizeCatalogName(studio.Name)] = studio
 	}
 	var aliases []models.JavStudioAlias
-	if err := common.DB.WithContext(ctx).
+	if err := Conn().WithContext(ctx).
 		Where("alias IN ?", clean).
 		Find(&aliases).Error; err != nil {
 		return nil, fmt.Errorf("lookup jav studio aliases: %w", err)
@@ -1221,7 +1220,7 @@ func lookupJavStudiosByNames(ctx context.Context, names []string) (map[string]mo
 		ids = append(ids, alias.JavStudioID)
 	}
 	var viaAlias []models.JavStudio
-	if err := common.DB.WithContext(ctx).Where("id IN ?", ids).Find(&viaAlias).Error; err != nil {
+	if err := Conn().WithContext(ctx).Where("id IN ?", ids).Find(&viaAlias).Error; err != nil {
 		return nil, fmt.Errorf("lookup jav studios by alias: %w", err)
 	}
 	byID := make(map[int64]models.JavStudio, len(viaAlias))
@@ -1244,7 +1243,7 @@ func lookupJavSeriesByNames(ctx context.Context, names []string) (map[string]mod
 		return result, nil
 	}
 	var rows []models.JavSeries
-	if err := common.DB.WithContext(ctx).
+	if err := Conn().WithContext(ctx).
 		Where("name IN ?", clean).
 		Order("is_english ASC, id ASC").
 		Find(&rows).Error; err != nil {
@@ -1267,7 +1266,7 @@ func lookupJavTagsByNames(ctx context.Context, names []string) (map[string]model
 		return result, nil
 	}
 	var rows []models.JavTag
-	if err := common.DB.WithContext(ctx).
+	if err := Conn().WithContext(ctx).
 		Where("is_user = ?", false).
 		Find(&rows).Error; err != nil {
 		return nil, fmt.Errorf("lookup jav tags: %w", err)
@@ -1307,7 +1306,7 @@ func lookupJavStudiosByCodePrefixes(ctx context.Context, prefixes []string) (map
 		Count    int64  `gorm:"column:n"`
 	}
 	var rows []row
-	if err := common.DB.WithContext(ctx).
+	if err := Conn().WithContext(ctx).
 		Table("jav j").
 		Select(javCodePrefixSQL("j.code")+" AS prefix, j.studio_id AS studio_id, js.name AS name, COUNT(*) AS n").
 		Joins("JOIN jav_studio js ON js.id = j.studio_id").
@@ -1352,7 +1351,7 @@ func uniqueNonEmpty(values []string) []string {
 // still lack a studio name or tags, so a background lookup can fill card fields.
 func ListIdolWorkCodesNeedingMetadata(ctx context.Context) ([]string, error) {
 	var codes []string
-	if err := common.DB.WithContext(ctx).
+	if err := Conn().WithContext(ctx).
 		Model(&models.JavIdolWork{}).
 		Where(`TRIM(COALESCE(studio_name, '')) = '' OR tags IS NULL OR tags = '' OR tags = '[]'`).
 		Distinct("code").
@@ -1374,7 +1373,7 @@ func ApplyJavInfoToIdolWorks(ctx context.Context, info *jav.JavInfo) error {
 		return nil
 	}
 	var rows []models.JavIdolWork
-	if err := common.DB.WithContext(ctx).Where("UPPER(code) = ?", code).Find(&rows).Error; err != nil {
+	if err := Conn().WithContext(ctx).Where("UPPER(code) = ?", code).Find(&rows).Error; err != nil {
 		return fmt.Errorf("load idol works for metadata: %w", err)
 	}
 	for _, row := range rows {
@@ -1402,7 +1401,7 @@ func ApplyJavInfoToIdolWorks(ctx context.Context, info *jav.JavInfo) error {
 		if info.ReleaseUnix > 0 && row.ReleaseUnix == 0 {
 			updates["release_unix"] = info.ReleaseUnix
 		}
-		if err := common.DB.WithContext(ctx).Model(&models.JavIdolWork{}).
+		if err := Conn().WithContext(ctx).Model(&models.JavIdolWork{}).
 			Where("id = ?", row.ID).
 			Updates(updates).Error; err != nil {
 			return fmt.Errorf("update idol work metadata: %w", err)
@@ -1415,7 +1414,7 @@ func ApplyJavInfoToIdolWorks(ctx context.Context, info *jav.JavInfo) error {
 // still lack a Chinese title, so a background MissAV lookup can fill them.
 func ListCodesMissingTitleZH(ctx context.Context) ([]string, error) {
 	var codes []string
-	if err := common.DB.WithContext(ctx).Raw(`
+	if err := Conn().WithContext(ctx).Raw(`
 		SELECT DISTINCT code FROM jav
 		WHERE TRIM(COALESCE(code, '')) <> '' AND TRIM(COALESCE(zh_title, '')) = ''
 		UNION
@@ -1435,13 +1434,13 @@ func ApplyTitleZH(ctx context.Context, code, titleZH string) error {
 	if code == "" || titleZH == "" {
 		return nil
 	}
-	if err := common.DB.WithContext(ctx).
+	if err := Conn().WithContext(ctx).
 		Model(&models.Jav{}).
 		Where("UPPER(code) = ? AND TRIM(COALESCE(zh_title, '')) = ''", code).
 		Update("zh_title", titleZH).Error; err != nil {
 		return fmt.Errorf("update jav zh_title: %w", err)
 	}
-	if err := common.DB.WithContext(ctx).
+	if err := Conn().WithContext(ctx).
 		Model(&models.JavIdolWork{}).
 		Where("UPPER(code) = ? AND TRIM(COALESCE(title_zh, '')) = ''", code).
 		Update("title_zh", titleZH).Error; err != nil {
@@ -1458,7 +1457,7 @@ func CodeNeedsIdolWorkCardMetadata(ctx context.Context, code string) (bool, erro
 		return false, nil
 	}
 	var count int64
-	if err := common.DB.WithContext(ctx).
+	if err := Conn().WithContext(ctx).
 		Model(&models.JavIdolWork{}).
 		Where("UPPER(code) = ?", code).
 		Where(`TRIM(COALESCE(studio_name, '')) = '' OR tags IS NULL OR tags = '' OR tags = '[]'`).
@@ -1476,7 +1475,7 @@ func CodeNeedsUnimportedScrapeRepair(ctx context.Context, code string) (bool, er
 		return false, nil
 	}
 	var count int64
-	if err := common.DB.WithContext(ctx).
+	if err := Conn().WithContext(ctx).
 		Model(&models.JavIdolWork{}).
 		Where("UPPER(code) = ?", code).
 		Where(unimportedIdolWorkNotInLibrarySQL()).
@@ -1504,7 +1503,7 @@ func CodeNeedsTitleZH(ctx context.Context, code string) (bool, error) {
 		return false, nil
 	}
 	var count int64
-	if err := common.DB.WithContext(ctx).Raw(`
+	if err := Conn().WithContext(ctx).Raw(`
 		SELECT COUNT(*) FROM (
 			SELECT 1 FROM jav
 			WHERE UPPER(code) = ? AND TRIM(COALESCE(zh_title, '')) = ''
@@ -1536,7 +1535,7 @@ func DislikeJavIdolWork(ctx context.Context, idolID int64, code string) error {
 		Code:      code,
 		CreatedAt: time.Now(),
 	}
-	if err := common.DB.WithContext(ctx).
+	if err := Conn().WithContext(ctx).
 		Clauses(clause.OnConflict{DoNothing: true}).
 		Create(&record).Error; err != nil {
 		return fmt.Errorf("dislike jav idol work: %w", err)

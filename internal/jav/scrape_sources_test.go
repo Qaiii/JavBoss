@@ -4,15 +4,15 @@ import (
 	"testing"
 	"time"
 
-	"javboss/internal/jav/avmoo"
-	"javboss/internal/jav/avsox"
-	"javboss/internal/jav/javbus"
-	"javboss/internal/jav/javdatabase"
-	"javboss/internal/jav/javdb"
-	"javboss/internal/jav/javmenu"
-	"javboss/internal/jav/javmodel"
-	"javboss/internal/jav/minnanoav"
-	"javboss/internal/jav/theporndb"
+	"javboss/internal/jav/scrape/avmoo"
+	"javboss/internal/jav/scrape/avsox"
+	"javboss/internal/jav/scrape/javbus"
+	"javboss/internal/jav/scrape/javdatabase"
+	"javboss/internal/jav/scrape/javdb"
+	"javboss/internal/jav/scrape/javmenu"
+	"javboss/internal/jav/scrape/javmodel"
+	"javboss/internal/jav/scrape/minnanoav"
+	"javboss/internal/jav/scrape/theporndb"
 )
 
 func TestScrapeSourcesUseLiveRequestIntervals(t *testing.T) {

@@ -1,7 +1,8 @@
+import { preferChineseTitle } from '@/features/jav/titleTranslation'
 import AppModal from '@/shared/ui/AppModal'
 import { zh } from '@/utils/i18n'
+import { getJavDisplayTitle } from '@/utils/jav'
 import { useStore } from '@/store'
-import { getJavDisplayTitle, javTitlePrefersChinese } from '@/utils/jav'
 
 export default function JavVideoPickerModal({
   open,
@@ -15,11 +16,11 @@ export default function JavVideoPickerModal({
   isVideoOpenable,
   onSelectVideo,
 }) {
-  const preferChineseTitle = useStore((state) => javTitlePrefersChinese(state.config))
+  const translateTitle = useStore((state) => preferChineseTitle(state.config))
   if (!open) return null
 
   const list = Array.isArray(choices) ? choices : []
-  const itemTitle = item ? getJavDisplayTitle(item, preferChineseTitle) : ''
+  const itemTitle = item ? getJavDisplayTitle(item, translateTitle) : ''
 
   return (
     <AppModal

@@ -644,7 +644,7 @@ func refreshDueIdolWorks(ctx context.Context) {
 // in-library codes and a candidate name, trying each code/name combination
 // until one resolves. Solo codes are preferred, mirroring cover selection.
 func lookupJavDBProfileURL(ctx context.Context, item *models.JavIdol) (string, error) {
-	codes, err := dbpkg.ListIdolCoverCodes(ctx, item.ID, nil)
+	codes, err := dbpkg.Default().ListIdolCoverCodes(ctx, item.ID, nil)
 	if err != nil {
 		return "", err
 	}
@@ -686,7 +686,7 @@ func lookupJavDBProfileURL(ctx context.Context, item *models.JavIdol) (string, e
 // consulted as a fallback when JavDB is unavailable, so its extra per-code
 // requests are acceptable.
 func lookupJavDatabaseProfileURL(ctx context.Context, item *models.JavIdol) (string, error) {
-	codes, err := dbpkg.ListIdolCoverCodes(ctx, item.ID, nil)
+	codes, err := dbpkg.Default().ListIdolCoverCodes(ctx, item.ID, nil)
 	if err != nil {
 		return "", err
 	}

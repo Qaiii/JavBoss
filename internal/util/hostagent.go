@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"javboss/internal/common/logging"
-	"javboss/internal/runtimeconfig"
+	"javboss/internal/common"
 )
 
 // hostAgentTimeout bounds how long a single agent call may take. Opening a
@@ -41,7 +41,7 @@ func MapContainerPathToHost(p string) string {
 	if raw == "" {
 		return raw
 	}
-	for _, entry := range strings.Split(runtimeconfig.HostAgentPathMap(), ";") {
+	for _, entry := range strings.Split(common.HostAgentPathMap(), ";") {
 		entry = strings.TrimSpace(entry)
 		if entry == "" {
 			continue
@@ -66,7 +66,7 @@ func MapContainerPathToHost(p string) string {
 			return hostPrefix + rest
 		}
 	}
-	prefix := runtimeconfig.HostAgentPathPrefix()
+	prefix := common.HostAgentPathPrefix()
 	if prefix == "" {
 		return raw
 	}
@@ -93,7 +93,7 @@ func revealViaHostAgent(containerPath string) (bool, error) {
 }
 
 func callHostAgent(action, containerPath string) (bool, error) {
-	baseURL := runtimeconfig.HostAgentURL()
+	baseURL := common.HostAgentURL()
 	if baseURL == "" {
 		return false, ErrHostAgentUnavailable
 	}
@@ -113,7 +113,7 @@ func callHostAgent(action, containerPath string) (bool, error) {
 		return true, fmt.Errorf("build host agent request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	if token := runtimeconfig.HostAgentToken(); token != "" {
+	if token := common.HostAgentToken(); token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
 	logging.Info("host agent %s: container path %q -> host path %q", action, containerPath, hostPath)

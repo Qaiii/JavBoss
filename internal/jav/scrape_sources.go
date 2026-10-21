@@ -3,15 +3,16 @@ package jav
 import (
 	"time"
 
-	"javboss/internal/jav/avmoo"
-	"javboss/internal/jav/avsox"
-	"javboss/internal/jav/javbus"
-	"javboss/internal/jav/javdatabase"
-	"javboss/internal/jav/javdb"
-	"javboss/internal/jav/javmenu"
-	"javboss/internal/jav/javmodel"
-	"javboss/internal/jav/minnanoav"
-	"javboss/internal/jav/theporndb"
+	"javboss/internal/jav/scrape"
+	"javboss/internal/jav/scrape/avmoo"
+	"javboss/internal/jav/scrape/avsox"
+	"javboss/internal/jav/scrape/javbus"
+	"javboss/internal/jav/scrape/javdatabase"
+	"javboss/internal/jav/scrape/javdb"
+	"javboss/internal/jav/scrape/javmenu"
+	"javboss/internal/jav/scrape/javmodel"
+	"javboss/internal/jav/scrape/minnanoav"
+	"javboss/internal/jav/scrape/theporndb"
 )
 
 // ScrapeSource describes one outbound metadata fetch used by JavBoss.
@@ -88,7 +89,7 @@ func ScrapeSources() []ScrapeSource {
 				"https://missav.ws/{CODE}",
 			},
 			Data:       []string{"title_zh"},
-			IntervalMS: scrapeIntervalMS(missAVRequestInterval),
+			IntervalMS: scrapeIntervalMS(scrape.MissAVRequestInterval()),
 		},
 		{
 			ID: "minnanoav",
@@ -114,7 +115,7 @@ func ScrapeSources() []ScrapeSource {
 				"https://avdanyuwiki.com/?s={code}",
 			},
 			Data:       []string{"male_actors"},
-			IntervalMS: scrapeIntervalMS(avdanyuWikiRequestInterval),
+			IntervalMS: scrapeIntervalMS(scrape.AvdanyuWikiRequestInterval()),
 		},
 		{
 			ID: "theporndb",

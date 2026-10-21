@@ -11,6 +11,7 @@ import PlayerSettingsModal from '@/features/settings/components/PlayerSettingsMo
 import WebHotkeySettings from '@/features/settings/components/WebHotkeySettings'
 import ProviderAvailabilityPanel from '@/features/settings/components/ProviderAvailabilityPanel'
 import ResourceDashboard from '@/features/settings/components/ResourceDashboard'
+import TitleTranslationToolSettings from '@/features/settings/components/TitleTranslationToolSettings'
 import { downloadFFmpeg, fetchTools } from '@/features/settings/api'
 import {
   fetchJavScrapeCheck,
@@ -57,6 +58,14 @@ const SETTINGS_SECTIONS = [
     id: 'scrape',
     title: { zh: '信息抓取', en: 'Scraping' },
     summary: { zh: '抓取来源、间隔与待处理队列', en: 'Sources, intervals, and pending queues' },
+  },
+  {
+    id: 'ai-translation',
+    title: { zh: 'AI 翻译', en: 'AI Translation' },
+    summary: {
+      zh: '自动翻译、服务商配置与批量任务',
+      en: 'Automatic translation, provider configuration and batch tasks',
+    },
   },
   {
     id: 'tools',
@@ -1979,32 +1988,37 @@ export default function GlobalSettingsModal({
           </div>
           </aside>
 
-          <section
-            className={`min-h-0 flex-1 overflow-y-auto px-4 pb-4 pt-4 md:px-6 md:pb-6 ${
-              currentSection === 'directories' ? 'md:pt-3' : 'md:pt-6'
-            }`}
-          >
-            {currentSection === 'display' && renderDisplayPanel()}
-            {currentSection === 'resources' && <ResourceDashboard />}
-            {currentSection === 'network' && renderNetworkPanel()}
-            {currentSection === 'jav-providers' && (
-              <ProviderAvailabilityPanel
-                key={`${currentProxyMode}:${proxyHost || ''}:${proxyPort || 0}`}
-                disabled={proxyEditing || savingProxy}
-              />
-            )}
-            {currentSection === 'scrape' && renderScrapePanel()}
-            {currentSection === 'tools' && renderToolsPanel()}
-            {currentSection === 'player' && renderPlayerPanel()}
-            {currentSection === 'directories' && renderDirectoriesPanel()}
-            {currentSection === 'security' && (
-              <div className="space-y-6">
-                <ExtensionTokenSettings onToast={onToast} />
-                {renderSecurityPanel()}
-              </div>
-            )}
-          </section>
-        </div>
+        <section
+          className={`min-h-0 flex-1 overflow-y-auto px-4 pb-4 md:px-6 md:pb-6 ${
+            currentSection === 'ai-translation'
+              ? 'pt-2 md:pt-2'
+              : currentSection === 'directories'
+                ? 'pt-4 md:pt-3'
+                : 'pt-4 md:pt-6'
+          }`}
+        >
+          {currentSection === 'display' && renderDisplayPanel()}
+          {currentSection === 'resources' && <ResourceDashboard />}
+          {currentSection === 'network' && renderNetworkPanel()}
+          {currentSection === 'jav-providers' && (
+            <ProviderAvailabilityPanel
+              key={`${currentProxyMode}:${proxyHost || ''}:${proxyPort || 0}`}
+              disabled={proxyEditing || savingProxy}
+            />
+          )}
+          {currentSection === 'scrape' && renderScrapePanel()}
+          {currentSection === 'ai-translation' && <TitleTranslationToolSettings />}
+          {currentSection === 'tools' && renderToolsPanel()}
+          {currentSection === 'player' && renderPlayerPanel()}
+          {currentSection === 'directories' && renderDirectoriesPanel()}
+          {currentSection === 'security' && (
+            <div className="space-y-6">
+              <ExtensionTokenSettings onToast={onToast} />
+              {renderSecurityPanel()}
+            </div>
+          )}
+        </section>
+      </div>
       <div className="shrink-0 border-t border-app-border bg-app-surface/60 px-6 py-3 text-xs text-app-muted md:hidden">
         {zh('当前版本', 'Version')}：
         {appVersion === 'dev' ? zh('开发版', 'Development') : appVersion || '—'}
