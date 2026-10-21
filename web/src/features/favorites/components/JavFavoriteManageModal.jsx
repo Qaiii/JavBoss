@@ -15,8 +15,6 @@ import SortableList from '@/shared/ui/SortableList'
 import { zh } from '@/utils/i18n'
 import { getErrorMessage } from '@/utils/errors'
 import { getIdolDisplayName } from '@/utils/javIdol'
-import { getJavDisplayTitle, javTitlePrefersChinese } from '@/utils/jav'
-import { useStore } from '@/store'
 
 export default function JavFavoriteManageModal({
   open,
