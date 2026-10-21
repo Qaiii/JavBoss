@@ -80,7 +80,14 @@ function JavSeriesGrid({ items, onSelectSeries, onSelectStudio, onOpenFavorites,
   )
 }
 
-export function SeriesCard({ item, href, onSelectSeries, onSelectStudio, onOpenFavorites }) {
+export function SeriesCard({
+  item,
+  href,
+  onSelectSeries,
+  onSelectStudio,
+  onOpenFavorites,
+  showStudio = true,
+}) {
   const coverOrientation = useStore((state) => cardCoverOrientation('series', state.config))
   const sampleCode = String(item?.sample_code || '').trim()
   const cover = sampleCode ? javCoverSrc(sampleCode) : null
@@ -196,8 +203,8 @@ export function SeriesCard({ item, href, onSelectSeries, onSelectStudio, onOpenF
       </JavDisplayCover>
       <div className="flex flex-1 flex-col gap-1 p-3">
         <div className="line-clamp-2 text-sm font-semibold leading-tight">{name}</div>
-        <div className="flex min-w-0 items-center gap-2 text-xs text-app-muted">
-          {studioName ? (
+        {showStudio && studioName ? (
+          <div className="flex min-w-0 items-center gap-2 text-xs text-app-muted">
             <span className="inline-flex min-w-0 items-center gap-1">
               <Tooltip title={zh('片商', 'Studio')} arrow>
                 <span className="inline-flex">
@@ -215,8 +222,8 @@ export function SeriesCard({ item, href, onSelectSeries, onSelectStudio, onOpenF
                 {studioName}
               </button>
             </span>
-          ) : null}
-        </div>
+          </div>
+        ) : null}
       </div>
     </a>
   )

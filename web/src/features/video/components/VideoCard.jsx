@@ -184,6 +184,31 @@ export default function VideoCard({
             <PhotoLibraryOutlinedIcon className="h-5 w-5 text-white" fontSize="inherit" />
           </button>
         </div>
+        <div className="card-hover-focus-visible absolute left-1/2 top-1/2 z-[2] -translate-x-1/2 -translate-y-1/2 text-white opacity-0 transition-opacity group-hover:opacity-100">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              e.currentTarget.blur()
+              onPlay(video)
+            }}
+            onPointerUp={(e) => {
+              e.currentTarget.blur()
+            }}
+            className="rounded-full bg-black/60 p-3 hover:bg-black/80"
+            aria-label={zh('播放', 'Play')}
+            title={zh('播放', 'Play')}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              className="pointer-events-none h-10 w-10"
+            >
+              <path d="M8 5v14l11-7z" />
+            </svg>
+          </button>
+        </div>
       </div>
 
       <div className="p-3">
@@ -361,31 +386,6 @@ export default function VideoCard({
             </div>
           </Popover>
         </div>
-      </div>
-
-      <div className="card-hover-focus-visible pointer-events-none absolute inset-0 flex items-center justify-center bg-black/0 text-white opacity-0 transition-opacity group-hover:opacity-100">
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            e.currentTarget.blur()
-            onPlay(video)
-          }}
-          onPointerUp={(e) => {
-            e.currentTarget.blur()
-          }}
-          className="pointer-events-auto rounded-full bg-black/60 p-3 hover:bg-black/80"
-          aria-label={zh('播放', 'Play')}
-          title={zh('播放', 'Play')}
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-            fill="currentColor"
-            className="h-10 w-10"
-          >
-            <path d="M8 5v14l11-7z" />
-          </svg>
-        </button>
       </div>
     </div>
   )

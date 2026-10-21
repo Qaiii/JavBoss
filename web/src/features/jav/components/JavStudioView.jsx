@@ -15,11 +15,12 @@ import {
 import AppModal from '@/shared/ui/AppModal'
 import { SeriesCard } from '@/features/jav/components/JavSeriesView'
 import JavDisplayCover from '@/features/jav/components/JavDisplayCover'
+import { studioLogoFor } from '@/features/jav/studioLogos'
 import WaterfallLoader from '@/shared/ui/WaterfallLoader'
 import { useStore } from '@/store'
 import { getErrorMessage } from '@/utils/errors'
 import { zh } from '@/utils/i18n'
-import { cardCoverOrientation, cardGridMinmax } from '@/utils/cardLayout'
+import { cardCoverOrientation } from '@/utils/cardLayout'
 import { javCoverSrc } from '@/utils/jav'
 import { openJavDBWithAssist } from '@/utils/javdb'
 
@@ -78,7 +79,6 @@ function JavStudioGrid({
   buildSeriesUrl,
   onMerged,
 }) {
-  const cardMinmax = useStore((state) => cardGridMinmax('studio', state.config))
   const [editItem, setEditItem] = useState(null)
   const [overrides, setOverrides] = useState(() => new Map())
   const displayItems = useMemo(() => {
@@ -100,14 +100,9 @@ function JavStudioGrid({
 
   return (
     <>
-      <div
-        className="grid gap-4"
-        style={{
-          gridTemplateColumns: `repeat(auto-fill, minmax(${cardMinmax}, 1fr))`,
-        }}
-      >
+      <ul className="flex flex-col gap-4">
         {displayItems.map((item) => (
-          <StudioCard
+          <StudioListItem
             key={item.id || item.name}
             item={item}
             href={buildStudioUrl?.(item)}
@@ -120,7 +115,7 @@ function JavStudioGrid({
             buildSeriesUrl={buildSeriesUrl}
           />
         ))}
-      </div>
+      </ul>
       <JavStudioEditModal
         key={`studio-edit-${editItem?.id || 'closed'}`}
         open={Boolean(editItem)}
@@ -142,6 +137,227 @@ function JavStudioGrid({
         }}
       />
     </>
+  )
+}
+
+function StudioListItem({
+  item,
+  href,
+  onSelectStudio,
+  onSelectSeries,
+  onSelectPrefix,
+  onOpenFavorites,
+  onOpenSeriesFavorites,
+  onOpenEditor,
+  buildSeriesUrl,
+}) {
+  const name = item?.name || zh('未知片商', 'Unknown studio')
+  const studioId = Number(item?.id)
+  const workCount = Number(item?.work_count)
+  const showWorkCount = Number.isFinite(workCount) && workCount > 0
+  const codePrefixes = studioCodePrefixes(item)
+  const seriesItems = studioSeriesItems(item)
+  const favoriteCount = Number(item?.favorite_count) || 0
+  const aliases = studioAliases(item)
+  const sampleCode = String(item?.sample_code || '').trim()
+  const searchName = String(item?.name || '').trim()
+  const javDBSearchURL = searchName
+    ? `https://javdb.com/search?f=maker&q=${encodeURIComponent(searchName)}`
+    : ''
+  const canOpenJavDB = Boolean(javDBSearchURL)
+
+  const handleOpenStudio = (event) => {
+    const selection = window.getSelection?.()
+    if (selection && String(selection).trim() !== '') {
+      event.preventDefault()
+      return
+    }
+    const isModified = event.metaKey || event.ctrlKey || event.shiftKey || event.altKey
+    if (isModified || event.button !== 0) return
+    event.preventDefault()
+    onSelectStudio?.(item)
+  }
+
+  const handleOpenJavDB = (event) => {
+    event.preventDefault()
+    event.stopPropagation()
+    if (!canOpenJavDB) return
+    openJavDBWithAssist(javDBSearchURL, {
+      target: 'studio',
+      code: sampleCode,
+      name: searchName,
+    })
+  }
+
+  const handleOpenFavorites = (event) => {
+    event.preventDefault()
+    event.stopPropagation()
+    onOpenFavorites?.(item)
+  }
+
+  const handleOpenEditor = (event) => {
+    event.preventDefault()
+    event.stopPropagation()
+    onOpenEditor?.(item)
+  }
+
+  const handlePrefixClick = (prefixItem, event) => {
+    event.preventDefault()
+    event.stopPropagation()
+    const prefix = String(prefixItem?.prefix || '').trim()
+    if (!prefix) return
+    onSelectPrefix?.({
+      prefix,
+      work_count: prefixItem?.work_count || 0,
+      include_studio_filter: true,
+      studio_id: Number.isFinite(studioId) && studioId > 0 ? studioId : null,
+      studio_name: name,
+    })
+  }
+
+  return (
+    <li className="app-card flex flex-col xl:flex-row">
+      <div className="flex min-w-0 gap-4 border-b border-app-border p-4 xl:w-80 xl:shrink-0 xl:flex-col xl:border-b-0 xl:border-r">
+        <a href={href || '#'} className="shrink-0" onClick={handleOpenStudio}>
+          <StudioLogo name={name} aliases={aliases} />
+        </a>
+        <div className="flex min-w-0 flex-1 flex-col gap-2">
+          <div className="flex items-start justify-between gap-2">
+            <a href={href || '#'} className="min-w-0 flex-1" onClick={handleOpenStudio}>
+              <div className="truncate text-base font-semibold text-app-text" title={name}>
+                {name}
+              </div>
+              {aliases.length > 0 ? (
+                <div className="truncate text-xs text-app-muted" title={aliases.join(', ')}>
+                  {zh(aliases.join('、'), aliases.join(', '))}
+                </div>
+              ) : null}
+            </a>
+            <div className="flex shrink-0 items-center gap-1">
+              <button
+                type="button"
+                className={`flex h-8 w-8 items-center justify-center rounded-full transition ${
+                  favoriteCount > 0
+                    ? 'bg-amber-400 text-amber-950 hover:bg-amber-300'
+                    : 'bg-app-surface-2 text-app-muted hover:text-app-text'
+                }`}
+                title={zh('加入片商收藏夹', 'Add to studio favorite groups')}
+                aria-label={zh('加入片商收藏夹', 'Add to studio favorite groups')}
+                onClick={handleOpenFavorites}
+              >
+                {favoriteCount > 0 ? (
+                  <StarRoundedIcon sx={{ fontSize: 18 }} />
+                ) : (
+                  <StarBorderRoundedIcon sx={{ fontSize: 18 }} />
+                )}
+              </button>
+              <button
+                type="button"
+                className={`flex h-8 w-8 items-center justify-center rounded-full bg-app-surface-2 ${
+                  canOpenJavDB
+                    ? 'text-app-text hover:bg-app-hover'
+                    : 'cursor-not-allowed text-app-muted'
+                }`}
+                title={zh('在 JavDB 中搜索片商', 'Search for studio in JavDB')}
+                aria-label={zh('在 JavDB 中搜索片商', 'Search for studio in JavDB')}
+                disabled={!canOpenJavDB}
+                onClick={handleOpenJavDB}
+              >
+                <img src="/ico/javdb.png" alt="" className="h-4 w-4" />
+              </button>
+              {onOpenEditor ? (
+                <button
+                  type="button"
+                  className="flex h-8 w-8 items-center justify-center rounded-full bg-app-surface-2 text-app-text hover:bg-app-hover"
+                  title={zh('编辑片商信息', 'Edit studio info')}
+                  aria-label={zh('编辑片商信息', 'Edit studio info')}
+                  onClick={handleOpenEditor}
+                >
+                  <EditRoundedIcon sx={{ fontSize: 16 }} />
+                </button>
+              ) : null}
+            </div>
+          </div>
+          {showWorkCount ? (
+            <div className="text-xs text-app-muted">
+              {zh(`作品 ${workCount}`, `${workCount} works`)}
+            </div>
+          ) : null}
+          {codePrefixes.length > 0 ? (
+            <div className="flex max-h-24 flex-wrap gap-1 overflow-y-auto">
+              {codePrefixes.map((prefixItem) => (
+                <button
+                  type="button"
+                  key={prefixItem.prefix}
+                  className="hover:border-app-gold/50 rounded border border-app-border bg-app-surface-2 px-1.5 py-0.5 text-[11px] font-medium leading-4 text-app-text hover:bg-app-gold-soft hover:text-app-gold"
+                  title={zh(
+                    `查看 ${prefixItem.prefix} 的全部作品`,
+                    `Show all ${prefixItem.prefix} works`
+                  )}
+                  onClick={(event) => handlePrefixClick(prefixItem, event)}
+                >
+                  <span>{prefixItem.prefix}</span>
+                  {prefixItem.work_count ? (
+                    <span className="ml-1 text-[10px] text-app-muted">{prefixItem.work_count}</span>
+                  ) : null}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      </div>
+      <div className="min-w-0 flex-1 p-4">
+        <div className="mb-3 text-xs font-semibold text-app-muted">
+          {zh(`系列 ${seriesItems.length}`, `Series ${seriesItems.length}`)}
+        </div>
+        {seriesItems.length > 0 ? (
+          <ul className="flex gap-3 overflow-x-auto pb-1">
+            {seriesItems.map((series) => (
+              <li key={series.id} className="w-44 shrink-0">
+                <SeriesCard
+                  item={series}
+                  href={buildSeriesUrl?.(series)}
+                  onSelectSeries={onSelectSeries}
+                  onSelectStudio={onSelectStudio}
+                  onOpenFavorites={onOpenSeriesFavorites}
+                  showStudio={false}
+                />
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <div className="flex min-h-24 items-center text-sm text-app-muted">
+            {zh('暂无系列', 'No series')}
+          </div>
+        )}
+      </div>
+    </li>
+  )
+}
+
+function StudioLogo({ name, aliases }) {
+  const logo = studioLogoFor([name, ...aliases])
+  const [failed, setFailed] = useState(false)
+  const plateClass =
+    logo?.plate === 'light' ? 'bg-white' : logo?.plate === 'dark' ? 'bg-neutral-950' : ''
+  if (!logo || failed) {
+    return (
+      <div className="flex h-24 w-40 items-center justify-center rounded-xl border border-app-border bg-app-surface-2 px-3 text-center text-sm font-semibold leading-tight text-app-text">
+        {name}
+      </div>
+    )
+  }
+  return (
+    <div
+      className={`flex h-24 w-40 items-center justify-center overflow-hidden rounded-xl ${plateClass}`}
+    >
+      <img
+        src={logo.src}
+        alt=""
+        className="max-h-20 max-w-[9.5rem] object-contain"
+        onError={() => setFailed(true)}
+      />
+    </div>
   )
 }
 
@@ -170,33 +386,8 @@ export function StudioCard({
   const studioId = Number(item?.id)
   const workCount = Number(item?.work_count)
   const showWorkCount = Number.isFinite(workCount) && workCount > 0
-  const codePrefixes = Array.isArray(item?.code_prefixes)
-    ? item.code_prefixes
-        .map((prefixItem) => {
-          if (typeof prefixItem === 'string') {
-            const prefix = prefixItem.trim()
-            return prefix ? { prefix, work_count: null } : null
-          }
-          const prefix = String(prefixItem?.prefix || '').trim()
-          if (!prefix) return null
-          const prefixWorkCount = Number(prefixItem?.work_count)
-          return {
-            prefix,
-            work_count:
-              Number.isFinite(prefixWorkCount) && prefixWorkCount > 0 ? prefixWorkCount : null,
-          }
-        })
-        .filter(Boolean)
-    : []
-  const seriesItems = useMemo(
-    () =>
-      Array.isArray(item?.series)
-        ? item.series.filter(
-            (series) => Number(series?.id) > 0 && String(series?.name || '').trim()
-          )
-        : [],
-    [item?.series]
-  )
+  const codePrefixes = studioCodePrefixes(item)
+  const seriesItems = useMemo(() => studioSeriesItems(item), [item])
   const favoriteCount = Number(item?.favorite_count) || 0
   const aliases = Array.isArray(item?.aliases)
     ? item.aliases.map((alias) => String(alias || '').trim()).filter(Boolean)
@@ -1120,6 +1311,39 @@ function JavStudioMergeModal({ open, item, onClose, onMerged }) {
       </div>
     </AppModal>
   )
+}
+
+function studioAliases(item) {
+  return Array.isArray(item?.aliases)
+    ? item.aliases.map((alias) => String(alias || '').trim()).filter(Boolean)
+    : []
+}
+
+function studioSeriesItems(item) {
+  return Array.isArray(item?.series)
+    ? item.series.filter((series) => Number(series?.id) > 0 && String(series?.name || '').trim())
+    : []
+}
+
+function studioCodePrefixes(item) {
+  return Array.isArray(item?.code_prefixes)
+    ? item.code_prefixes
+        .map((prefixItem) => {
+          if (typeof prefixItem === 'string') {
+            const prefix = prefixItem.trim()
+            return prefix ? { prefix, work_count: null } : null
+          }
+          const prefix = String(prefixItem?.prefix || '').trim()
+          if (!prefix) return null
+          const prefixWorkCount = Number(prefixItem?.work_count)
+          return {
+            prefix,
+            work_count:
+              Number.isFinite(prefixWorkCount) && prefixWorkCount > 0 ? prefixWorkCount : null,
+          }
+        })
+        .filter(Boolean)
+    : []
 }
 
 function buildStudioEditForm(item) {

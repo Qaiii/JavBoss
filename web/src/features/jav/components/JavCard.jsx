@@ -131,11 +131,12 @@ export default function JavCard(props) {
             onClick={handleOpenDetail}
             aria-label={zh(`查看 ${code || 'JAV'} 详情`, `View ${code || 'JAV'} details`)}
           />
-          <div className="card-hover-focus-visible pointer-events-none absolute inset-0 z-[2] flex items-center justify-center bg-black/0 text-white opacity-0 transition-opacity group-hover:opacity-100">
+          <div className="card-hover-focus-visible absolute left-1/2 top-1/2 z-[3] -translate-x-1/2 -translate-y-1/2 opacity-0 transition-opacity group-hover:opacity-100">
             <button
+              type="button"
               onClick={handlePlay}
               disabled={!canPlay}
-              className={`card-modal-trigger pointer-events-auto rounded-full p-3 ${
+              className={`pointer-events-auto rounded-full p-3 text-white ${
                 canPlay ? 'bg-black/60 hover:bg-black/80' : 'cursor-not-allowed bg-black/30'
               }`}
               aria-label={zh('播放', 'Play')}
@@ -145,7 +146,7 @@ export default function JavCard(props) {
                 xmlns="http://www.w3.org/2000/svg"
                 viewBox="0 0 24 24"
                 fill="currentColor"
-                className="h-10 w-10"
+                className="pointer-events-none h-10 w-10"
               >
                 <path d="M8 5v14l11-7z" />
               </svg>

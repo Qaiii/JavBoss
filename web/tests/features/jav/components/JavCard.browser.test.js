@@ -166,3 +166,62 @@ test(
     await waitFor(actionsHaveOpacity(1))
   }
 )
+
+test(
+  'JAV cover play button receives the center click',
+  { skip: browserUnavailable, timeout: 60000 },
+  async (t) => {
+    const { origin, command, evaluate, waitFor } = await openBrowser(t, {
+      cacheDir: 'node_modules/.vite-jav-card-play-test',
+    })
+    await command('Emulation.setDeviceMetricsOverride', {
+      width: 1280,
+      height: 900,
+      deviceScaleFactor: 1,
+      mobile: false,
+    })
+    await command('Page.navigate', { url: `${origin}/tests/fixtures/app.html?view=jav` })
+    const cover = `document.querySelector('.jav-card .card-hover-scope')`
+    const playButton = `${cover}.querySelector('button[aria-label="Play"]')`
+    const modal = `document.querySelector('[aria-labelledby="jav-detail-title-1"]')`
+    await waitFor(cover)
+    await evaluate(`window.testStore.setState(state => ({
+      javItems: state.javItems.map(item => ({
+        ...item,
+        videos: [{ id: 9, filename: 'a.mp4', path: 'a.mp4', directory: { path: '/videos' } }],
+      })),
+    }))`)
+    await waitFor(`${playButton} && !${playButton}.disabled`)
+    const point = await evaluate(`(() => {
+      const rect = ${playButton}.getBoundingClientRect();
+      return {x: rect.x + rect.width / 2, y: rect.y + rect.height / 2};
+    })()`)
+    const hit = await evaluate(`(() => {
+      const el = document.elementFromPoint(${point.x}, ${point.y});
+      const button = el && el.closest('button');
+      return {
+        label: button ? button.getAttribute('aria-label') : '',
+        detail: Boolean(button && button.classList.contains('card-detail-trigger')),
+      };
+    })()`)
+    assert.equal(hit.label, 'Play')
+    assert.equal(hit.detail, false)
+    await command('Input.dispatchMouseEvent', { type: 'mouseMoved', ...point })
+    await command('Input.dispatchMouseEvent', {
+      type: 'mousePressed',
+      ...point,
+      button: 'left',
+      clickCount: 1,
+    })
+    await command('Input.dispatchMouseEvent', {
+      type: 'mouseReleased',
+      ...point,
+      button: 'left',
+      clickCount: 1,
+    })
+    await waitFor(
+      `window.requests.some(request => request.url === '/videos/play' && request.method === 'POST')`
+    )
+    assert.equal(await evaluate(`Boolean(${modal})`), false)
+  }
+)
