@@ -1777,6 +1777,8 @@ body.has-page-scroll .idol-profile .sticky-pagination {
   top: var(--topbar-height);
   z-index: 0;
   height: var(--idol-hero-height);
+  /* Dia hit-tests this sticky poster above the works even though they paint on top. */
+  pointer-events: none;
   width: calc(100% + var(--page-left-padding) + var(--page-right-padding));
   margin-left: calc(-1 * var(--page-left-padding));
   margin-right: calc(-1 * var(--page-right-padding));

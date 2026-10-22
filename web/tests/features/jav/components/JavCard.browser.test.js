@@ -201,7 +201,7 @@ test(
       const button = el && el.closest('button');
       return {
         label: button ? button.getAttribute('aria-label') : '',
-        detail: Boolean(button && button.classList.contains('card-detail-trigger')),
+        detail: Boolean(button && button.classList.contains('card-modal-trigger')),
       };
     })()`)
     assert.equal(hit.label, 'Play')

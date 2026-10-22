@@ -131,27 +131,31 @@ export default function JavCard(props) {
             onClick={handleOpenDetail}
             aria-label={zh(`查看 ${code || 'JAV'} 详情`, `View ${code || 'JAV'} details`)}
           />
-          <div className="card-hover-focus-visible absolute left-1/2 top-1/2 z-[3] -translate-x-1/2 -translate-y-1/2 opacity-0 transition-opacity group-hover:opacity-100">
+          {item?.in_library === false ? (
+            <span className="pointer-events-none absolute left-1/2 top-2 z-10 -translate-x-1/2 rounded-full bg-black/70 px-2 py-0.5 text-xs text-white">
+              {zh('未入库', 'Not in library')}
+            </span>
+          ) : null}
+          {canPlay ? (
             <button
               type="button"
               onClick={handlePlay}
-              disabled={!canPlay}
-              className={`pointer-events-auto rounded-full p-3 text-white ${
-                canPlay ? 'bg-black/60 hover:bg-black/80' : 'cursor-not-allowed bg-black/30'
-              }`}
+              className="absolute left-1/2 top-1/2 z-[3] flex h-16 w-16 -translate-x-1/2 -translate-y-1/2 items-center justify-center"
               aria-label={zh('播放', 'Play')}
               title={zh('播放', 'Play')}
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="currentColor"
-                className="pointer-events-none h-10 w-10"
-              >
-                <path d="M8 5v14l11-7z" />
-              </svg>
+              <span className="card-hover-focus-visible pointer-events-none rounded-full bg-black/60 p-3 text-white opacity-0 transition-opacity group-hover:bg-black/80 group-hover:opacity-100">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                  className="h-10 w-10"
+                >
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+              </span>
             </button>
-          </div>
+          ) : null}
           <div
             className="absolute left-2 top-2 z-10 flex items-center gap-1"
             onMouseLeave={() => {

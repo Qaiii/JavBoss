@@ -744,11 +744,13 @@ export default function JavDetailModal({
             {canPlay ? (
               <button
                 type="button"
-                className="absolute left-1/2 top-1/2 z-[1] flex h-20 w-20 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-black/65 text-white opacity-0 shadow-lg transition hover:bg-black/80 focus-visible:opacity-100 group-hover:opacity-100"
+                className="absolute left-1/2 top-1/2 z-[1] flex h-20 w-20 -translate-x-1/2 -translate-y-1/2 items-center justify-center"
                 onClick={onPlay}
                 aria-label={zh('播放', 'Play')}
               >
-                <PlayArrowIcon sx={{ fontSize: 54 }} />
+                <span className="pointer-events-none flex h-20 w-20 items-center justify-center rounded-full bg-black/65 text-white opacity-0 shadow-lg transition group-hover:bg-black/80 group-hover:opacity-100 group-focus-visible:opacity-100">
+                  <PlayArrowIcon sx={{ fontSize: 54 }} />
+                </span>
               </button>
             ) : null}
           </JavDisplayCover>
